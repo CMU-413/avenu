@@ -1,0 +1,28 @@
+flowchart LR
+    User["User"]
+    Optix["Optix Canvas"]
+    SMTP["SMTP Server"]
+
+    subgraph System["Mail Notification System"]
+        Auth["Auth Service"]
+        MailboxSvc["Mailbox Service"]
+        PrefsSvc["User Preferences Service"]
+        NotifSvc["Notification Orchestrator"]
+        UserStore[("UserPrefs Collection")]
+        MailStore[("Mail Collection")]
+    end
+
+    %% Authentication
+    User -->|"launches app"| Optix
+    Optix -->|"canvas auth context"| Auth
+    Auth -->|"authenticated user identity"| MailboxSvc
+
+    %% Preference update (inside system, post-auth)
+    MailboxSvc -->|"authorized user context"| PrefsSvc
+    PrefsSvc -->|"persist prefs"| UserStore
+
+    %% Notification path (later)
+    MailStore -->|"mailbox context"| NotifSvc
+    PrefsSvc -->|"notification settings"| NotifSvc
+
+    NotifSvc -->|"send email"| SMTP

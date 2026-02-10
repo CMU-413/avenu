@@ -1,0 +1,47 @@
+erDiagram
+
+    USER {
+        ObjectId id PK
+        int optixId
+        boolean is_admin
+        string fullname
+        string email
+        string phone
+        ObjectId[] teamIds
+    }
+
+    USER_PREFS {
+        ObjectId id PK
+        boolean notifEmail
+        boolean notifText
+    }
+
+    TEAM {
+        ObjectId id PK
+        int optixId
+        string name
+    }
+
+    MAILBOX {
+        ObjectId id PK
+        enum type "user | team"
+        ObjectId refId
+        string displayName
+        string[] searchTokens
+    }
+
+    MAIL {
+        ObjectId id PK
+        datetime date
+        enum type "letter | package"
+        int count
+    }
+
+    %% Relationships
+    USER ||--o| USER_PREFS : has
+    USER }|--o{ TEAM : belongs_to
+
+    USER ||--|| MAILBOX : owns
+    TEAM ||--|| MAILBOX : owns
+
+    MAILBOX ||--o{ MAIL : contains
