@@ -1,11 +1,11 @@
 import { useState } from 'react'
-import { useParam } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
 import './App.css'
 
 const API_BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:5001'
 
 function AdminMailIntakeForm() {
-    const mailboxId = useParam('mailboxId');
+    const { mailboxId } = useParams();
     const [date, setDate] = useState(Date.now());
     const [letterCount, setLetterCount] = useState(0);
     const [packageCount, setPackageCount] = useState(0);
