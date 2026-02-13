@@ -3,17 +3,12 @@ erDiagram
     USER {
         ObjectId id PK
         int optixId
-        boolean is_admin
+        boolean isAdmin
         string fullname
         string email
         string phone
         ObjectId[] teamIds
-    }
-
-    USER_PREFS {
-        ObjectId id PK
-        boolean notifEmail
-        boolean notifText
+        enum[] notifPrefs "email | text"
     }
 
     TEAM {
