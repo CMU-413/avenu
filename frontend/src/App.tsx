@@ -22,8 +22,8 @@ const App = () => (
         <Routes>
           <Route path="/" element={<Login />} />
           <Route path="/admin" element={<AdminDashboard />} />
-          <Route path="/admin/add" element={<SearchMailbox />} />
-          <Route path="/admin/add/record/:mailboxId" element={<RecordEntry />} />
+          <Route path="/admin/mailboxes" element={<SearchMailbox />} />
+          <Route path="/admin/mailboxes/:mailboxId" element={<RecordEntry />} />
           <Route path="/member" element={<MemberDashboard />} />
           <Route path="/member/settings" element={<NotificationSettings />} />
           <Route path="*" element={<NotFound />} />

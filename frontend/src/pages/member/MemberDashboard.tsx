@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAppStore } from "@/lib/store";
 import { mailboxes } from "@/lib/mock-data";
 import { Settings, LogOut, Mail, Package } from "lucide-react";
+import { sessionLogout } from "@/lib/api";
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -42,9 +43,13 @@ const MemberDashboard = () => {
 
   const week = useMemo(() => getWeekRange(weeksAgo), [weeksAgo]);
 
-  const handleLogout = () => {
-    logout();
-    navigate("/");
+  const handleLogout = async () => {
+    try {
+      await sessionLogout();
+    } finally {
+      logout();
+      navigate("/");
+    }
   };
 
   if (!member) {

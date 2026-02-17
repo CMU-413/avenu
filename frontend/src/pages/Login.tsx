@@ -4,20 +4,46 @@ import { useAppStore } from "@/lib/store";
 import { members } from "@/lib/mock-data";
 import { Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ApiError, listMailboxes, sessionLogin } from "@/lib/api";
+import { useToast } from "@/hooks/use-toast";
 
 const Login = () => {
   const navigate = useNavigate();
   const login = useAppStore((s) => s.login);
-  const [selectedMember, setSelectedMember] = useState(members[0].id);
+  const { toast } = useToast();
+  const [email, setEmail] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const handleAdmin = () => {
-    login("admin");
-    navigate("/admin");
-  };
+  const handleSubmit = async () => {
+    if (!email.trim()) {
+      toast({ title: "Enter email", variant: "destructive" });
+      return;
+    }
+    setLoading(true);
+    try {
+      const normalized = email.trim().toLowerCase();
+      await sessionLogin(normalized);
 
-  const handleMember = () => {
-    login("member", selectedMember);
-    navigate("/member");
+      try {
+        await listMailboxes();
+        login("admin");
+        navigate("/admin");
+        return;
+      } catch (roleErr) {
+        if (roleErr instanceof ApiError && roleErr.status === 403) {
+          const member = members.find((m) => m.email.toLowerCase() === normalized);
+          login("member", member?.id);
+          navigate("/member");
+          return;
+        }
+        throw roleErr;
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unable to sign in";
+      toast({ title: message, variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -32,34 +58,17 @@ const Login = () => {
         </div>
 
         <div className="space-y-3">
-          <Button onClick={handleAdmin} className="w-full h-12 text-base" variant="default">
-            Sign in as Admin
-          </Button>
-
-          <div className="relative">
-            <div className="absolute inset-0 flex items-center">
-              <span className="w-full border-t" />
-            </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-background px-2 text-muted-foreground">or</span>
-            </div>
-          </div>
-
           <div className="space-y-2">
-            <label className="text-sm font-medium text-foreground">Member account</label>
-            <select
-              value={selectedMember}
-              onChange={(e) => setSelectedMember(e.target.value)}
+            <label className="text-sm font-medium text-foreground">Email</label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="you@example.com"
               className="w-full h-10 rounded-lg border border-input bg-background px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-            >
-              {members.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.name}
-                </option>
-              ))}
-            </select>
-            <Button onClick={handleMember} variant="secondary" className="w-full h-12 text-base">
-              Sign in as Member
+            />
+            <Button onClick={handleSubmit} className="w-full h-12 text-base" variant="default" disabled={loading}>
+              {loading ? "Signing in..." : "Sign in"}
             </Button>
           </div>
         </div>

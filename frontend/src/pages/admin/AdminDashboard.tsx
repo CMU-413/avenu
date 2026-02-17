@@ -1,38 +1,118 @@
-import { useState, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAppStore } from "@/lib/store";
-import { mailboxes } from "@/lib/mock-data";
-import { Plus, LogOut, Search, Mail, Package } from "lucide-react";
+import { Plus, LogOut, Mail, Package } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ApiError, listMail, listMailboxes, sessionLogout } from "@/lib/api";
+import { useToast } from "@/hooks/use-toast";
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
-  const { records, logout } = useAppStore();
-  const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split("T")[0]);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const logout = useAppStore((s) => s.logout);
+  const { toast } = useToast();
+  const [selectedDate, setSelectedDate] = useState(
+    () => searchParams.get("date") || new Date().toISOString().split("T")[0]
+  );
+  const [mailboxes, setMailboxes] = useState<
+    { id: string; name: string; type: "company" | "personal" }[]
+  >([]);
+  const [records, setRecords] = useState<
+    { id: string; mailboxId: string; type: "letter" | "package"; count: number }[]
+  >([]);
+  const [loading, setLoading] = useState(true);
 
-  const dayRecords = useMemo(() => {
-    return records.filter((r) => r.date === selectedDate);
-  }, [records, selectedDate]);
+  useEffect(() => {
+    let alive = true;
+    const loadMailboxes = async () => {
+      try {
+        const items = await listMailboxes();
+        if (!alive) return;
+        setMailboxes(
+          items.map((mb) => ({
+            id: mb.id,
+            name: mb.displayName,
+            type: mb.type === "team" ? "company" : "personal",
+          }))
+        );
+      } catch (err) {
+        if (!alive) return;
+        const message = err instanceof Error ? err.message : "Failed to load mailboxes";
+        toast({ title: message, variant: "destructive" });
+        if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
+          logout();
+          navigate("/");
+        }
+      }
+    };
+    loadMailboxes();
+    return () => {
+      alive = false;
+    };
+  }, [logout, navigate, toast]);
+
+  useEffect(() => {
+    let alive = true;
+    const loadMail = async () => {
+      setLoading(true);
+      try {
+        const items = await listMail({ date: selectedDate });
+        if (!alive) return;
+        setRecords(
+          items.map((item) => ({
+            id: item.id,
+            mailboxId: item.mailboxId,
+            type: item.type,
+            count: item.count,
+          }))
+        );
+      } catch (err) {
+        if (!alive) return;
+        const message = err instanceof Error ? err.message : "Failed to load records";
+        toast({ title: message, variant: "destructive" });
+        if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
+          logout();
+          navigate("/");
+        }
+      } finally {
+        if (alive) setLoading(false);
+      }
+    };
+    loadMail();
+    return () => {
+      alive = false;
+    };
+  }, [selectedDate, logout, navigate, toast]);
+
+  useEffect(() => {
+    setSearchParams({ date: selectedDate }, { replace: true });
+  }, [selectedDate, setSearchParams]);
 
   // Aggregate by mailbox
   const aggregated = useMemo(() => {
     const map = new Map<string, { letters: number; packages: number }>();
-    for (const r of dayRecords) {
+    for (const r of records) {
       const existing = map.get(r.mailboxId) || { letters: 0, packages: 0 };
       map.set(r.mailboxId, {
-        letters: existing.letters + r.letters,
-        packages: existing.packages + r.packages,
+        letters: existing.letters + (r.type === "letter" ? r.count : 0),
+        packages: existing.packages + (r.type === "package" ? r.count : 0),
       });
     }
-    return Array.from(map.entries()).map(([mbId, counts]) => ({
-      mailbox: mailboxes.find((m) => m.id === mbId),
-      ...counts,
-    }));
-  }, [dayRecords]);
+    return Array.from(map.entries())
+      .map(([mbId, counts]) => ({
+        mailbox: mailboxes.find((m) => m.id === mbId),
+        ...counts,
+      }))
+      .filter((item) => !!item.mailbox);
+  }, [mailboxes, records]);
 
-  const handleLogout = () => {
-    logout();
-    navigate("/");
+  const handleLogout = async () => {
+    try {
+      await sessionLogout();
+    } finally {
+      logout();
+      navigate("/");
+    }
   };
 
   const formatDisplayDate = (dateStr: string) => {
@@ -62,7 +142,7 @@ const AdminDashboard = () => {
         />
 
         {/* Add record button */}
-        <Button onClick={() => navigate("/admin/add")} className="w-full h-12 text-base gap-2">
+        <Button onClick={() => navigate(`/admin/mailboxes?date=${selectedDate}`)} className="w-full h-12 text-base gap-2">
           <Plus className="h-5 w-5" />
           Add Record
         </Button>
@@ -83,14 +163,18 @@ const AdminDashboard = () => {
             </div>
           </div>
 
-          {aggregated.length === 0 ? (
+          {loading ? (
+            <div className="py-12 text-center text-muted-foreground text-sm">
+              Loading...
+            </div>
+          ) : aggregated.length === 0 ? (
             <div className="py-12 text-center text-muted-foreground text-sm">
               No records for this date
             </div>
           ) : (
             <div className="divide-y divide-border rounded-xl border bg-card overflow-hidden">
               {aggregated.map((item, i) => (
-                <div key={i} onClick={() => navigate(`/admin/add/record/${item.mailbox?.id}`)} className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-muted/50 transition-colors">
+                <div key={i} onClick={() => navigate(`/admin/mailboxes/${item.mailbox?.id}?date=${selectedDate}`)} className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-muted/50 transition-colors">
                   <div>
                     <p className="text-sm font-medium text-card-foreground">{item.mailbox?.name}</p>
                     <p className="text-xs text-muted-foreground capitalize">{item.mailbox?.type}</p>

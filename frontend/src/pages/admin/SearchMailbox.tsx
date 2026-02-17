@@ -1,15 +1,86 @@
-import { useState, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
-import { mailboxes } from "@/lib/mock-data";
+import { useEffect, useMemo, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { Search, ArrowLeft, ChevronRight } from "lucide-react";
+import { ApiError, listMailboxes, listTeams, listUsers } from "@/lib/api";
+import { useToast } from "@/hooks/use-toast";
+import { useAppStore } from "@/lib/store";
 
 const SearchMailbox = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const selectedDate = new URLSearchParams(location.search).get("date");
+  const logout = useAppStore((s) => s.logout);
+  const { toast } = useToast();
   const [query, setQuery] = useState("");
+  const [mailboxes, setMailboxes] = useState<
+    { id: string; name: string; type: "company" | "personal"; memberNames: string[] }[]
+  >([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let alive = true;
+    const load = async () => {
+      setLoading(true);
+      try {
+        const [mailboxList, userList, teamList] = await Promise.all([
+          listMailboxes(),
+          listUsers(),
+          listTeams(),
+        ]);
+        if (!alive) return;
+
+        const usersById = new Map(userList.map((u) => [u.id, u]));
+        const teamMembers = new Map<string, string[]>();
+        for (const team of teamList) {
+          teamMembers.set(
+            team.id,
+            userList
+              .filter((u) => u.teamIds.includes(team.id))
+              .map((u) => u.fullname)
+          );
+        }
+
+        setMailboxes(
+          mailboxList.map((mb) => {
+            const memberNames =
+              mb.type === "user"
+                ? [usersById.get(mb.refId)?.fullname].filter(Boolean) as string[]
+                : teamMembers.get(mb.refId) || [];
+            return {
+              id: mb.id,
+              name: mb.displayName,
+              type: mb.type === "team" ? "company" : "personal",
+              memberNames,
+            };
+          })
+        );
+      } catch (err) {
+        if (!alive) return;
+        const message = err instanceof Error ? err.message : "Failed to load mailboxes";
+        toast({ title: message, variant: "destructive" });
+        if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
+          logout();
+          navigate("/");
+        }
+      } finally {
+        if (alive) setLoading(false);
+      }
+    };
+
+    load();
+    return () => {
+      alive = false;
+    };
+  }, [logout, navigate, toast]);
 
   const filtered = useMemo(() => {
     const q = query.toLowerCase().trim();
-    if (!q) return { company: mailboxes.filter((m) => m.type === "company"), personal: mailboxes.filter((m) => m.type === "personal") };
+    if (!q) {
+      return {
+        company: mailboxes.filter((m) => m.type === "company"),
+        personal: mailboxes.filter((m) => m.type === "personal"),
+      };
+    }
 
     const matchedByName = mailboxes.filter((m) => m.name.toLowerCase().includes(q));
     const matchedByMember = mailboxes.filter(
@@ -20,7 +91,7 @@ const SearchMailbox = () => {
       company: all.filter((m) => m.type === "company"),
       personal: all.filter((m) => m.type === "personal"),
     };
-  }, [query]);
+  }, [mailboxes, query]);
 
   const hasResults = filtered.company.length > 0 || filtered.personal.length > 0;
 
@@ -29,7 +100,7 @@ const SearchMailbox = () => {
       {/* Header */}
       <header className="sticky top-0 z-10 border-b bg-background/95 backdrop-blur">
         <div className="flex items-center gap-3 px-4 h-14">
-          <button onClick={() => navigate("/admin")} className="text-muted-foreground hover:text-foreground transition-colors">
+          <button onClick={() => navigate(`/admin${selectedDate ? `?date=${selectedDate}` : ""}`)} className="text-muted-foreground hover:text-foreground transition-colors">
             <ArrowLeft className="h-5 w-5" />
           </button>
           <h1 className="text-lg font-bold text-foreground">Select Mailbox</h1>
@@ -50,7 +121,11 @@ const SearchMailbox = () => {
           />
         </div>
 
-        {!hasResults && (
+        {loading && (
+          <p className="py-8 text-center text-sm text-muted-foreground">Loading...</p>
+        )}
+
+        {!loading && !hasResults && (
           <p className="py-8 text-center text-sm text-muted-foreground">No mailboxes found</p>
         )}
 
@@ -62,7 +137,7 @@ const SearchMailbox = () => {
               {filtered.company.map((mb) => (
                 <button
                   key={mb.id}
-                  onClick={() => navigate(`/admin/add/record/${mb.id}`)}
+                  onClick={() => navigate(`/admin/mailboxes/${mb.id}${selectedDate ? `?date=${selectedDate}` : ""}`)}
                   className="w-full flex items-center justify-between px-4 py-3 hover:bg-muted/50 transition-colors text-left"
                 >
                   <span className="text-sm font-medium text-card-foreground">{mb.name}</span>
@@ -81,7 +156,7 @@ const SearchMailbox = () => {
               {filtered.personal.map((mb) => (
                 <button
                   key={mb.id}
-                  onClick={() => navigate(`/admin/add/record/${mb.id}`)}
+                  onClick={() => navigate(`/admin/mailboxes/${mb.id}${selectedDate ? `?date=${selectedDate}` : ""}`)}
                   className="w-full flex items-center justify-between px-4 py-3 hover:bg-muted/50 transition-colors text-left"
                 >
                   <span className="text-sm font-medium text-card-foreground">{mb.name}</span>
