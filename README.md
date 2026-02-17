@@ -37,9 +37,20 @@ Create a `.env` file in `backend/`:
 ```env
 MONGO_URI=mongodb+srv://<user>:<password>@<cluster>.mongodb.net
 DB_NAME=avenu_db
+ADMIN_API_KEY=your-secure-admin-api-key
 ````
 
-This connects the backend to MongoDB Atlas.
+This connects the backend to MongoDB Atlas. `ADMIN_API_KEY` is required for admin-only routes (list users, update user, delete user).
+
+### Frontend (local dev: `frontend/.env` or `frontend/.env.local`)
+
+For admin flows (e.g. listing users), set:
+
+```env
+VITE_ADMIN_API_KEY=your-secure-admin-api-key
+```
+
+This must match `ADMIN_API_KEY` in the backend. For Docker, pass `VITE_ADMIN_API_KEY` as an environment variable when running `docker compose up`.
 
 ---
 

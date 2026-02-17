@@ -5,7 +5,7 @@ from typing import Any, Callable
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 
-from config import ensure_indexes, idempotency_keys_collection
+from config import ADMIN_API_KEY, ensure_indexes, idempotency_keys_collection
 from errors import APIError
 from idempotency import payload_hash, require_idempotency_key, reserve_or_replay, store_idempotent_response
 from repositories import to_api_doc
@@ -15,6 +15,8 @@ from services.mailbox_service import get_mailbox, list_mailboxes, update_mailbox
 from services.team_service import create_team, delete_team, get_team, list_teams, update_team
 from services.user_service import create_user, delete_user, get_user, list_users, update_user
 from validators import parse_object_id, require_dict
+
+from auth import require_admin as require_admin_api_key
 
 
 def _json_payload() -> dict[str, Any]:
@@ -88,6 +90,7 @@ def create_app() -> Flask:
         return jsonify(body), status
 
     @app.route("/users", methods=["GET"])
+    @require_admin_api_key(ADMIN_API_KEY)
     def users_list():
         return jsonify([to_api_doc(d) for d in list_users()]), 200
 
@@ -100,12 +103,14 @@ def create_app() -> Flask:
         return jsonify(doc), 200
 
     @app.route("/users/<user_id>", methods=["PATCH"])
+    @require_admin_api_key(ADMIN_API_KEY)
     def users_patch(user_id: str):
         oid = parse_object_id(user_id, "user id")
         updated = update_user(oid, _json_payload())
         return jsonify(to_api_doc(updated)), 200
 
     @app.route("/users/<user_id>", methods=["DELETE"])
+    @require_admin_api_key(ADMIN_API_KEY)
     def users_delete(user_id: str):
         oid = parse_object_id(user_id, "user id")
         delete_user(oid)

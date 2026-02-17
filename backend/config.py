@@ -10,6 +10,7 @@ if not MONGO_URI:
     raise RuntimeError("MONGO_URI must be set")
 
 DB_NAME = os.getenv("DB_NAME", "avenu_db")
+ADMIN_API_KEY = os.getenv("ADMIN_API_KEY", "").strip()
 
 client = MongoClient(
     MONGO_URI,
