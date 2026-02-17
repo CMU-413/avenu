@@ -20,6 +20,10 @@ def get_user(user_id: ObjectId) -> dict[str, Any] | None:
     return find_user(user_id)
 
 
+def find_user_by_email(email: str) -> dict[str, Any] | None:
+    return users_collection.find_one({"email": email})
+
+
 def _ensure_teams_exist(team_ids: list[ObjectId], *, session) -> None:
     if not team_ids:
         return
