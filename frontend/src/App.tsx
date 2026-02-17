@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
-import { BrowserRouter, Route, Routes } from 'react-router-dom'
+import { BrowserRouter, Link, Route, Routes } from 'react-router-dom'
 import './App.css'
 import AdminMailIntakeForm from './AdminMailIntakeForm'
 
@@ -132,6 +132,9 @@ function App() {
       <button onClick={handleFetchUsers} disabled={loading || !isAuthenticated}>
         {loading ? 'Loading...' : 'Fetch Users'}
       </button>
+      <p style={{ marginTop: '0.75rem' }}>
+        <Link to="/mail-intake-review">Open mail intake review</Link>
+      </p>
 
       {error && <p style={{ color: 'red' }}>{error}</p>}
       {statusMessage && <p>{statusMessage}</p>}
@@ -142,11 +145,20 @@ function App() {
     </div>
   )
 
+  const handleUnauthorized = () => {
+    setIsAuthenticated(false)
+    setUsers([])
+    setLastFetchedAt(null)
+  }
+
   return (
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<HomePage />} />
-        <Route path="/mailIntake/:mailboxId" element={<AdminMailIntakeForm />} />
+        <Route
+          path="/mail-intake-review"
+          element={<AdminMailIntakeForm isAuthenticated={isAuthenticated} onUnauthorized={handleUnauthorized} />}
+        />
       </Routes>
     </BrowserRouter>
   )

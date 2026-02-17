@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from datetime import datetime, timedelta, timezone
 from typing import Any, Callable
 
 from flask import Flask, jsonify, request, session
@@ -26,6 +27,14 @@ from validators import normalize_email, parse_object_id, require_dict, require_s
 
 def _json_payload() -> dict[str, Any]:
     return require_dict(request.get_json(silent=True))
+
+
+def _parse_day_utc(date_value: str) -> tuple[datetime, datetime]:
+    try:
+        day = datetime.strptime(date_value, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+    except ValueError as exc:
+        raise APIError(422, "date must be YYYY-MM-DD") from exc
+    return day, day + timedelta(days=1)
 
 
 def _idempotent_create(
@@ -180,10 +189,12 @@ def create_app(
         return "", 204
 
     @app.route("/api/mailboxes", methods=["GET"])
+    @require_admin_session
     def mailboxes_list_route():
         return jsonify([to_api_doc(d) for d in list_mailboxes()]), 200
 
     @app.route("/api/mailboxes/<mailbox_id>", methods=["GET"])
+    @require_admin_session
     def mailboxes_get_route(mailbox_id: str):
         oid = parse_object_id(mailbox_id, "mailbox id")
         doc = to_api_doc(get_mailbox(oid))
@@ -192,21 +203,32 @@ def create_app(
         return jsonify(doc), 200
 
     @app.route("/api/mailboxes/<mailbox_id>", methods=["PATCH"])
+    @require_admin_session
     def mailboxes_patch_route(mailbox_id: str):
         oid = parse_object_id(mailbox_id, "mailbox id")
         updated = update_mailbox(oid, _json_payload())
         return jsonify(to_api_doc(updated)), 200
 
     @app.route("/api/mail", methods=["POST"])
+    @require_admin_session
     def mail_create_route():
         body, status = _idempotent_create(route="/api/mail", create_fn=create_mail)
         return jsonify(body), status
 
     @app.route("/api/mail", methods=["GET"])
+    @require_admin_session
     def mail_list_route():
-        return jsonify([to_api_doc(d) for d in list_mail()]), 200
+        date_value = request.args.get("date")
+        mailbox_id_value = request.args.get("mailboxId")
+        day_start = None
+        day_end = None
+        if date_value is not None:
+            day_start, day_end = _parse_day_utc(date_value)
+        mailbox_id = parse_object_id(mailbox_id_value, "mailbox id") if mailbox_id_value else None
+        return jsonify([to_api_doc(d) for d in list_mail(day_start=day_start, day_end=day_end, mailbox_id=mailbox_id)]), 200
 
     @app.route("/api/mail/<mail_id>", methods=["GET"])
+    @require_admin_session
     def mail_get_route(mail_id: str):
         oid = parse_object_id(mail_id, "mail id")
         doc = to_api_doc(get_mail(oid))
@@ -215,12 +237,14 @@ def create_app(
         return jsonify(doc), 200
 
     @app.route("/api/mail/<mail_id>", methods=["PATCH"])
+    @require_admin_session
     def mail_patch_route(mail_id: str):
         oid = parse_object_id(mail_id, "mail id")
         updated = update_mail(oid, _json_payload())
         return jsonify(to_api_doc(updated)), 200
 
     @app.route("/api/mail/<mail_id>", methods=["DELETE"])
+    @require_admin_session
     def mail_delete_route(mail_id: str):
         oid = parse_object_id(mail_id, "mail id")
         delete_mail(oid)
