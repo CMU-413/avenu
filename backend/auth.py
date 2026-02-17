@@ -16,6 +16,10 @@ def _current_session_user() -> dict | None:
     return find_user(ObjectId(raw_user_id))
 
 
+def current_session_user() -> dict | None:
+    return _current_session_user()
+
+
 def require_admin_session(fn):
     """Decorator that requires authenticated admin user in session."""
 
@@ -31,9 +35,21 @@ def require_admin_session(fn):
     return wrapped
 
 
-def ensure_admin_session() -> None:
+def ensure_session_user() -> dict:
     user = _current_session_user()
     if user is None:
         raise APIError(401, "unauthorized")
+    return user
+
+
+def ensure_admin_session() -> None:
+    user = ensure_session_user()
     if user.get("isAdmin") is not True:
         raise APIError(403, "forbidden")
+
+
+def ensure_member_session() -> dict:
+    user = ensure_session_user()
+    if user.get("isAdmin") is True:
+        raise APIError(403, "forbidden")
+    return user

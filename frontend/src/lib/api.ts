@@ -41,6 +41,39 @@ export interface ApiTeam {
   updatedAt: string;
 }
 
+export interface ApiSessionMe {
+  id: string;
+  email: string;
+  fullname: string;
+  isAdmin: boolean;
+  teamIds: string[];
+  emailNotifications: boolean;
+}
+
+export interface ApiMemberMailboxDay {
+  date: string;
+  letters: number;
+  packages: number;
+}
+
+export interface ApiMemberMailboxSummary {
+  mailboxId: string;
+  name: string;
+  type: "personal" | "company";
+  days: ApiMemberMailboxDay[];
+}
+
+export interface ApiMemberMailSummary {
+  from: string;
+  to: string;
+  mailboxes: ApiMemberMailboxSummary[];
+}
+
+export interface ApiMemberPreferences {
+  id: string;
+  emailNotifications: boolean;
+}
+
 export class ApiError extends Error {
   status: number;
 
@@ -103,6 +136,10 @@ export function sessionLogout(): Promise<void> {
   });
 }
 
+export function sessionMe(): Promise<ApiSessionMe> {
+  return apiFetch<ApiSessionMe>("/api/session/me");
+}
+
 export function listMailboxes(): Promise<ApiMailbox[]> {
   return apiFetch<ApiMailbox[]>("/api/mailboxes");
 }
@@ -162,5 +199,19 @@ export function updateMail(
 export function deleteMail(mailId: string): Promise<void> {
   return apiFetch<void>(`/api/mail/${mailId}`, {
     method: "DELETE",
+  });
+}
+
+export function getMemberMail(params: { from: string; to: string }): Promise<ApiMemberMailSummary> {
+  const search = new URLSearchParams();
+  search.set("from", params.from);
+  search.set("to", params.to);
+  return apiFetch<ApiMemberMailSummary>(`/api/member/mail?${search.toString()}`);
+}
+
+export function updateMemberPreferences(emailNotifications: boolean): Promise<ApiMemberPreferences> {
+  return apiFetch<ApiMemberPreferences>("/api/member/preferences", {
+    method: "PATCH",
+    body: JSON.stringify({ emailNotifications }),
   });
 }

@@ -117,6 +117,98 @@ class AdminSessionAuthTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 422)
 
+    def test_session_me_requires_session(self):
+        response = self.client.get("/api/session/me")
+        self.assertEqual(response.status_code, 401)
+
+    def test_session_me_returns_profile(self):
+        user_id = str(ObjectId())
+        team_id = str(ObjectId())
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = user_id
+
+        with patch(
+            "auth.find_user",
+            return_value={
+                "_id": ObjectId(user_id),
+                "email": "member@example.com",
+                "fullname": "Member User",
+                "isAdmin": False,
+                "teamIds": [ObjectId(team_id)],
+                "notifPrefs": ["email"],
+            },
+        ):
+            response = self.client.get("/api/session/me")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.json,
+            {
+                "id": user_id,
+                "email": "member@example.com",
+                "fullname": "Member User",
+                "isAdmin": False,
+                "teamIds": [team_id],
+                "emailNotifications": True,
+            },
+        )
+
+    def test_member_mail_rejects_admin_session(self):
+        user_id = str(ObjectId())
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = user_id
+
+        with patch("auth.find_user", return_value={"_id": ObjectId(user_id), "isAdmin": True}):
+            response = self.client.get("/api/member/mail?from=2026-02-15&to=2026-02-21")
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_member_mail_requires_range_and_passes_to_service(self):
+        user_id = str(ObjectId())
+        user_doc = {"_id": ObjectId(user_id), "isAdmin": False, "teamIds": []}
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = user_id
+
+        expected = {"from": "2026-02-15", "to": "2026-02-21", "mailboxes": []}
+        with patch("auth.find_user", return_value=user_doc), patch(
+            "app.list_member_mail_summary", return_value=expected
+        ) as member_mail_mock:
+            response = self.client.get("/api/member/mail?from=2026-02-15&to=2026-02-21")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json, expected)
+        member_mail_mock.assert_called_once()
+        kwargs = member_mail_mock.call_args.kwargs
+        self.assertEqual(kwargs["user"], user_doc)
+        self.assertEqual(kwargs["from_day"], datetime(2026, 2, 15, tzinfo=timezone.utc).date())
+        self.assertEqual(kwargs["to_day"], datetime(2026, 2, 21, tzinfo=timezone.utc).date())
+
+    def test_member_preferences_patches_boolean_toggle(self):
+        user_id = str(ObjectId())
+        user_doc = {"_id": ObjectId(user_id), "isAdmin": False, "notifPrefs": []}
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = user_id
+
+        expected = {"id": user_id, "emailNotifications": True}
+        with patch("auth.find_user", return_value=user_doc), patch(
+            "app.update_member_email_notifications", return_value=expected
+        ) as prefs_mock:
+            response = self.client.patch("/api/member/preferences", json={"emailNotifications": True})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json, expected)
+        prefs_mock.assert_called_once_with(user=user_doc, enabled=True)
+
+    def test_member_preferences_rejects_non_boolean(self):
+        user_id = str(ObjectId())
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = user_id
+
+        with patch("auth.find_user", return_value={"_id": ObjectId(user_id), "isAdmin": False}):
+            response = self.client.patch("/api/member/preferences", json={"emailNotifications": "yes"})
+
+        self.assertEqual(response.status_code, 422)
+
 
 if __name__ == "__main__":
     unittest.main()
