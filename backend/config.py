@@ -10,7 +10,17 @@ if not MONGO_URI:
     raise RuntimeError("MONGO_URI must be set")
 
 DB_NAME = os.getenv("DB_NAME", "avenu_db")
-ADMIN_API_KEY = os.getenv("ADMIN_API_KEY", "").strip()
+SECRET_KEY = os.getenv("SECRET_KEY", "").strip()
+
+
+def _env_bool(name: str, default: bool) -> bool:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+SESSION_COOKIE_SECURE = _env_bool("SESSION_COOKIE_SECURE", False)
 
 client = MongoClient(
     MONGO_URI,
