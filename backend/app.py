@@ -278,15 +278,15 @@ def create_app(
     @app.route("/api/member/mail", methods=["GET"])
     def member_mail_route():
         user = ensure_member_session()
-        from_value = request.args.get("from")
-        to_value = request.args.get("to")
-        if from_value is None or to_value is None:
-            raise APIError(422, "from and to are required")
-        from_day = _parse_iso_date(from_value, field_name="from")
-        to_day = _parse_iso_date(to_value, field_name="to")
-        if to_day < from_day:
-            raise APIError(422, "to must be on or after from")
-        return jsonify(list_member_mail_summary(user=user, from_day=from_day, to_day=to_day)), 200
+        start_value = request.args.get("start")
+        end_value = request.args.get("end")
+        if start_value is None or end_value is None:
+            raise APIError(422, "start and end are required")
+        start_day = _parse_iso_date(start_value, field_name="start")
+        end_day = _parse_iso_date(end_value, field_name="end")
+        if end_day < start_day:
+            raise APIError(422, "end must be on or after start")
+        return jsonify(list_member_mail_summary(user=user, start_day=start_day, end_day=end_day)), 200
 
     @app.route("/api/member/preferences", methods=["PATCH"])
     def member_preferences_route():

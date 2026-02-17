@@ -41,7 +41,7 @@ This endpoint is the source of truth for:
 
 ---
 
-## 2. GET `/api/member/mail?from=YYYY-MM-DD&to=YYYY-MM-DD`
+## 2. GET `/api/member/mail?start=YYYY-MM-DD&end=YYYY-MM-DD`
 
 ### Purpose
 
@@ -59,8 +59,8 @@ This endpoint powers the member dashboard summary view.
 
 ### Query Parameters
 
-* `from` (inclusive, ISO date string)
-* `to` (inclusive, ISO date string)
+* `start` (inclusive, ISO date string)
+* `end` (inclusive, ISO date string)
 
 Both are required.
 
@@ -68,8 +68,8 @@ Both are required.
 
 ```json
 {
-  "from": "2026-02-15",
-  "to": "2026-02-21",
+  "start": "2026-02-15",
+  "end": "2026-02-21",
   "mailboxes": [
     {
       "mailboxId": "<id>",

@@ -9,10 +9,10 @@ from bson import ObjectId
 from config import mail_collection, mailboxes_collection, users_collection
 
 
-def _date_range(from_day: date, to_day: date) -> list[str]:
+def _date_range(start_day: date, end_day: date) -> list[str]:
     days: list[str] = []
-    current = from_day
-    while current <= to_day:
+    current = start_day
+    while current <= end_day:
         days.append(current.isoformat())
         current += timedelta(days=1)
     return days
@@ -26,7 +26,7 @@ def _mailbox_kind(mailbox_type: str) -> str:
     return "personal" if mailbox_type == "user" else "company"
 
 
-def list_member_mail_summary(*, user: dict[str, Any], from_day: date, to_day: date) -> dict[str, Any]:
+def list_member_mail_summary(*, user: dict[str, Any], start_day: date, end_day: date) -> dict[str, Any]:
     user_id = user["_id"]
     team_ids = user.get("teamIds") if isinstance(user.get("teamIds"), list) else []
 
@@ -37,8 +37,8 @@ def list_member_mail_summary(*, user: dict[str, Any], from_day: date, to_day: da
     mailbox_docs = list(mailboxes_collection.find({"$or": mailbox_or}).sort([("type", 1), ("displayName", 1)]))
     mailbox_ids = [m["_id"] for m in mailbox_docs]
 
-    day_start = _day_bounds_utc(from_day)
-    day_end = _day_bounds_utc(to_day + timedelta(days=1))
+    day_start = _day_bounds_utc(start_day)
+    day_end = _day_bounds_utc(end_day + timedelta(days=1))
 
     totals: dict[ObjectId, dict[str, dict[str, int]]] = defaultdict(lambda: defaultdict(lambda: {"letters": 0, "packages": 0}))
     if mailbox_ids:
@@ -58,7 +58,7 @@ def list_member_mail_summary(*, user: dict[str, Any], from_day: date, to_day: da
             elif row.get("type") == "package":
                 totals[mailbox_id][day_key]["packages"] += count
 
-    day_keys = _date_range(from_day, to_day)
+    day_keys = _date_range(start_day, end_day)
     mailboxes: list[dict[str, Any]] = []
     for mailbox in mailbox_docs:
         mailbox_totals = totals.get(mailbox["_id"], {})
@@ -80,8 +80,8 @@ def list_member_mail_summary(*, user: dict[str, Any], from_day: date, to_day: da
         )
 
     return {
-        "from": from_day.isoformat(),
-        "to": to_day.isoformat(),
+        "start": start_day.isoformat(),
+        "end": end_day.isoformat(),
         "mailboxes": mailboxes,
     }
 

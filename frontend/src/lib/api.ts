@@ -64,8 +64,8 @@ export interface ApiMemberMailboxSummary {
 }
 
 export interface ApiMemberMailSummary {
-  from: string;
-  to: string;
+  start: string;
+  end: string;
   mailboxes: ApiMemberMailboxSummary[];
 }
 
@@ -202,10 +202,10 @@ export function deleteMail(mailId: string): Promise<void> {
   });
 }
 
-export function getMemberMail(params: { from: string; to: string }): Promise<ApiMemberMailSummary> {
+export function getMemberMail(params: { start: string; end: string }): Promise<ApiMemberMailSummary> {
   const search = new URLSearchParams();
-  search.set("from", params.from);
-  search.set("to", params.to);
+  search.set("start", params.start);
+  search.set("end", params.end);
   return apiFetch<ApiMemberMailSummary>(`/api/member/mail?${search.toString()}`);
 }
 

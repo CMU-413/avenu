@@ -159,7 +159,7 @@ class AdminSessionAuthTests(unittest.TestCase):
             sess["user_id"] = user_id
 
         with patch("auth.find_user", return_value={"_id": ObjectId(user_id), "isAdmin": True}):
-            response = self.client.get("/api/member/mail?from=2026-02-15&to=2026-02-21")
+            response = self.client.get("/api/member/mail?start=2026-02-15&end=2026-02-21")
 
         self.assertEqual(response.status_code, 403)
 
@@ -169,19 +169,19 @@ class AdminSessionAuthTests(unittest.TestCase):
         with self.client.session_transaction() as sess:
             sess["user_id"] = user_id
 
-        expected = {"from": "2026-02-15", "to": "2026-02-21", "mailboxes": []}
+        expected = {"start": "2026-02-15", "end": "2026-02-21", "mailboxes": []}
         with patch("auth.find_user", return_value=user_doc), patch(
             "app.list_member_mail_summary", return_value=expected
         ) as member_mail_mock:
-            response = self.client.get("/api/member/mail?from=2026-02-15&to=2026-02-21")
+            response = self.client.get("/api/member/mail?start=2026-02-15&end=2026-02-21")
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json, expected)
         member_mail_mock.assert_called_once()
         kwargs = member_mail_mock.call_args.kwargs
         self.assertEqual(kwargs["user"], user_doc)
-        self.assertEqual(kwargs["from_day"], datetime(2026, 2, 15, tzinfo=timezone.utc).date())
-        self.assertEqual(kwargs["to_day"], datetime(2026, 2, 21, tzinfo=timezone.utc).date())
+        self.assertEqual(kwargs["start_day"], datetime(2026, 2, 15, tzinfo=timezone.utc).date())
+        self.assertEqual(kwargs["end_day"], datetime(2026, 2, 21, tzinfo=timezone.utc).date())
 
     def test_member_preferences_patches_boolean_toggle(self):
         user_id = str(ObjectId())
