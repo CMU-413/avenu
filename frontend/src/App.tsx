@@ -1,10 +1,8 @@
+import { useState } from 'react'
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import './App.css'
 import AdminMailIntakeForm from './AdminMailIntakeForm'
 
-// const API_BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:5001'
-
-function App() {
 const API_BASE_URL =
   import.meta.env.VITE_API_URL ?? import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:5001'
 const ADMIN_API_KEY = import.meta.env.VITE_ADMIN_API_KEY ?? ''
@@ -17,30 +15,6 @@ const adminHeaders = (): HeadersInit => {
     headers['Authorization'] = `Bearer ${ADMIN_API_KEY}`
   }
   return headers
-}
-
-const detailLabelOverrides: Record<string, string> = {
-  updated: 'Last updated',
-  updatedAt: 'Last updated',
-  updated_at: 'Last updated',
-  lastUpdated: 'Last updated',
-  last_updated: 'Last updated',
-  createdAt: 'Created',
-  created_at: 'Created',
-}
-
-const humanizeKey = (key: string) => {
-  const humanized = key
-    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
-    .replace(/[-_]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-
-  return humanized
-    .split(' ')
-    .filter(Boolean)
-    .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
-    .join(' ')
 }
 
 function App() {
@@ -86,9 +60,27 @@ function App() {
     ? `Last refreshed ${lastFetchedAt}`
     : 'Not refreshed yet'
 
+  const HomePage = () => (
+    <div style={{ padding: '1rem' }}>
+      <h1>Avenu Admin</h1>
+      <button onClick={handleFetchUsers} disabled={loading}>
+        {loading ? 'Loading...' : 'Fetch Users'}
+      </button>
+      {error && <p style={{ color: 'red' }}>{error}</p>}
+      {statusMessage && <p>{statusMessage}</p>}
+      {emptyStateText && <p>{emptyStateText}</p>}
+      {users.length > 0 && (
+        <pre style={{ marginTop: '1rem', overflow: 'auto' }}>
+          {JSON.stringify(users, null, 2)}
+        </pre>
+      )}
+    </div>
+  )
+
   return (
     <BrowserRouter>
       <Routes>
+        <Route path="/" element={<HomePage />} />
         <Route path="/mailIntake/:mailboxId" element={<AdminMailIntakeForm />} />
       </Routes>
     </BrowserRouter>
