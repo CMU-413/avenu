@@ -14,7 +14,7 @@ The project is fully containerized using Docker.
 ├── docker-compose.yml
 └── README.md
 
-````
+```
 
 ---
 
@@ -38,7 +38,7 @@ Create a `.env` file in `backend/`:
 MONGO_URI=mongodb+srv://<user>:<password>@<cluster>.mongodb.net
 DB_NAME=avenu_db
 ADMIN_API_KEY=your-secure-admin-api-key
-````
+```
 
 This connects the backend to MongoDB Atlas. `ADMIN_API_KEY` is required for admin-only routes (list users, update user, delete user).
 
