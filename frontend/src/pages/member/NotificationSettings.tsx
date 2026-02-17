@@ -1,14 +1,44 @@
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAppStore } from "@/lib/store";
 import { ArrowLeft } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
+import { ApiError, updateMemberPreferences } from "@/lib/api";
+import { useToast } from "@/hooks/use-toast";
 
 const NotificationSettings = () => {
   const navigate = useNavigate();
-  const { currentMemberId, members, toggleNotifications } = useAppStore();
-  const member = members.find((m) => m.id === currentMemberId);
+  const { toast } = useToast();
+  const { sessionUser, logout, setSessionEmailNotifications } = useAppStore();
+  const [pending, setPending] = useState(false);
+  const [optimisticValue, setOptimisticValue] = useState<boolean | null>(null);
+  const emailNotifications =
+    optimisticValue !== null ? optimisticValue : sessionUser?.emailNotifications ?? false;
 
-  if (!member) return null;
+  if (!sessionUser) return null;
+
+  const handleToggle = async (nextValue: boolean) => {
+    if (pending) return;
+    const prev = sessionUser.emailNotifications;
+    setPending(true);
+    setOptimisticValue(nextValue);
+    try {
+      const updated = await updateMemberPreferences(nextValue);
+      setSessionEmailNotifications(updated.emailNotifications);
+      setOptimisticValue(updated.emailNotifications);
+    } catch (err) {
+      setSessionEmailNotifications(prev);
+      setOptimisticValue(prev);
+      const message = err instanceof Error ? err.message : "Failed to update notification settings";
+      toast({ title: message, variant: "destructive" });
+      if (err instanceof ApiError && err.status === 401) {
+        logout();
+        navigate("/");
+      }
+    } finally {
+      setPending(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -28,8 +58,9 @@ const NotificationSettings = () => {
             <p className="text-xs text-muted-foreground">Receive weekly mail summaries</p>
           </div>
           <Switch
-            checked={member.emailNotifications}
-            onCheckedChange={() => toggleNotifications(member.id)}
+            checked={emailNotifications}
+            onCheckedChange={handleToggle}
+            disabled={pending}
           />
         </div>
       </div>

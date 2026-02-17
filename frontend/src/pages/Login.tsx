@@ -1,15 +1,25 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useAppStore } from "@/lib/store";
-import { members } from "@/lib/mock-data";
+import { SessionUser, useAppStore } from "@/lib/store";
 import { Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { ApiError, listMailboxes, sessionLogin } from "@/lib/api";
+import { ApiSessionMe, sessionLogin, sessionMe } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
+
+function toSessionUser(session: ApiSessionMe): SessionUser {
+  return {
+    id: session.id,
+    fullname: session.fullname,
+    email: session.email,
+    isAdmin: session.isAdmin,
+    teamIds: session.teamIds,
+    emailNotifications: session.emailNotifications,
+  };
+}
 
 const Login = () => {
   const navigate = useNavigate();
-  const login = useAppStore((s) => s.login);
+  const setSessionUser = useAppStore((s) => s.setSessionUser);
   const { toast } = useToast();
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
@@ -23,21 +33,9 @@ const Login = () => {
     try {
       const normalized = email.trim().toLowerCase();
       await sessionLogin(normalized);
-
-      try {
-        await listMailboxes();
-        login("admin");
-        navigate("/admin");
-        return;
-      } catch (roleErr) {
-        if (roleErr instanceof ApiError && roleErr.status === 403) {
-          const member = members.find((m) => m.email.toLowerCase() === normalized);
-          login("member", member?.id);
-          navigate("/member");
-          return;
-        }
-        throw roleErr;
-      }
+      const me = await sessionMe();
+      setSessionUser(toSessionUser(me));
+      navigate(me.isAdmin ? "/admin" : "/member");
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unable to sign in";
       toast({ title: message, variant: "destructive" });

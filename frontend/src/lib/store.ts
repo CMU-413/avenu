@@ -1,32 +1,31 @@
 import { create } from "zustand";
-import { MailRecord, initialRecords, members as initialMembers, Member } from "./mock-data";
+
+export interface SessionUser {
+  id: string;
+  fullname: string;
+  email: string;
+  isAdmin: boolean;
+  teamIds: string[];
+  emailNotifications: boolean;
+}
 
 interface AppState {
-  userRole: "admin" | "member" | null;
-  currentMemberId: string | null;
-  records: MailRecord[];
-  members: Member[];
-  login: (role: "admin" | "member", memberId?: string) => void;
+  sessionUser: SessionUser | null;
+  isHydratingSession: boolean;
+  setSessionUser: (user: SessionUser | null) => void;
+  setSessionHydrating: (isHydrating: boolean) => void;
+  setSessionEmailNotifications: (emailNotifications: boolean) => void;
   logout: () => void;
-  addRecord: (record: Omit<MailRecord, "id">) => void;
-  toggleNotifications: (memberId: string) => void;
 }
 
 export const useAppStore = create<AppState>((set) => ({
-  userRole: null,
-  currentMemberId: null,
-  records: [...initialRecords],
-  members: [...initialMembers],
-  login: (role, memberId) => set({ userRole: role, currentMemberId: memberId || null }),
-  logout: () => set({ userRole: null, currentMemberId: null }),
-  addRecord: (record) =>
+  sessionUser: null,
+  isHydratingSession: true,
+  setSessionUser: (user) => set({ sessionUser: user }),
+  setSessionHydrating: (isHydrating) => set({ isHydratingSession: isHydrating }),
+  setSessionEmailNotifications: (emailNotifications) =>
     set((state) => ({
-      records: [...state.records, { ...record, id: `r${Date.now()}` }],
+      sessionUser: state.sessionUser ? { ...state.sessionUser, emailNotifications } : null,
     })),
-  toggleNotifications: (memberId) =>
-    set((state) => ({
-      members: state.members.map((m) =>
-        m.id === memberId ? { ...m, emailNotifications: !m.emailNotifications } : m
-      ),
-    })),
+  logout: () => set({ sessionUser: null, isHydratingSession: false }),
 }));
