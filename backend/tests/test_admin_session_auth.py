@@ -1,7 +1,7 @@
 import os
 import unittest
-from datetime import datetime, timezone
-from unittest.mock import patch
+from datetime import date, datetime, timezone
+from unittest.mock import Mock, patch
 
 from bson import ObjectId
 
@@ -208,6 +208,68 @@ class AdminSessionAuthTests(unittest.TestCase):
             response = self.client.patch("/api/member/preferences", json={"emailNotifications": "yes"})
 
         self.assertEqual(response.status_code, 422)
+
+    def test_admin_weekly_summary_requires_admin_session(self):
+        response = self.client.post(
+            "/admin/notifications/summary",
+            json={"userId": str(ObjectId()), "weekStart": "2026-02-15", "weekEnd": "2026-02-21"},
+        )
+        self.assertEqual(response.status_code, 401)
+
+    def test_admin_weekly_summary_rejects_non_admin_session(self):
+        session_user_id = str(ObjectId())
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = session_user_id
+
+        with patch("auth.find_user", return_value={"_id": ObjectId(session_user_id), "isAdmin": False}):
+            response = self.client.post(
+                "/admin/notifications/summary",
+                json={"userId": str(ObjectId()), "weekStart": "2026-02-15", "weekEnd": "2026-02-21"},
+            )
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_admin_weekly_summary_validates_week_range(self):
+        session_user_id = str(ObjectId())
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = session_user_id
+
+        with patch("auth.find_user", return_value={"_id": ObjectId(session_user_id), "isAdmin": True}):
+            response = self.client.post(
+                "/admin/notifications/summary",
+                json={"userId": str(ObjectId()), "weekStart": "2026-02-22", "weekEnd": "2026-02-21"},
+            )
+
+        self.assertEqual(response.status_code, 422)
+        self.assertEqual(response.json, {"error": "weekEnd must be on or after weekStart"})
+
+    def test_admin_weekly_summary_calls_notifier_and_returns_result(self):
+        session_user_id = str(ObjectId())
+        target_user_id = str(ObjectId())
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = session_user_id
+
+        notify_result = {"status": "sent", "channelResults": [{"channel": "email", "status": "sent"}]}
+        notifier = Mock()
+        notifier.notifyWeeklySummary.return_value = notify_result
+
+        with patch("auth.find_user", return_value={"_id": ObjectId(session_user_id), "isAdmin": True}), patch(
+            "app.WeeklySummaryNotifier",
+            return_value=notifier,
+        ):
+            response = self.client.post(
+                "/admin/notifications/summary",
+                json={"userId": target_user_id, "weekStart": "2026-02-15", "weekEnd": "2026-02-21"},
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json, notify_result)
+        notifier.notifyWeeklySummary.assert_called_once_with(
+            userId=ObjectId(target_user_id),
+            weekStart=date(2026, 2, 15),
+            weekEnd=date(2026, 2, 21),
+            triggeredBy="admin",
+        )
 
 
 if __name__ == "__main__":
