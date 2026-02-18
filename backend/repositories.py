@@ -44,8 +44,16 @@ def find_user(user_id: ObjectId):
     return users_collection.find_one({"_id": user_id})
 
 
+def find_user_by_optix_id(optix_id: int):
+    return users_collection.find_one({"optixId": optix_id})
+
+
 def find_team(team_id: ObjectId):
     return teams_collection.find_one({"_id": team_id})
+
+
+def find_team_by_optix_id(optix_id: int):
+    return teams_collection.find_one({"optixId": optix_id})
 
 
 def find_mailbox(mailbox_id: ObjectId):

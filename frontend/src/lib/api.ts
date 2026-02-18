@@ -87,6 +87,11 @@ export interface ApiNotifyResult {
   channelResults: ApiNotifyChannelResult[];
 }
 
+export interface ApiOptixTokenResult {
+  created: boolean;
+  user: ApiUser;
+}
+
 export class ApiError extends Error {
   status: number;
 
@@ -235,5 +240,16 @@ export function sendMailArrivedNotification(payload: { userId: string }): Promis
     body: JSON.stringify({
       userId: payload.userId,
     }),
+  });
+}
+
+export function bootstrapOptixSession(payload: {
+  token: string;
+  orgId: string | null;
+  userId: string | null;
+}): Promise<ApiOptixTokenResult> {
+  return apiFetch<ApiOptixTokenResult>("/api/optix-token", {
+    method: "POST",
+    body: JSON.stringify(payload),
   });
 }

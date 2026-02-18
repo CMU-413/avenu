@@ -24,6 +24,22 @@ def _env_bool(name: str, default: bool) -> bool:
 
 
 SESSION_COOKIE_SECURE = _env_bool("SESSION_COOKIE_SECURE", False)
+SESSION_COOKIE_PARTITIONED = _env_bool("SESSION_COOKIE_PARTITIONED", False)
+
+
+def _env_samesite(name: str, default: str) -> str:
+    raw = os.getenv(name, default).strip().lower()
+    allowed = {
+        "lax": "Lax",
+        "strict": "Strict",
+        "none": "None",
+    }
+    if raw not in allowed:
+        raise RuntimeError(f"{name} must be one of: Lax, Strict, None")
+    return allowed[raw]
+
+
+SESSION_COOKIE_SAMESITE = _env_samesite("SESSION_COOKIE_SAMESITE", "Lax")
 
 client = MongoClient(
     MONGO_URI,

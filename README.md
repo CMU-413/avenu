@@ -38,10 +38,16 @@ DB_NAME=avenu_db
 SECRET_KEY=replace-with-a-long-random-secret
 # Optional: set true when app is served over HTTPS
 SESSION_COOKIE_SECURE=false
+SESSION_COOKIE_SAMESITE=Lax
+SESSION_COOKIE_PARTITIONED=false
 ```
 
 Notes:
 - `SECRET_KEY` is required outside tests.
+- For iframe/Canvas embedding, set:
+  - `SESSION_COOKIE_SAMESITE=None`
+  - `SESSION_COOKIE_SECURE=true`
+  - optional: `SESSION_COOKIE_PARTITIONED=true`
 - User sessions are created via `POST /api/session/login` with a user email.
 - `POST /api/session/logout` clears the session.
 - Admin routes authorize by loading `session["user_id"]` from DB and requiring `user.isAdmin == true`.
