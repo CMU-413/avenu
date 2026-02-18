@@ -7,7 +7,7 @@ from typing import Any, Callable
 from flask import Flask, jsonify, request, session
 
 from auth import ensure_admin_session, ensure_member_session, ensure_session_user, require_admin_session
-from config import SECRET_KEY, SESSION_COOKIE_SECURE, ensure_indexes, idempotency_keys_collection
+from config import EMAIL_FROM, RESEND_API_KEY, SECRET_KEY, SESSION_COOKIE_SECURE, ensure_indexes, idempotency_keys_collection
 from errors import APIError
 from idempotency import payload_hash, require_idempotency_key, reserve_or_replay, store_idempotent_response
 from repositories import to_api_doc
@@ -15,7 +15,7 @@ from services.mail_service import create_mail, delete_mail, get_mail, list_mail,
 from services.mailbox_service import get_mailbox, list_mailboxes, update_mailbox
 from services.member_service import list_member_mail_summary, update_member_email_notifications
 from services.notifications.channels.email_channel import EmailChannel
-from services.notifications.providers.console_provider import ConsoleEmailProvider
+from services.notifications.providers.resend_provider import ResendProvider
 from services.notifications.special_case_notifier import SpecialCaseNotifier
 from services.notifications.weekly_summary_notifier import WeeklySummaryNotifier
 from services.team_service import create_team, delete_team, get_team, list_teams, update_team
@@ -105,6 +105,14 @@ def create_app(
     app.config["SESSION_COOKIE_HTTPONLY"] = True
     app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
     app.config["SESSION_COOKIE_SECURE"] = False if testing else SESSION_COOKIE_SECURE
+    app.config["RESEND_API_KEY"] = RESEND_API_KEY
+    app.config["EMAIL_FROM"] = EMAIL_FROM
+
+    email_provider = ResendProvider(
+        api_key=app.config["RESEND_API_KEY"],
+        email_from=app.config["EMAIL_FROM"],
+    )
+    email_channel = EmailChannel(provider=email_provider)
 
     if ensure_db_indexes_on_startup and not testing:
         ensure_indexes()
@@ -312,7 +320,7 @@ def create_app(
         if week_end < week_start:
             raise APIError(422, "weekEnd must be on or after weekStart")
 
-        notifier = WeeklySummaryNotifier(channels=[EmailChannel(ConsoleEmailProvider())])
+        notifier = WeeklySummaryNotifier(channels=[email_channel])
         result = notifier.notifyWeeklySummary(
             userId=user_id,
             weekStart=week_start,
@@ -328,7 +336,7 @@ def create_app(
         payload = _json_payload()
         user_id = parse_object_id(require_string(payload, "userId"), "user id")
 
-        notifier = SpecialCaseNotifier(channels=[EmailChannel(ConsoleEmailProvider())])
+        notifier = SpecialCaseNotifier(channels=[email_channel])
         result = notifier.notifySpecialCase(
             userId=user_id,
             triggeredBy="admin",

@@ -14,6 +14,8 @@ if not MONGO_URI:
 
 DB_NAME = os.getenv("DB_NAME", "avenu_db")
 SECRET_KEY = os.getenv("SECRET_KEY", "").strip()
+RESEND_API_KEY = os.environ["RESEND_API_KEY"]
+EMAIL_FROM = os.environ["EMAIL_FROM"]
 
 
 def _env_bool(name: str, default: bool) -> bool:

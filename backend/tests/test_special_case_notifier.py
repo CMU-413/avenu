@@ -4,6 +4,8 @@ import unittest
 from bson import ObjectId
 
 os.environ.setdefault("MONGO_URI", "mongodb://localhost:27017")
+os.environ.setdefault("RESEND_API_KEY", "test-resend-key")
+os.environ.setdefault("EMAIL_FROM", "onboarding@resend.dev")
 
 from services.notifications.special_case_notifier import SpecialCaseNotifier
 

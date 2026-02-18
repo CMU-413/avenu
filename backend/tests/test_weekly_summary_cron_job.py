@@ -5,6 +5,8 @@ from datetime import datetime, timedelta, timezone
 from bson import ObjectId
 
 os.environ.setdefault("MONGO_URI", "mongodb://localhost:27017")
+os.environ.setdefault("RESEND_API_KEY", "test-resend-key")
+os.environ.setdefault("EMAIL_FROM", "onboarding@resend.dev")
 
 from services.notifications.weekly_summary_cron_job import compute_previous_week_range, run_weekly_summary_cron_job
 

@@ -6,6 +6,8 @@ from unittest.mock import Mock, patch
 from bson import ObjectId
 
 os.environ.setdefault("MONGO_URI", "mongodb://localhost:27017")
+os.environ.setdefault("RESEND_API_KEY", "test-resend-key")
+os.environ.setdefault("EMAIL_FROM", "onboarding@resend.dev")
 os.environ.setdefault("FLASK_TESTING", "1")
 
 from app import create_app
