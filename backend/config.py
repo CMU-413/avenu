@@ -24,6 +24,16 @@ def _env_bool(name: str, default: bool) -> bool:
 
 
 SESSION_COOKIE_SECURE = _env_bool("SESSION_COOKIE_SECURE", False)
+SCHEDULER_INTERNAL_TOKEN = os.getenv("SCHEDULER_INTERNAL_TOKEN", "").strip()
+
+
+def parse_frontend_origins() -> tuple[str, ...]:
+    raw = os.getenv("FRONTEND_ORIGINS", "")
+    values = [item.strip() for item in raw.split(",")]
+    return tuple(item for item in values if item)
+
+
+FRONTEND_ORIGINS = parse_frontend_origins()
 
 client = MongoClient(
     MONGO_URI,

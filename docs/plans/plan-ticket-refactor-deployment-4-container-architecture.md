@@ -20,12 +20,12 @@ None.
 - ☑ Configure Scheduler service with `restart: unless-stopped` and wire compose healthchecks for Backend and Database.
 
 ## Phase 2
-- ☐ Add a scheduler-only Backend HTTP endpoint to trigger weekly summary jobs and keep Scheduler as an API client only.
-- ☐ Add job-trigger idempotency at the API boundary so restart/retry does not duplicate weekly sends.
-- ☐ Add explicit CORS origin allowlist config for frontend origin(s), with no wildcard production policy.
-- ☐ Move service configuration/secrets entirely to env contracts for frontend, backend, and scheduler.
-- ☐ Add unit tests for scheduler request formation/idempotency and backend endpoint/CORS behavior.
-- ☐ Implement scheduler internal cron loop using `SCHEDULER_CRON`/`SCHEDULER_TIMEZONE` defaults (`0 8 * * 1`, `UTC`).
+- ☑ Add a scheduler-only Backend HTTP endpoint to trigger weekly summary jobs and keep Scheduler as an API client only.
+- ☑ Add job-trigger idempotency at the API boundary so restart/retry does not duplicate weekly sends.
+- ☑ Add explicit CORS origin allowlist config for frontend origin(s), with no wildcard production policy.
+- ☑ Move service configuration/secrets entirely to env contracts for frontend, backend, and scheduler.
+- ☑ Add unit tests for scheduler request formation/idempotency and backend endpoint/CORS behavior.
+- ☑ Implement scheduler internal cron loop using `SCHEDULER_CRON`/`SCHEDULER_TIMEZONE` defaults (`0 8 * * 1`, `UTC`).
 
 ## Phase 3
 - ☐ Update architecture docs and README deployment guidance to match the 4-container runtime exactly.

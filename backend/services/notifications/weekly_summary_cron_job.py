@@ -29,10 +29,19 @@ def run_weekly_summary_cron_job(
     notifier: Notifier,
     users=users_collection,
     now: datetime | None = None,
+    week_start: date | None = None,
+    week_end: date | None = None,
     logger: logging.Logger | None = None,
 ) -> WeeklyCronJobResult:
     resolved_now = now or datetime.now(tz=timezone.utc)
-    week_start, week_end = compute_previous_week_range(resolved_now)
+    if (week_start is None) != (week_end is None):
+        raise ValueError("week_start and week_end must be provided together")
+    if week_start is None:
+        resolved_week_start, resolved_week_end = compute_previous_week_range(resolved_now)
+    else:
+        if week_end < week_start:
+            raise ValueError("week_end must be on or after week_start")
+        resolved_week_start, resolved_week_end = week_start, week_end
     log = logger or logging.getLogger(__name__)
     started_at = perf_counter()
 
@@ -40,8 +49,8 @@ def run_weekly_summary_cron_job(
     candidate_count = len(opted_in_users)
 
     counters: WeeklyCronJobResult = {
-        "weekStart": week_start,
-        "weekEnd": week_end,
+        "weekStart": resolved_week_start,
+        "weekEnd": resolved_week_end,
         "processed": 0,
         "sent": 0,
         "skipped": 0,
@@ -51,8 +60,8 @@ def run_weekly_summary_cron_job(
 
     log.info(
         "weekly_summary_cron_job_start weekStart=%s weekEnd=%s candidates=%d",
-        week_start.isoformat(),
-        week_end.isoformat(),
+        resolved_week_start.isoformat(),
+        resolved_week_end.isoformat(),
         candidate_count,
     )
 
@@ -62,8 +71,8 @@ def run_weekly_summary_cron_job(
         try:
             result = notifier.notifyWeeklySummary(
                 userId=user_id,
-                weekStart=week_start,
-                weekEnd=week_end,
+                weekStart=resolved_week_start,
+                weekEnd=resolved_week_end,
                 triggeredBy="cron",
             )
             status = result.get("status")
@@ -86,8 +95,8 @@ def run_weekly_summary_cron_job(
             "weekly_summary_cron_job_complete weekStart=%s weekEnd=%s processed=%d sent=%d "
             "skipped=%d failed=%d errors=%d elapsedSeconds=%.3f"
         ),
-        week_start.isoformat(),
-        week_end.isoformat(),
+        resolved_week_start.isoformat(),
+        resolved_week_end.isoformat(),
         counters["processed"],
         counters["sent"],
         counters["skipped"],
