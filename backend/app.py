@@ -382,7 +382,6 @@ def optix_token_route():
         return jsonify({"created": True, "user": user_doc}), 201
     else:
         # Update user fields if changed
-        from services.user_service import update_user
         user_id = existing_user["_id"]
         update_user(user_id, user_payload)
         updated_user = find_user(user_id)
