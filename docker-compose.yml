@@ -1,16 +1,15 @@
-version: "3.9"
-
 services:
-  backend:
-    build: ./backend
+  app:
+    build: .
     ports:
-      - "5001:5001"
+      - "10000:10000"
     env_file:
-      - ./.env
+      - .env
 
-  frontend:
-    build: ./frontend
-    ports:
-      - "8080:80"
-    depends_on:
-      - backend
+  mongodb:
+    image: mongo
+    volumes:
+      - mongo-data:/data/db
+
+volumes:
+  mongo-data:

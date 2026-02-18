@@ -37,6 +37,7 @@ teams_collection = db["teams"]
 mailboxes_collection = db["mailboxes"]
 mail_collection = db["mail"]
 idempotency_keys_collection = db["idempotency_keys"]
+notification_log_collection = db["notification_log"]
 
 
 def ensure_indexes() -> None:
@@ -62,3 +63,12 @@ def ensure_indexes() -> None:
         name="idempotency_key_route_method_uq",
     )
     idempotency_keys_collection.create_index([("expiresAt", ASCENDING)], expireAfterSeconds=0, name="idempotency_expires_ttl")
+
+    notification_log_collection.create_index(
+        [("userId", ASCENDING), ("type", ASCENDING), ("weekStart", ASCENDING), ("status", ASCENDING)],
+        name="notification_log_user_type_week_status_idx",
+    )
+    notification_log_collection.create_index(
+        [("userId", ASCENDING), ("weekStart", ASCENDING)],
+        name="notification_log_user_week_idx",
+    )

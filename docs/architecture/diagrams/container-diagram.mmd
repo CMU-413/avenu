@@ -1,0 +1,41 @@
+flowchart TB
+
+%% Client
+Client["Browser"]
+
+%% App Container
+subgraph AppContainer["App Container (Docker)"]
+    direction TB
+
+    Nginx["Nginx Reverse Proxy"]
+    Static["Frontend (React)"]
+
+    subgraph Backend["Backend (Flask)"]
+        direction TB
+        AppLogic["Application Logic"]
+        Scheduler["Scheduled Jobs"]
+    end
+
+    Nginx -->|/| Static
+    Nginx -->|/api/*| AppLogic
+    Scheduler --> AppLogic
+end
+
+%% MongoDB Container
+subgraph MongoContainer["MongoDB Container"]
+    Mongo["MongoDB"]
+end
+
+%% External Services
+Optix["Optix API"]
+Email["Email Provider"]
+OCR["OCR Provider"]
+
+%% Connections
+Client -->|HTTP :10000| Nginx
+
+AppLogic --> Mongo
+
+AppLogic -->|Identity Sync| Optix
+AppLogic -->|Send Weekly Email| Email
+AppLogic -->|OCR Requests| OCR

@@ -7,7 +7,7 @@ erDiagram
         string fullname
         string email
         string phone
-        ObjectId[] teamIds
+        ObjectId[] teamIds FK
         enum[] notifPrefs "email | text"
     }
 
@@ -20,12 +20,13 @@ erDiagram
     MAILBOX {
         ObjectId id PK
         enum type "user | team"
-        ObjectId refId
+        ObjectId refId FK
         string displayName
     }
 
     MAIL {
         ObjectId id PK
+        ObjectId mailboxId FK
         datetime date
         enum type "letter | package"
         int count

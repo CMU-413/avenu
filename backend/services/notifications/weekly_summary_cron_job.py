@@ -1,0 +1,98 @@
+from __future__ import annotations
+
+import logging
+from datetime import date, datetime, timedelta, timezone
+from time import perf_counter
+from typing import Any
+
+from config import users_collection
+from services.notifications.interfaces import Notifier
+from services.notifications.types import WeeklyCronJobResult
+
+
+def compute_previous_week_range(now: datetime) -> tuple[date, date]:
+    if now.tzinfo is None:
+        utc_now = now.replace(tzinfo=timezone.utc)
+    else:
+        utc_now = now.astimezone(timezone.utc)
+
+    today = utc_now.date()
+    days_since_sunday = (today.weekday() + 1) % 7
+    current_week_start = today - timedelta(days=days_since_sunday)
+    previous_week_start = current_week_start - timedelta(days=7)
+    previous_week_end = current_week_start - timedelta(days=1)
+    return previous_week_start, previous_week_end
+
+
+def run_weekly_summary_cron_job(
+    *,
+    notifier: Notifier,
+    users=users_collection,
+    now: datetime | None = None,
+    logger: logging.Logger | None = None,
+) -> WeeklyCronJobResult:
+    resolved_now = now or datetime.now(tz=timezone.utc)
+    week_start, week_end = compute_previous_week_range(resolved_now)
+    log = logger or logging.getLogger(__name__)
+    started_at = perf_counter()
+
+    opted_in_users: list[dict[str, Any]] = list(users.find({"notifPrefs": {"$in": ["email"]}}, {"_id": 1}))
+    candidate_count = len(opted_in_users)
+
+    counters: WeeklyCronJobResult = {
+        "weekStart": week_start,
+        "weekEnd": week_end,
+        "processed": 0,
+        "sent": 0,
+        "skipped": 0,
+        "failed": 0,
+        "errors": 0,
+    }
+
+    log.info(
+        "weekly_summary_cron_job_start weekStart=%s weekEnd=%s candidates=%d",
+        week_start.isoformat(),
+        week_end.isoformat(),
+        candidate_count,
+    )
+
+    for user in opted_in_users:
+        counters["processed"] += 1
+        user_id = user.get("_id")
+        try:
+            result = notifier.notifyWeeklySummary(
+                userId=user_id,
+                weekStart=week_start,
+                weekEnd=week_end,
+                triggeredBy="cron",
+            )
+            status = result.get("status")
+            if status == "sent":
+                counters["sent"] += 1
+            elif status == "skipped":
+                counters["skipped"] += 1
+            elif status == "failed":
+                counters["failed"] += 1
+            else:
+                counters["errors"] += 1
+                log.error("weekly_summary_cron_job_invalid_status userId=%s status=%r", user_id, status)
+        except Exception:
+            counters["errors"] += 1
+            log.exception("weekly_summary_cron_job_user_exception userId=%s", user_id)
+
+    elapsed_seconds = perf_counter() - started_at
+    log.info(
+        (
+            "weekly_summary_cron_job_complete weekStart=%s weekEnd=%s processed=%d sent=%d "
+            "skipped=%d failed=%d errors=%d elapsedSeconds=%.3f"
+        ),
+        week_start.isoformat(),
+        week_end.isoformat(),
+        counters["processed"],
+        counters["sent"],
+        counters["skipped"],
+        counters["failed"],
+        counters["errors"],
+        elapsed_seconds,
+    )
+    return counters

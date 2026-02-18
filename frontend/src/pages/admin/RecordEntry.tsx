@@ -162,7 +162,7 @@ const RecordEntry = () => {
 
       await Promise.all(ops);
       toast({ title: "Record saved" });
-      navigate(`/admin?date=${date}`);
+      navigate(`/admin/recording?date=${date}`);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to save record";
       toast({ title: message, variant: "destructive" });

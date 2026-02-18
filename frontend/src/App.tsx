@@ -5,7 +5,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import Login from "./pages/Login";
+import AdminHome from "./pages/admin/AdminHome";
 import AdminDashboard from "./pages/admin/AdminDashboard";
+import AdminNotifications from "./pages/admin/AdminNotifications";
 import SearchMailbox from "./pages/admin/SearchMailbox";
 import RecordEntry from "./pages/admin/RecordEntry";
 import MemberDashboard from "./pages/member/MemberDashboard";
@@ -77,7 +79,15 @@ const AppRoutes = () => {
         path="/"
         element={sessionUser ? <Navigate to={isAdmin ? "/admin" : "/member"} replace /> : <Login />}
       />
-      <Route path="/admin" element={isAdmin ? <AdminDashboard /> : <Navigate to={isMember ? "/member" : "/"} replace />} />
+      <Route path="/admin" element={isAdmin ? <AdminHome /> : <Navigate to={isMember ? "/member" : "/"} replace />} />
+      <Route
+        path="/admin/recording"
+        element={isAdmin ? <AdminDashboard /> : <Navigate to={isMember ? "/member" : "/"} replace />}
+      />
+      <Route
+        path="/admin/notifications"
+        element={isAdmin ? <AdminNotifications /> : <Navigate to={isMember ? "/member" : "/"} replace />}
+      />
       <Route
         path="/admin/mailboxes"
         element={isAdmin ? <SearchMailbox /> : <Navigate to={isMember ? "/member" : "/"} replace />}
