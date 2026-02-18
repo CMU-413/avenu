@@ -126,6 +126,11 @@ const App = () => {
         .then(data => {
           // Optionally handle response
           console.log("Backend response:", data);
+          if (data.user.isAdmin) {
+            window.location.href = "/admin";
+          } else {
+            window.location.href = "/member";
+          }
         })
         .catch(err => {
           console.error("Error sending token to backend:", err);
