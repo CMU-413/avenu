@@ -1,7 +1,7 @@
 FROM python:3.11-slim
 
-WORKDIR /app
+WORKDIR /app/scheduler
 
-COPY scheduler ./scheduler
+COPY scheduler /app/scheduler
 
-CMD ["python", "-m", "scheduler.main"]
+CMD ["python", "main.py"]

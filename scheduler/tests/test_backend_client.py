@@ -10,7 +10,7 @@ SCHEDULER_ROOT = Path(__file__).resolve().parents[1]
 if str(SCHEDULER_ROOT) not in sys.path:
     sys.path.insert(0, str(SCHEDULER_ROOT))
 
-from scheduler.client import BackendClient, BackendClientError
+from client import BackendClient, BackendClientError
 
 
 class _FakeResponse:
@@ -50,7 +50,7 @@ class BackendClientTests(unittest.TestCase):
             )
 
         client = BackendClient("http://backend:8000")
-        with patch("scheduler.client.urllib.request.urlopen", side_effect=fake_urlopen):
+        with patch("client.urllib.request.urlopen", side_effect=fake_urlopen):
             result = client.trigger_weekly_summary(
                 scheduler_token="secret",
                 week_start=date(2026, 2, 9),
@@ -75,7 +75,7 @@ class BackendClientTests(unittest.TestCase):
             return _FakeResponse(status=200, body={"ok": True})
 
         client = BackendClient("http://backend:8000")
-        with patch("scheduler.client.urllib.request.urlopen", side_effect=fake_urlopen):
+        with patch("client.urllib.request.urlopen", side_effect=fake_urlopen):
             client.trigger_weekly_summary(
                 scheduler_token="scheduler-secret",
                 week_start=date(2026, 2, 9),
@@ -91,7 +91,7 @@ class BackendClientTests(unittest.TestCase):
     def test_client_treats_replayed_response_as_success(self):
         client = BackendClient("http://backend:8000")
         with patch(
-            "scheduler.client.urllib.request.urlopen",
+            "client.urllib.request.urlopen",
             return_value=_FakeResponse(
                 status=200,
                 body={
@@ -123,7 +123,7 @@ class BackendClientTests(unittest.TestCase):
             fp=None,
         )
         error.read = lambda: b'{"error":"boom"}'
-        with patch("scheduler.client.urllib.request.urlopen", side_effect=error):
+        with patch("client.urllib.request.urlopen", side_effect=error):
             with self.assertRaises(BackendClientError):
                 client.trigger_weekly_summary(
                     scheduler_token="scheduler-secret",

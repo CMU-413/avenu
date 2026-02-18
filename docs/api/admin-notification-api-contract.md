@@ -1,5 +1,8 @@
 # Admin Notification API Contract
 
+Internal scheduler endpoint note:
+- `POST /api/internal/jobs/weekly-summary` is intentionally excluded from this document because it is an internal service-to-service endpoint (Scheduler -> Backend), not a public/admin user-facing API.
+
 ## 1. POST `/admin/notifications/special`
 
 Triggers a predefined special-case notification for a specific member and mailbox.

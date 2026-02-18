@@ -28,10 +28,10 @@ None.
 - ☑ Implement scheduler internal cron loop using `SCHEDULER_CRON`/`SCHEDULER_TIMEZONE` defaults (`0 8 * * 1`, `UTC`).
 
 ## Phase 3
-- ☐ Update architecture docs and README deployment guidance to match the 4-container runtime exactly.
-- ☐ Remove all legacy references to single app container, embedded scheduler, and internal reverse proxy routing.
-- ☐ Document service boundaries, Docker DNS names, and allowed communication paths explicitly.
-- ☐ Keep scheduler internal endpoint out of public API contract docs.
+- ☑ Update architecture docs and README deployment guidance to match the 4-container runtime exactly.
+- ☑ Remove all legacy references to single app container, embedded scheduler, and internal reverse proxy routing.
+- ☑ Document service boundaries, Docker DNS names, and allowed communication paths explicitly.
+- ☑ Keep scheduler internal endpoint out of public API contract docs.
 
 ## Phase 1: Container Boundary Refactor + Compose Topology
 Affected files and changes
@@ -42,7 +42,7 @@ Affected files and changes
 - `frontend/Dockerfile`: keep build + static serving, but remove any API-proxy coupling; frontend is static assets only.
 - `frontend/nginx.conf` (new): SPA static-file config only (`try_files` fallback), no `/api` upstreams.
 - `scheduler/Dockerfile` (new): create dedicated Scheduler image with lightweight Python runtime and HTTP client deps only.
-- `scheduler/` package (new): add scheduler entrypoint (`main.py`) that triggers backend weekly job endpoint over HTTP.
+- `scheduler/` directory (new): add scheduler entrypoint (`main.py`) that triggers backend weekly job endpoint over HTTP.
 - `docker-compose.yml`: replace `app` service with `frontend`, `backend`, `scheduler`, `database`; add explicit network, service DNS, `depends_on`, and Mongo named volume.
 - `docker-compose.yml`: set `scheduler.restart: unless-stopped` and add healthchecks for `backend` and `database`, with scheduler depending on healthy backend.
 - `.dockerignore`: update ignore rules for new service folders/build contexts if needed.

@@ -4,8 +4,8 @@ import logging
 import time
 from datetime import date, datetime, timedelta, timezone
 
-from scheduler.client import BackendClient, BackendClientError
-from scheduler.config import load_config
+from client import BackendClient, BackendClientError
+from config import load_config
 
 
 def main() -> int:
