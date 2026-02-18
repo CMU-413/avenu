@@ -9,7 +9,7 @@ ChannelStatus = Literal["sent", "failed"]
 NotifyStatus = Literal["sent", "skipped", "failed"]
 NotifyReason = Literal["already_sent", "opted_out", "empty_summary", "user_not_found", "all_channels_failed"]
 NotifyTrigger = Literal["cron", "admin"]
-NotificationType = Literal["weekly-summary"]
+NotificationType = Literal["weekly-summary", "special-case"]
 NotificationLogStatus = Literal["sent", "skipped", "failed"]
 
 
@@ -33,6 +33,12 @@ class WeeklySummaryNotificationPayload(TypedDict):
     summary: WeeklySummaryData
 
 
+class SpecialCaseNotificationPayload(TypedDict):
+    user: WeeklySummaryUser
+    triggeredBy: NotifyTrigger
+    templateType: Literal["mail-arrived"]
+
+
 class ChannelResult(TypedDict, total=False):
     channel: str
     status: ChannelStatus
@@ -49,7 +55,9 @@ class NotifyResult(TypedDict, total=False):
 class NotificationLogEntry(TypedDict):
     userId: ObjectId
     type: NotificationType
-    weekStart: datetime
+    weekStart: datetime | None
+    templateType: Literal["mail-arrived"] | None
+    mailboxId: ObjectId | None
     status: NotificationLogStatus
     reason: NotifyReason | None
     triggeredBy: NotifyTrigger

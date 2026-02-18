@@ -74,6 +74,19 @@ export interface ApiMemberPreferences {
   emailNotifications: boolean;
 }
 
+export interface ApiNotifyChannelResult {
+  channel: string;
+  status: "sent" | "failed";
+  messageId?: string;
+  error?: string;
+}
+
+export interface ApiNotifyResult {
+  status: "sent" | "skipped" | "failed";
+  reason?: string;
+  channelResults: ApiNotifyChannelResult[];
+}
+
 export class ApiError extends Error {
   status: number;
 
@@ -213,5 +226,14 @@ export function updateMemberPreferences(emailNotifications: boolean): Promise<Ap
   return apiFetch<ApiMemberPreferences>("/api/member/preferences", {
     method: "PATCH",
     body: JSON.stringify({ emailNotifications }),
+  });
+}
+
+export function sendMailArrivedNotification(payload: { userId: string }): Promise<ApiNotifyResult> {
+  return apiFetch<ApiNotifyResult>("/api/admin/notifications/special", {
+    method: "POST",
+    body: JSON.stringify({
+      userId: payload.userId,
+    }),
   });
 }

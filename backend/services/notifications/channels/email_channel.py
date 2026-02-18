@@ -6,7 +6,18 @@ from typing import Union
 from flask import render_template
 
 from services.notifications.providers.email_provider import EmailProvider
-from services.notifications.types import ChannelResult, WeeklySummaryData, WeeklySummaryNotificationPayload
+from services.notifications.types import (
+    ChannelResult,
+    SpecialCaseNotificationPayload,
+    WeeklySummaryData,
+    WeeklySummaryNotificationPayload,
+)
+
+MAIL_ARRIVED_TEMPLATE = {
+    "subject": "Mail has arrived",
+    "template": "emails/special_mail_arrived.html",
+    "requires_mailbox": False,
+}
 
 
 class EmailChannel:
@@ -15,14 +26,20 @@ class EmailChannel:
     def __init__(self, provider: EmailProvider) -> None:
         self.provider = provider
 
-    def send(self, payload: WeeklySummaryNotificationPayload) -> ChannelResult:
-        html = render_template(
-            "emails/weekly_summary.html",
-            summary=payload["summary"],
-            user=payload["user"],
-        )
-
-        subject = self._build_subject(payload["summary"])
+    def send(self, payload: WeeklySummaryNotificationPayload | SpecialCaseNotificationPayload) -> ChannelResult:
+        if "summary" in payload:
+            html = render_template(
+                "emails/weekly_summary.html",
+                summary=payload["summary"],
+                user=payload["user"],
+            )
+            subject = self._build_subject(payload["summary"])
+        else:
+            html = render_template(
+                MAIL_ARRIVED_TEMPLATE["template"],
+                user=payload["user"],
+            )
+            subject = MAIL_ARRIVED_TEMPLATE["subject"]
 
         try:
             message_id = self.provider.send(

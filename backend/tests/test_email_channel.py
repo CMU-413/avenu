@@ -96,6 +96,28 @@ class EmailChannelTests(unittest.TestCase):
 
         self.assertEqual(provider.calls[0]["subject"], "Your Avenu Mail Summary (Feb 15–Feb 21)")
 
+    def test_send_special_mail_arrived_renders_template_and_subject(self):
+        provider = FakeEmailProvider()
+        channel = EmailChannel(provider)
+
+        with self.app.app_context():
+            result = channel.send(self._special_payload())
+
+        self.assertEqual(result, {"channel": "email", "status": "sent", "messageId": "fake-message-id"})
+        self.assertEqual(provider.calls[0]["subject"], "Mail has arrived")
+        self.assertIn("Mail has arrived", provider.calls[0]["html"])
+        self.assertIn("recorded for your account", provider.calls[0]["html"])
+
+    def test_send_special_mail_arrived_returns_failed_when_provider_raises(self):
+        channel = EmailChannel(RaisingEmailProvider())
+
+        with self.app.app_context():
+            result = channel.send(self._special_payload())
+
+        self.assertEqual(result["channel"], "email")
+        self.assertEqual(result["status"], "failed")
+        self.assertIn("provider down", result["error"])
+
     def test_console_provider_prints_and_returns_message_id(self):
         provider = ConsoleEmailProvider()
 
@@ -156,6 +178,17 @@ class EmailChannelTests(unittest.TestCase):
             "totalLetters": total_letters,
             "totalPackages": total_packages,
             "mailboxes": [],
+        }
+
+    def _special_payload(self):
+        return {
+            "user": {
+                "id": str(ObjectId()),
+                "email": "member@example.com",
+                "fullname": "Member User",
+            },
+            "triggeredBy": "admin",
+            "templateType": "mail-arrived",
         }
 
 

@@ -271,6 +271,75 @@ class AdminSessionAuthTests(unittest.TestCase):
             triggeredBy="admin",
         )
 
+    def test_admin_special_notification_requires_admin_session(self):
+        response = self.client.post(
+            "/admin/notifications/special",
+            json={"userId": str(ObjectId())},
+        )
+        self.assertEqual(response.status_code, 401)
+
+    def test_admin_special_notification_rejects_non_admin_session(self):
+        session_user_id = str(ObjectId())
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = session_user_id
+
+        with patch("auth.find_user", return_value={"_id": ObjectId(session_user_id), "isAdmin": False}):
+            response = self.client.post(
+                "/admin/notifications/special",
+                json={"userId": str(ObjectId())},
+            )
+        self.assertEqual(response.status_code, 403)
+
+    def test_admin_special_notification_requires_user_id(self):
+        session_user_id = str(ObjectId())
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = session_user_id
+
+        with patch("auth.find_user", return_value={"_id": ObjectId(session_user_id), "isAdmin": True}):
+            response = self.client.post("/admin/notifications/special", json={})
+
+        self.assertEqual(response.status_code, 422)
+        self.assertEqual(response.json, {"error": "userId must be a string"})
+
+    def test_admin_special_notification_rejects_invalid_object_ids(self):
+        session_user_id = str(ObjectId())
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = session_user_id
+
+        with patch("auth.find_user", return_value={"_id": ObjectId(session_user_id), "isAdmin": True}):
+            response = self.client.post(
+                "/admin/notifications/special",
+                json={"userId": "bad-id"},
+            )
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json, {"error": "invalid user id"})
+
+    def test_admin_special_notification_calls_notifier_and_returns_result(self):
+        session_user_id = str(ObjectId())
+        target_user_id = str(ObjectId())
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = session_user_id
+
+        notify_result = {"status": "sent", "channelResults": [{"channel": "email", "status": "sent"}]}
+        notifier = Mock()
+        notifier.notifySpecialCase.return_value = notify_result
+
+        with patch("auth.find_user", return_value={"_id": ObjectId(session_user_id), "isAdmin": True}), patch(
+            "app.SpecialCaseNotifier",
+            return_value=notifier,
+        ):
+            response = self.client.post(
+                "/admin/notifications/special",
+                json={"userId": target_user_id},
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json, notify_result)
+        notifier.notifySpecialCase.assert_called_once_with(
+            userId=ObjectId(target_user_id),
+            triggeredBy="admin",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

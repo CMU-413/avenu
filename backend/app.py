@@ -16,6 +16,7 @@ from services.mailbox_service import get_mailbox, list_mailboxes, update_mailbox
 from services.member_service import list_member_mail_summary, update_member_email_notifications
 from services.notifications.channels.email_channel import EmailChannel
 from services.notifications.providers.console_provider import ConsoleEmailProvider
+from services.notifications.special_case_notifier import SpecialCaseNotifier
 from services.notifications.weekly_summary_notifier import WeeklySummaryNotifier
 from services.team_service import create_team, delete_team, get_team, list_teams, update_team
 from services.user_service import (
@@ -316,6 +317,20 @@ def create_app(
             userId=user_id,
             weekStart=week_start,
             weekEnd=week_end,
+            triggeredBy="admin",
+        )
+        return jsonify(result), 200
+
+    @app.route("/api/admin/notifications/special", methods=["POST"])
+    @app.route("/admin/notifications/special", methods=["POST"])
+    @require_admin_session
+    def admin_special_notification_route():
+        payload = _json_payload()
+        user_id = parse_object_id(require_string(payload, "userId"), "user id")
+
+        notifier = SpecialCaseNotifier(channels=[EmailChannel(ConsoleEmailProvider())])
+        result = notifier.notifySpecialCase(
+            userId=user_id,
             triggeredBy="admin",
         )
         return jsonify(result), 200
