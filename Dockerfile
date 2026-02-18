@@ -28,6 +28,6 @@ COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY start.sh /usr/local/bin/start-app.sh
 RUN chmod +x /usr/local/bin/start-app.sh
 
-EXPOSE 80
+EXPOSE 10000
 
 CMD ["/usr/local/bin/start-app.sh"]

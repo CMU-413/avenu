@@ -1,7 +1,7 @@
 #!/bin/sh
 set -euo pipefail
 
-cd /app/backend
+cd /backend
 
 python app.py &
 api_pid=$!
