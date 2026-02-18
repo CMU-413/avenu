@@ -12,8 +12,10 @@ from services.notifications.types import (
     NotifyResult,
     NotifyStatus,
     NotifyTrigger,
+    WeeklyCronJobResult,
     WeeklySummaryNotificationPayload,
 )
+from services.notifications.weekly_summary_cron_job import compute_previous_week_range, run_weekly_summary_cron_job
 from services.notifications.weekly_summary_notifier import WeeklySummaryNotifier
 
 __all__ = [
@@ -30,9 +32,12 @@ __all__ = [
     "NotifyResult",
     "NotifyStatus",
     "NotifyTrigger",
+    "WeeklyCronJobResult",
     "WEEKLY_SUMMARY_TYPE",
     "WeeklySummaryNotificationPayload",
     "WeeklySummaryNotifier",
+    "compute_previous_week_range",
     "find_sent_weekly_summary",
     "insert_notification_log",
+    "run_weekly_summary_cron_job",
 ]
