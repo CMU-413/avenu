@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any
 
 from bson import ObjectId
@@ -15,8 +16,18 @@ def _ensure_mailbox_exists(mailbox_id: ObjectId) -> None:
         raise APIError(422, "mailbox does not exist")
 
 
-def list_mail() -> list[dict[str, Any]]:
-    return list(mail_collection.find())
+def list_mail(
+    *,
+    day_start: datetime | None = None,
+    day_end: datetime | None = None,
+    mailbox_id: ObjectId | None = None,
+) -> list[dict[str, Any]]:
+    query: dict[str, Any] = {}
+    if day_start is not None and day_end is not None:
+        query["date"] = {"$gte": day_start, "$lt": day_end}
+    if mailbox_id is not None:
+        query["mailboxId"] = mailbox_id
+    return list(mail_collection.find(query).sort([("mailboxId", 1), ("date", 1), ("type", 1)]))
 
 
 def get_mail(mail_id: ObjectId) -> dict[str, Any] | None:

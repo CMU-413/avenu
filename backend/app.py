@@ -1,17 +1,19 @@
 from __future__ import annotations
 
 import os
+from datetime import date, datetime, timedelta, timezone
 from typing import Any, Callable
 
 from flask import Flask, jsonify, request, session
 
-from auth import ensure_admin_session, require_admin_session
+from auth import ensure_admin_session, ensure_member_session, ensure_session_user, require_admin_session
 from config import SECRET_KEY, SESSION_COOKIE_SECURE, ensure_indexes, idempotency_keys_collection
 from errors import APIError
 from idempotency import payload_hash, require_idempotency_key, reserve_or_replay, store_idempotent_response
 from repositories import to_api_doc
 from services.mail_service import create_mail, delete_mail, get_mail, list_mail, update_mail
 from services.mailbox_service import get_mailbox, list_mailboxes, update_mailbox
+from services.member_service import list_member_mail_summary, update_member_email_notifications
 from services.team_service import create_team, delete_team, get_team, list_teams, update_team
 from services.user_service import (
     create_user,
@@ -26,6 +28,21 @@ from validators import normalize_email, parse_object_id, require_dict, require_s
 
 def _json_payload() -> dict[str, Any]:
     return require_dict(request.get_json(silent=True))
+
+
+def _parse_day_utc(date_value: str) -> tuple[datetime, datetime]:
+    try:
+        day = datetime.strptime(date_value, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+    except ValueError as exc:
+        raise APIError(422, "date must be YYYY-MM-DD") from exc
+    return day, day + timedelta(days=1)
+
+
+def _parse_iso_date(value: str, *, field_name: str) -> date:
+    try:
+        return datetime.strptime(value, "%Y-%m-%d").date()
+    except ValueError as exc:
+        raise APIError(422, f"{field_name} must be YYYY-MM-DD") from exc
 
 
 def _idempotent_create(
@@ -115,6 +132,23 @@ def create_app(
         session.pop("user_id", None)
         return "", 204
 
+    @app.route("/api/session/me", methods=["GET"])
+    def session_me():
+        user = ensure_session_user()
+        return (
+            jsonify(
+                {
+                    "id": str(user["_id"]),
+                    "email": user.get("email", ""),
+                    "fullname": user.get("fullname", ""),
+                    "isAdmin": user.get("isAdmin", False),
+                    "teamIds": [str(tid) for tid in user.get("teamIds", [])],
+                    "emailNotifications": "email" in list(user.get("notifPrefs", [])),
+                }
+            ),
+            200,
+        )
+
     @app.route("/api/users", methods=["POST"])
     def users_create():
         body, status = _idempotent_create(route="/api/users", create_fn=create_user)
@@ -180,10 +214,12 @@ def create_app(
         return "", 204
 
     @app.route("/api/mailboxes", methods=["GET"])
+    @require_admin_session
     def mailboxes_list_route():
         return jsonify([to_api_doc(d) for d in list_mailboxes()]), 200
 
     @app.route("/api/mailboxes/<mailbox_id>", methods=["GET"])
+    @require_admin_session
     def mailboxes_get_route(mailbox_id: str):
         oid = parse_object_id(mailbox_id, "mailbox id")
         doc = to_api_doc(get_mailbox(oid))
@@ -192,21 +228,32 @@ def create_app(
         return jsonify(doc), 200
 
     @app.route("/api/mailboxes/<mailbox_id>", methods=["PATCH"])
+    @require_admin_session
     def mailboxes_patch_route(mailbox_id: str):
         oid = parse_object_id(mailbox_id, "mailbox id")
         updated = update_mailbox(oid, _json_payload())
         return jsonify(to_api_doc(updated)), 200
 
     @app.route("/api/mail", methods=["POST"])
+    @require_admin_session
     def mail_create_route():
         body, status = _idempotent_create(route="/api/mail", create_fn=create_mail)
         return jsonify(body), status
 
     @app.route("/api/mail", methods=["GET"])
+    @require_admin_session
     def mail_list_route():
-        return jsonify([to_api_doc(d) for d in list_mail()]), 200
+        date_value = request.args.get("date")
+        mailbox_id_value = request.args.get("mailboxId")
+        day_start = None
+        day_end = None
+        if date_value is not None:
+            day_start, day_end = _parse_day_utc(date_value)
+        mailbox_id = parse_object_id(mailbox_id_value, "mailbox id") if mailbox_id_value else None
+        return jsonify([to_api_doc(d) for d in list_mail(day_start=day_start, day_end=day_end, mailbox_id=mailbox_id)]), 200
 
     @app.route("/api/mail/<mail_id>", methods=["GET"])
+    @require_admin_session
     def mail_get_route(mail_id: str):
         oid = parse_object_id(mail_id, "mail id")
         doc = to_api_doc(get_mail(oid))
@@ -215,16 +262,40 @@ def create_app(
         return jsonify(doc), 200
 
     @app.route("/api/mail/<mail_id>", methods=["PATCH"])
+    @require_admin_session
     def mail_patch_route(mail_id: str):
         oid = parse_object_id(mail_id, "mail id")
         updated = update_mail(oid, _json_payload())
         return jsonify(to_api_doc(updated)), 200
 
     @app.route("/api/mail/<mail_id>", methods=["DELETE"])
+    @require_admin_session
     def mail_delete_route(mail_id: str):
         oid = parse_object_id(mail_id, "mail id")
         delete_mail(oid)
         return "", 204
+
+    @app.route("/api/member/mail", methods=["GET"])
+    def member_mail_route():
+        user = ensure_member_session()
+        start_value = request.args.get("start")
+        end_value = request.args.get("end")
+        if start_value is None or end_value is None:
+            raise APIError(422, "start and end are required")
+        start_day = _parse_iso_date(start_value, field_name="start")
+        end_day = _parse_iso_date(end_value, field_name="end")
+        if end_day < start_day:
+            raise APIError(422, "end must be on or after start")
+        return jsonify(list_member_mail_summary(user=user, start_day=start_day, end_day=end_day)), 200
+
+    @app.route("/api/member/preferences", methods=["PATCH"])
+    def member_preferences_route():
+        user = ensure_member_session()
+        payload = _json_payload()
+        email_notifications = payload.get("emailNotifications")
+        if not isinstance(email_notifications, bool):
+            raise APIError(422, "emailNotifications must be a boolean")
+        return jsonify(update_member_email_notifications(user=user, enabled=email_notifications)), 200
 
     return app
 

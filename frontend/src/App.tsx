@@ -1,155 +1,111 @@
-import { useState } from 'react'
-import type { FormEvent } from 'react'
-import { BrowserRouter, Route, Routes } from 'react-router-dom'
-import './App.css'
-import AdminMailIntakeForm from './AdminMailIntakeForm'
+import { Toaster } from "@/components/ui/toaster";
+import { Toaster as Sonner } from "@/components/ui/sonner";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { useEffect } from "react";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import Login from "./pages/Login";
+import AdminDashboard from "./pages/admin/AdminDashboard";
+import SearchMailbox from "./pages/admin/SearchMailbox";
+import RecordEntry from "./pages/admin/RecordEntry";
+import MemberDashboard from "./pages/member/MemberDashboard";
+import NotificationSettings from "./pages/member/NotificationSettings";
+import NotFound from "./pages/NotFound";
+import { ApiError, ApiSessionMe, sessionMe } from "./lib/api";
+import { SessionUser, useAppStore } from "./lib/store";
 
-const API_BASE_URL = '/api'
+const queryClient = new QueryClient();
 
-type UserRecord = Record<string, unknown>
-
-async function apiFetch(path: string, init?: RequestInit): Promise<Response> {
-  return fetch(`${API_BASE_URL}${path}`, {
-    credentials: 'include',
-    ...init,
-  })
+function toSessionUser(session: ApiSessionMe): SessionUser {
+  return {
+    id: session.id,
+    fullname: session.fullname,
+    email: session.email,
+    isAdmin: session.isAdmin,
+    teamIds: session.teamIds,
+    emailNotifications: session.emailNotifications,
+  };
 }
 
-function App() {
-  const [users, setUsers] = useState<UserRecord[]>([])
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [lastFetchedAt, setLastFetchedAt] = useState<string | null>(null)
-  const [isAuthenticated, setIsAuthenticated] = useState(false)
-  const [loggingIn, setLoggingIn] = useState(false)
-  const [loginError, setLoginError] = useState<string | null>(null)
-  const [email, setEmail] = useState('')
+const AppRoutes = () => {
+  const {
+    sessionUser,
+    isHydratingSession,
+    setSessionHydrating,
+    setSessionUser,
+  } = useAppStore();
 
-  const handleLogin = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    setLoggingIn(true)
-    setLoginError(null)
-
-    try {
-      const response = await apiFetch('/session/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
-      })
-
-      if (response.status === 204) {
-        setIsAuthenticated(true)
-        return
+  useEffect(() => {
+    let alive = true;
+    const hydrate = async () => {
+      setSessionHydrating(true);
+      try {
+        const me = await sessionMe();
+        if (!alive) return;
+        setSessionUser(toSessionUser(me));
+      } catch (err) {
+        if (!alive) return;
+        if (err instanceof ApiError && err.status === 401) {
+          setSessionUser(null);
+        } else {
+          setSessionUser(null);
+        }
+      } finally {
+        if (alive) setSessionHydrating(false);
       }
+    };
+    hydrate();
+    return () => {
+      alive = false;
+    };
+  }, [setSessionHydrating, setSessionUser]);
 
-      setIsAuthenticated(false)
-      setLoginError(response.status === 401 ? 'Unknown user email' : 'Login failed')
-    } catch {
-      setLoginError('Login failed')
-    } finally {
-      setLoggingIn(false)
-    }
+  if (isHydratingSession) {
+    return (
+      <div className="min-h-screen flex items-center justify-center text-muted-foreground">
+        Loading...
+      </div>
+    );
   }
 
-  const handleLogout = async () => {
-    try {
-      await apiFetch('/session/logout', { method: 'POST' })
-    } finally {
-      setIsAuthenticated(false)
-      setUsers([])
-      setLastFetchedAt(null)
-    }
-  }
-
-  const handleFetchUsers = async () => {
-    setLoading(true)
-    setError(null)
-    try {
-      const response = await apiFetch('/users')
-      if (response.status === 401) {
-        setIsAuthenticated(false)
-        throw new Error('Unauthorized: please log in again')
-      }
-      if (response.status === 403) {
-        throw new Error('Forbidden: admin privileges required')
-      }
-      if (!response.ok) {
-        const errorBody = (await response.json().catch(() => ({}))) as
-          | Record<string, unknown>
-          | undefined
-        const message =
-          errorBody && 'error' in errorBody ? String(errorBody.error) : 'Failed to load users'
-        throw new Error(message)
-      }
-
-      const payload = (await response.json()) as UserRecord[]
-      setUsers(payload)
-      setLastFetchedAt(new Date().toLocaleTimeString())
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load users')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const emptyStateText =
-    users.length === 0 && !loading
-      ? 'No users loaded yet. Click the button above to list users from the database.'
-      : null
-
-  const statusMessage = lastFetchedAt ? `Last refreshed ${lastFetchedAt}` : 'Not refreshed yet'
-
-  const HomePage = () => (
-    <div style={{ padding: '1rem' }}>
-      <h1>Avenu Admin</h1>
-
-      {!isAuthenticated && (
-        <form onSubmit={handleLogin} style={{ marginBottom: '1rem' }}>
-          <div>
-            <label>
-              User Email
-              <input
-                type="email"
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-                required
-              />
-            </label>
-          </div>
-          <button type="submit" disabled={loggingIn}>
-            {loggingIn ? 'Logging in...' : 'Login'}
-          </button>
-          {loginError && <p style={{ color: 'red' }}>{loginError}</p>}
-        </form>
-      )}
-
-      {isAuthenticated && (
-        <p>
-          Session active. <button onClick={handleLogout}>Logout</button>
-        </p>
-      )}
-
-      <button onClick={handleFetchUsers} disabled={loading || !isAuthenticated}>
-        {loading ? 'Loading...' : 'Fetch Users'}
-      </button>
-
-      {error && <p style={{ color: 'red' }}>{error}</p>}
-      {statusMessage && <p>{statusMessage}</p>}
-      {emptyStateText && <p>{emptyStateText}</p>}
-      {users.length > 0 && (
-        <pre style={{ marginTop: '1rem', overflow: 'auto' }}>{JSON.stringify(users, null, 2)}</pre>
-      )}
-    </div>
-  )
+  const isAdmin = sessionUser?.isAdmin === true;
+  const isMember = !!sessionUser && !isAdmin;
 
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<HomePage />} />
-        <Route path="/mailIntake/:mailboxId" element={<AdminMailIntakeForm />} />
-      </Routes>
-    </BrowserRouter>
-  )
-}
+    <Routes>
+      <Route
+        path="/"
+        element={sessionUser ? <Navigate to={isAdmin ? "/admin" : "/member"} replace /> : <Login />}
+      />
+      <Route path="/admin" element={isAdmin ? <AdminDashboard /> : <Navigate to={isMember ? "/member" : "/"} replace />} />
+      <Route
+        path="/admin/mailboxes"
+        element={isAdmin ? <SearchMailbox /> : <Navigate to={isMember ? "/member" : "/"} replace />}
+      />
+      <Route
+        path="/admin/mailboxes/:mailboxId"
+        element={isAdmin ? <RecordEntry /> : <Navigate to={isMember ? "/member" : "/"} replace />}
+      />
+      <Route path="/member" element={isMember ? <MemberDashboard /> : <Navigate to={isAdmin ? "/admin" : "/"} replace />} />
+      <Route
+        path="/member/settings"
+        element={isMember ? <NotificationSettings /> : <Navigate to={isAdmin ? "/admin" : "/"} replace />}
+      />
+      <Route path="*" element={<NotFound />} />
+    </Routes>
+  );
+};
 
-export default App
+const App = () => (
+  <QueryClientProvider client={queryClient}>
+    <TooltipProvider>
+      <Toaster />
+      <Sonner />
+      <BrowserRouter>
+        <AppRoutes />
+      </BrowserRouter>
+    </TooltipProvider>
+  </QueryClientProvider>
+);
+
+export default App;
