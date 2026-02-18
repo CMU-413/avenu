@@ -55,3 +55,13 @@ class NotificationLogEntry(TypedDict):
     triggeredBy: NotifyTrigger
     errorMessage: str | None
     sentAt: datetime | None
+
+
+class WeeklyCronJobResult(TypedDict):
+    weekStart: date
+    weekEnd: date
+    processed: int
+    sent: int
+    skipped: int
+    failed: int
+    errors: int
