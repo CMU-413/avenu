@@ -1,11 +1,16 @@
 from __future__ import annotations
 
+from datetime import date, datetime
 from typing import Any, Literal, TypedDict
+
+from bson import ObjectId
 
 ChannelStatus = Literal["sent", "failed"]
 NotifyStatus = Literal["sent", "skipped", "failed"]
-NotifyReason = Literal["opted_out", "empty_summary", "user_not_found", "all_channels_failed"]
+NotifyReason = Literal["already_sent", "opted_out", "empty_summary", "user_not_found", "all_channels_failed"]
 NotifyTrigger = Literal["cron", "admin"]
+NotificationType = Literal["weekly-summary"]
+NotificationLogStatus = Literal["sent", "skipped", "failed"]
 
 
 class WeeklySummaryUser(TypedDict):
@@ -39,3 +44,14 @@ class NotifyResult(TypedDict, total=False):
     status: NotifyStatus
     channelResults: list[ChannelResult]
     reason: NotifyReason
+
+
+class NotificationLogEntry(TypedDict):
+    userId: ObjectId
+    type: NotificationType
+    weekStart: date
+    status: NotificationLogStatus
+    reason: NotifyReason | None
+    triggeredBy: NotifyTrigger
+    errorMessage: str | None
+    sentAt: datetime | None
