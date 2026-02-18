@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Weekly Mail Summary</title>
+  </head>
+  <body>
+    <h1>Weekly Mail Summary</h1>
+    <p>Hello {{ user.fullname or user.email }},</p>
+    <p>Here is your summary for {{ summary.weekStart }} to {{ summary.weekEnd }}.</p>
+    <ul>
+      <li>Total letters: {{ summary.totalLetters }}</li>
+      <li>Total packages: {{ summary.totalPackages }}</li>
+    </ul>
+  </body>
+</html>

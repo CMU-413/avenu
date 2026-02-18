@@ -71,6 +71,8 @@ class WeeklySummaryNotifier:
                 "channel": str(channel_result.get("channel", getattr(channel, "channel", "unknown"))),
                 "status": "sent" if channel_result.get("status") == "sent" else "failed",
             }
+            if isinstance(channel_result.get("messageId"), str) and channel_result.get("messageId"):
+                normalized["messageId"] = channel_result["messageId"]
             if isinstance(channel_result.get("error"), str) and channel_result.get("error"):
                 normalized["error"] = channel_result["error"]
             results.append(normalized)
