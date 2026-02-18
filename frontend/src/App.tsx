@@ -96,16 +96,44 @@ const AppRoutes = () => {
   );
 };
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <AppRoutes />
-      </BrowserRouter>
-    </TooltipProvider>
-  </QueryClientProvider>
-);
+const App = () => {
+  // Send Optix token to backend if present in URL
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    let token = params.get("token");
+    const orgId = params.get("org_id");
+    const userId = params.get("user_id");
+    if (token) {
+      token = decodeURIComponent(token);
+      fetch("/api/optix-token", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ token, orgId, userId })
+      })
+        .then(res => res.json())
+        .then(data => {
+          // Optionally handle response
+          console.log("Backend response:", data);
+        })
+        .catch(err => {
+          console.error("Error sending token to backend:", err);
+        });
+    }
+  }, []);
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <AppRoutes />
+        </BrowserRouter>
+      </TooltipProvider>
+    </QueryClientProvider>
+  );
+};
 
 export default App;
