@@ -3,7 +3,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useEffect } from "react";
-import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes, useNavigate } from "react-router-dom";
 import Login from "./pages/Login";
 import AdminHome from "./pages/admin/AdminHome";
 import AdminDashboard from "./pages/admin/AdminDashboard";
@@ -106,8 +106,10 @@ const AppRoutes = () => {
   );
 };
 
+
 const App = () => {
-  // Send Optix token to backend if present in URL
+  const navigate = useNavigate();
+  const { setSessionUser } = useAppStore();
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     let token = params.get("token");
@@ -123,20 +125,28 @@ const App = () => {
         body: JSON.stringify({ token, orgId, userId })
       })
         .then(res => res.json())
-        .then(data => {
+        .then(async data => {
           // Optionally handle response
           console.log("Backend response:", data);
-          if (data.user.isAdmin) {
-            window.location.href = "/admin";
-          } else {
-            window.location.href = "/member";
+          // Hydrate session after backend sets it
+          try {
+            const me = await sessionMe();
+            setSessionUser(toSessionUser(me));
+            if (me.isAdmin) {
+              navigate("/admin", { replace: true });
+            } else {
+              navigate("/member", { replace: true });
+            }
+          } catch (err) {
+            setSessionUser(null);
+            navigate("/", { replace: true });
           }
         })
         .catch(err => {
           console.error("Error sending token to backend:", err);
         });
     }
-  }, []);
+  }, [navigate, setSessionUser]);
 
   return (
     <QueryClientProvider client={queryClient}>
