@@ -5,7 +5,7 @@ import { Settings, LogOut, Mail, Package } from "lucide-react";
 import { ApiError, ApiMemberMailSummary, getMemberMail, sessionLogout } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 
-const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 function formatIsoDateLocal(date: Date): string {
   const y = date.getFullYear();
@@ -17,9 +17,9 @@ function formatIsoDateLocal(date: Date): string {
 function getWeekRange(weeksAgo: number) {
   const now = new Date();
   now.setHours(12, 0, 0, 0);
-  const dayOfWeek = now.getDay();
+  const daysSinceMonday = (now.getDay() + 6) % 7;
   const startOfThisWeek = new Date(now);
-  startOfThisWeek.setDate(now.getDate() - dayOfWeek - weeksAgo * 7);
+  startOfThisWeek.setDate(now.getDate() - daysSinceMonday - weeksAgo * 7);
   startOfThisWeek.setHours(12, 0, 0, 0);
 
   const endOfWeek = new Date(startOfThisWeek);
