@@ -302,6 +302,48 @@ def create_app(
 
 app = create_app(testing=os.getenv("FLASK_TESTING", "").strip().lower() in {"1", "true", "yes"})
 
+# Optix token endpoint
+import requests
+
+@app.route("/api/optix-token", methods=["POST"])
+def optix_token_route():
+        payload = _json_payload()
+        token = payload.get("token")
+        if not token:
+                raise APIError(400, "Missing token")
+        # Query Optix API for current user
+        resp = requests.post(
+                "https://api.optixapp.com/graphql",
+                headers={
+                        "Content-Type": "application/json",
+                        "Authorization": f"Bearer {token}"
+                },
+                json={
+                        "query": """
+                        query {
+                            me {
+                                user {
+                                    user_id
+                                    email
+                                    name
+                                    is_admin
+                                    teams {
+                                        team_id
+                                        name 
+                                    }
+                                }
+                            }
+                        }
+                        """
+                }
+        )
+        if resp.status_code != 200:
+                return jsonify({"error": "Failed to query Optix API", "status": resp.status_code}), resp.status_code
+        data = resp.json()
+
+        
+        return jsonify(data), 200
+
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5001, debug=True)
