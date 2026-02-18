@@ -1,9 +1,12 @@
 import os
+from pathlib import Path
+
 from pymongo import ASCENDING, DESCENDING, MongoClient
 from pymongo.server_api import ServerApi
 from dotenv import load_dotenv
 
-load_dotenv()
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+load_dotenv(_REPO_ROOT / ".env")
 
 MONGO_URI = os.getenv("MONGO_URI")
 if not MONGO_URI:

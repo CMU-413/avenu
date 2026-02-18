@@ -28,9 +28,9 @@ You need the following installed locally:
 
 ## Environment Variables
 
-### Backend (`backend/.env`)
+### Backend (`.env` in repo root)
 
-Create a `.env` file in `backend/`:
+Create a `.env` file at the repo root (a `.env.sample` copy lives here as well):
 
 ```env
 MONGO_URI=mongodb+srv://<user>:<password>@<cluster>.mongodb.net
