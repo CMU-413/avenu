@@ -417,12 +417,14 @@ def optix_token_route():
 
     if not existing_user:
         user_doc = create_user(user_payload)
+        session["user_id"] = str(user_doc["_id"])
         return jsonify({"created": True, "user": user_doc}), 201
     else:
         # Update user fields if changed
         user_id = existing_user["_id"]
         update_user(user_id, user_payload)
         updated_user = find_user(user_id)
+        session["user_id"] = str(updated_user["_id"])
         return jsonify({"created": False, "user": updated_user}), 200
 
 
