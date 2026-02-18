@@ -296,7 +296,7 @@ Approach:
 ### Endpoint
 
 ```
-POST /admin/notifications/weekly-summary
+POST /admin/notifications/summary
 ```
 
 ### Behavior

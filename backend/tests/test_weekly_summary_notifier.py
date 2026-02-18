@@ -1,6 +1,6 @@
 import os
 import unittest
-from datetime import date
+from datetime import date, datetime, timezone
 
 from bson import ObjectId
 
@@ -93,6 +93,8 @@ class WeeklySummaryNotifierTests(unittest.TestCase):
         self.assertEqual(len(logs.docs), 1)
         self.assertEqual(logs.docs[0]["status"], "skipped")
         self.assertEqual(logs.docs[0]["reason"], "opted_out")
+        self.assertIsInstance(logs.docs[0]["weekStart"], datetime)
+        self.assertEqual(logs.docs[0]["weekStart"], datetime(2026, 2, 15, tzinfo=timezone.utc))
         self.assertIsNone(logs.docs[0]["errorMessage"])
 
     def test_notify_weekly_summary_logs_failed_when_user_not_found(self):

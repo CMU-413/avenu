@@ -10,6 +10,11 @@ from services.notifications.types import NotificationLogEntry, NotificationLogSt
 
 WEEKLY_SUMMARY_TYPE = "weekly-summary"
 
+def _to_utc_datetime(value: date | datetime) -> datetime:
+    if isinstance(value, datetime):
+        return value.astimezone(timezone.utc)
+    return datetime(value.year, value.month, value.day, tzinfo=timezone.utc)
+
 
 def find_sent_weekly_summary(
     collection: Collection,
@@ -21,7 +26,7 @@ def find_sent_weekly_summary(
         {
             "userId": user_id,
             "type": WEEKLY_SUMMARY_TYPE,
-            "weekStart": week_start,
+            "weekStart": _to_utc_datetime(week_start),
             "status": "sent",
         }
     )
@@ -42,7 +47,7 @@ def insert_notification_log(
         {
             "userId": user_id,
             "type": WEEKLY_SUMMARY_TYPE,
-            "weekStart": week_start,
+            "weekStart": _to_utc_datetime(week_start),
             "status": status,
             "reason": reason,
             "triggeredBy": triggered_by,
