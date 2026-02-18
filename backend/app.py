@@ -14,6 +14,9 @@ from repositories import to_api_doc
 from services.mail_service import create_mail, delete_mail, get_mail, list_mail, update_mail
 from services.mailbox_service import get_mailbox, list_mailboxes, update_mailbox
 from services.member_service import list_member_mail_summary, update_member_email_notifications
+from services.notifications.channels.email_channel import EmailChannel
+from services.notifications.providers.console_provider import ConsoleEmailProvider
+from services.notifications.weekly_summary_notifier import WeeklySummaryNotifier
 from services.team_service import create_team, delete_team, get_team, list_teams, update_team
 from services.user_service import (
     create_user,
@@ -296,6 +299,26 @@ def create_app(
         if not isinstance(email_notifications, bool):
             raise APIError(422, "emailNotifications must be a boolean")
         return jsonify(update_member_email_notifications(user=user, enabled=email_notifications)), 200
+
+    @app.route("/api/admin/notifications/summary", methods=["POST"])
+    @app.route("/admin/notifications/summary", methods=["POST"])
+    @require_admin_session
+    def admin_weekly_summary_route():
+        payload = _json_payload()
+        user_id = parse_object_id(require_string(payload, "userId"), "user id")
+        week_start = _parse_iso_date(require_string(payload, "weekStart"), field_name="weekStart")
+        week_end = _parse_iso_date(require_string(payload, "weekEnd"), field_name="weekEnd")
+        if week_end < week_start:
+            raise APIError(422, "weekEnd must be on or after weekStart")
+
+        notifier = WeeklySummaryNotifier(channels=[EmailChannel(ConsoleEmailProvider())])
+        result = notifier.notifyWeeklySummary(
+            userId=user_id,
+            weekStart=week_start,
+            weekEnd=week_end,
+            triggeredBy="admin",
+        )
+        return jsonify(result), 200
 
     return app
 

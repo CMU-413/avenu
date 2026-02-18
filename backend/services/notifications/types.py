@@ -49,7 +49,7 @@ class NotifyResult(TypedDict, total=False):
 class NotificationLogEntry(TypedDict):
     userId: ObjectId
     type: NotificationType
-    weekStart: date
+    weekStart: datetime
     status: NotificationLogStatus
     reason: NotifyReason | None
     triggeredBy: NotifyTrigger
