@@ -45,6 +45,18 @@ class FakeSummaryService:
         return self._summary
 
 
+class FakeNotificationLogCollection:
+    def __init__(self):
+        self.docs = []
+
+    def find_one(self, _query, _projection=None):
+        return None
+
+    def insert_one(self, doc):
+        self.docs.append(dict(doc))
+        return object()
+
+
 class EmailChannelTests(unittest.TestCase):
     def setUp(self):
         self.app = create_app(testing=True, ensure_db_indexes_on_startup=False)
@@ -111,6 +123,7 @@ class EmailChannelTests(unittest.TestCase):
                 }
             ),
             summaryService=FakeSummaryService(self._summary(total_letters=2, total_packages=1)),
+            notificationLogs=FakeNotificationLogCollection(),
         )
 
         with self.app.app_context():
