@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import os
+import requests
+
 from datetime import date, datetime, timedelta, timezone
 from typing import Any, Callable
 
@@ -10,7 +12,7 @@ from auth import ensure_admin_session, ensure_member_session, ensure_session_use
 from config import SECRET_KEY, SESSION_COOKIE_SECURE, ensure_indexes, idempotency_keys_collection
 from errors import APIError
 from idempotency import payload_hash, require_idempotency_key, reserve_or_replay, store_idempotent_response
-from repositories import to_api_doc
+from repositories import to_api_doc, find_user, find_team
 from services.mail_service import create_mail, delete_mail, get_mail, list_mail, update_mail
 from services.mailbox_service import get_mailbox, list_mailboxes, update_mailbox
 from services.member_service import list_member_mail_summary, update_member_email_notifications
@@ -25,6 +27,7 @@ from services.user_service import (
 )
 from validators import normalize_email, parse_object_id, require_dict, require_string
 
+from bson import ObjectId
 
 def _json_payload() -> dict[str, Any]:
     return require_dict(request.get_json(silent=True))
@@ -303,46 +306,87 @@ def create_app(
 app = create_app(testing=os.getenv("FLASK_TESTING", "").strip().lower() in {"1", "true", "yes"})
 
 # Optix token endpoint
-import requests
-
 @app.route("/api/optix-token", methods=["POST"])
 def optix_token_route():
-        payload = _json_payload()
-        token = payload.get("token")
-        if not token:
-                raise APIError(400, "Missing token")
-        # Query Optix API for current user
-        resp = requests.post(
-                "https://api.optixapp.com/graphql",
-                headers={
-                        "Content-Type": "application/json",
-                        "Authorization": f"Bearer {token}"
-                },
-                json={
-                        "query": """
-                        query {
-                            me {
-                                user {
-                                    user_id
-                                    email
-                                    name
-                                    is_admin
-                                    teams {
-                                        team_id
-                                        name 
-                                    }
-                                }
-                            }
-                        }
-                        """
+    payload = _json_payload()
+    token = payload.get("token")
+    if not token:
+        raise APIError(400, "Missing token")
+    # Query Optix API for current user
+    resp = requests.post(
+        "https://api.optixapp.com/graphql",
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {token}"
+        },
+        json={
+            "query": """
+            query {
+              me {
+                user {
+                  user_id
+                  email
+                  name
+                  is_admin
+                  teams {
+                    team_id
+                    name
+                  }
                 }
-        )
-        if resp.status_code != 200:
-                return jsonify({"error": "Failed to query Optix API", "status": resp.status_code}), resp.status_code
-        data = resp.json()
+              }
+            }
+            """
+        }
+    )
 
-        
-        return jsonify(data), 200
+    if resp.status_code != 200:
+        return jsonify({"error": "Failed to query Optix API", "status": resp.status_code}), resp.status_code
+    
+    data = resp.json()
+    user_info = (
+        data.get("data", {})
+        .get("me", {})
+        .get("user", {})
+    )
+    if not user_info:
+        return jsonify({"error": "No user info returned from Optix"}), 400
+
+    # Check if user exists by optixId using find_user
+    optix_user_id = user_info.get("user_id")
+    existing_user = find_user(optix_user_id)
+    # Always ensure all teams exist and update user fields if needed
+    team_ids = []
+    for team in user_info.get("teams", []):
+        optix_team_id = team.get("team_id")
+        team_doc = find_team(optix_team_id)
+        if not team_doc:
+            # Create team
+            team_payload = {
+                "optixId": optix_team_id,
+                "name": team.get("name", "")
+            }
+            team_doc = create_team(team_payload)
+        team_ids.append(team_doc["_id"])
+
+    user_payload = {
+        "optixId": optix_user_id,
+        "fullname": user_info.get("name", ""),
+        "email": user_info.get("email", ""),
+        "isAdmin": user_info.get("is_admin", False),
+        "teamIds": team_ids,
+        "notifPrefs": ["email"]
+    }
+
+    if not existing_user:
+        user_doc = create_user(user_payload)
+        return jsonify({"created": True, "user": user_doc}), 201
+    else:
+        # Update user fields if changed
+        from services.user_service import update_user
+        user_id = existing_user["_id"]
+        update_user(user_id, user_payload)
+        updated_user = find_user(user_id)
+        return jsonify({"created": False, "user": updated_user}), 200
 
 
 if __name__ == "__main__":
