@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAppStore } from "@/lib/store";
-import { Plus, LogOut, Mail, Package } from "lucide-react";
+import { Plus, LogOut, Mail, Package, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ApiError, listMail, listMailboxes, sessionLogout } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
@@ -88,7 +88,6 @@ const AdminDashboard = () => {
     setSearchParams({ date: selectedDate }, { replace: true });
   }, [selectedDate, setSearchParams]);
 
-  // Aggregate by mailbox
   const aggregated = useMemo(() => {
     const map = new Map<string, { letters: number; packages: number }>();
     for (const r of records) {
@@ -122,9 +121,11 @@ const AdminDashboard = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
       <header className="sticky top-0 z-10 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
         <div className="flex items-center justify-between px-4 h-14">
+          <button onClick={() => navigate("/admin")} className="text-muted-foreground hover:text-foreground transition-colors">
+            <ArrowLeft className="h-5 w-5" />
+          </button>
           <h1 className="text-lg font-bold text-foreground">Avenu</h1>
           <button onClick={handleLogout} className="text-muted-foreground hover:text-foreground transition-colors">
             <LogOut className="h-5 w-5" />
@@ -133,7 +134,6 @@ const AdminDashboard = () => {
       </header>
 
       <div className="px-4 py-4 space-y-4 max-w-lg mx-auto">
-        {/* Date selector */}
         <input
           type="date"
           value={selectedDate}
@@ -141,13 +141,11 @@ const AdminDashboard = () => {
           className="w-full h-11 rounded-lg border border-input bg-card px-3 text-sm font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
         />
 
-        {/* Add record button */}
         <Button onClick={() => navigate(`/admin/mailboxes?date=${selectedDate}`)} className="w-full h-12 text-base gap-2">
           <Plus className="h-5 w-5" />
           Add Record
         </Button>
 
-        {/* Records list */}
         <div className="space-y-1">
           <div className="flex items-center justify-between px-1 pb-2">
             <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider">
@@ -164,17 +162,17 @@ const AdminDashboard = () => {
           </div>
 
           {loading ? (
-            <div className="py-12 text-center text-muted-foreground text-sm">
-              Loading...
-            </div>
+            <div className="py-12 text-center text-muted-foreground text-sm">Loading...</div>
           ) : aggregated.length === 0 ? (
-            <div className="py-12 text-center text-muted-foreground text-sm">
-              No records for this date
-            </div>
+            <div className="py-12 text-center text-muted-foreground text-sm">No records for this date</div>
           ) : (
             <div className="divide-y divide-border rounded-xl border bg-card overflow-hidden">
               {aggregated.map((item, i) => (
-                <div key={i} onClick={() => navigate(`/admin/mailboxes/${item.mailbox?.id}?date=${selectedDate}`)} className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-muted/50 transition-colors">
+                <div
+                  key={i}
+                  onClick={() => navigate(`/admin/mailboxes/${item.mailbox?.id}?date=${selectedDate}`)}
+                  className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-muted/50 transition-colors"
+                >
                   <div>
                     <p className="text-sm font-medium text-card-foreground">{item.mailbox?.name}</p>
                     <p className="text-xs text-muted-foreground capitalize">{item.mailbox?.type}</p>

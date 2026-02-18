@@ -5,13 +5,19 @@ from typing import Protocol
 
 from bson import ObjectId
 
-from services.notifications.types import ChannelResult, NotifyResult, NotifyTrigger, WeeklySummaryNotificationPayload
+from services.notifications.types import (
+    ChannelResult,
+    NotifyResult,
+    NotifyTrigger,
+    SpecialCaseNotificationPayload,
+    WeeklySummaryNotificationPayload,
+)
 
 
 class NotificationChannel(Protocol):
     channel: str
 
-    def send(self, payload: WeeklySummaryNotificationPayload) -> ChannelResult:
+    def send(self, payload: WeeklySummaryNotificationPayload | SpecialCaseNotificationPayload) -> ChannelResult:
         ...
 
 
@@ -22,6 +28,14 @@ class Notifier(Protocol):
         userId: ObjectId,
         weekStart: date,
         weekEnd: date,
+        triggeredBy: NotifyTrigger,
+    ) -> NotifyResult:
+        ...
+
+    def notifySpecialCase(
+        self,
+        *,
+        userId: ObjectId,
         triggeredBy: NotifyTrigger,
     ) -> NotifyResult:
         ...

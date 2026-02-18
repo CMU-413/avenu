@@ -310,6 +310,23 @@ POST /admin/notifications/summary
 * Returns NotifyResult
 * Uses same code path as cron
 
+### Special-Case Endpoint
+
+```
+POST /admin/notifications/special
+```
+
+* Accepts:
+
+  * userId
+* Calls `SpecialCaseNotifier.notifySpecialCase(...)`.
+* Uses a single fixed template type in this phase: `mail-arrived`.
+* Uses user-level dispatch (not mailbox-level) and does not dispatch channels when user validation fails.
+* Logs every attempt in `NOTIFICATION_LOG` with:
+  * `type="special-case"`
+  * `templateType="mail-arrived"`
+  * `triggeredBy="admin"`
+
 ---
 
 # Decisions Made
