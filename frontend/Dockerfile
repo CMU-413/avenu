@@ -1,4 +1,3 @@
-@ -1,21 +0,0 @@
 # ---------- build stage ----------
 FROM node:20-alpine AS build
 
