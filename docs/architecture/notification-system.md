@@ -275,7 +275,7 @@ Fields:
 ### Behavior
 
 * Runs every Monday at fixed time.
-* Computes deterministic previous week boundaries.
+* Computes deterministic previous week boundaries (Monday-Sunday).
 * Fetches all opted-in users.
 * Calls WeeklySummaryNotifier per user.
 * Continues on failure.

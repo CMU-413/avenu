@@ -95,7 +95,7 @@ describe("AdminNotifications", () => {
     const now = new Date();
     now.setHours(0, 0, 0, 0);
     const currentWeekStart = new Date(now);
-    currentWeekStart.setDate(now.getDate() - now.getDay());
+    currentWeekStart.setDate(now.getDate() - ((now.getDay() + 6) % 7));
     const previousWeekStart = new Date(currentWeekStart);
     previousWeekStart.setDate(currentWeekStart.getDate() - 7);
     const previousWeekEnd = new Date(currentWeekStart);

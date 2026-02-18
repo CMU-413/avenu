@@ -9,9 +9,9 @@ import { ApiError, listUsers, sendMailArrivedNotification, sendWeeklySummaryNoti
 function computePreviousWeekRange(reference: Date): { weekStart: string; weekEnd: string } {
   const date = new Date(reference);
   date.setHours(0, 0, 0, 0);
-  const daysSinceSunday = date.getDay();
+  const daysSinceMonday = (date.getDay() + 6) % 7;
   const currentWeekStart = new Date(date);
-  currentWeekStart.setDate(date.getDate() - daysSinceSunday);
+  currentWeekStart.setDate(date.getDate() - daysSinceMonday);
 
   const previousWeekStart = new Date(currentWeekStart);
   previousWeekStart.setDate(currentWeekStart.getDate() - 7);

@@ -69,8 +69,8 @@ class WeeklySummaryCronCommandTests(unittest.TestCase):
             captured["now"] = now
             captured["logger"] = logger
             return {
-                "weekStart": date(2026, 2, 8),
-                "weekEnd": date(2026, 2, 14),
+                "weekStart": date(2026, 2, 9),
+                "weekEnd": date(2026, 2, 15),
                 "processed": 0,
                 "sent": 0,
                 "skipped": 0,
@@ -88,7 +88,7 @@ class WeeklySummaryCronCommandTests(unittest.TestCase):
 
         self.assertIs(captured["notifier"], sentinel_notifier)
         self.assertEqual(captured["now"], fixed_now)
-        self.assertEqual(result["weekStart"], date(2026, 2, 8))
+        self.assertEqual(result["weekStart"], date(2026, 2, 9))
 
     def test_manual_command_console_provider_path_emits_expected_output(self):
         user_id = ObjectId()
@@ -104,8 +104,8 @@ class WeeklySummaryCronCommandTests(unittest.TestCase):
             ),
             summaryService=FakeSummaryService(
                 {
-                    "weekStart": "2026-02-08",
-                    "weekEnd": "2026-02-14",
+                    "weekStart": "2026-02-09",
+                    "weekEnd": "2026-02-15",
                     "totalLetters": 2,
                     "totalPackages": 1,
                     "mailboxes": [],
@@ -117,13 +117,13 @@ class WeeklySummaryCronCommandTests(unittest.TestCase):
         def fake_job_runner(*, notifier, now, logger):
             notifier.notifyWeeklySummary(
                 userId=user_id,
-                weekStart=date(2026, 2, 8),
-                weekEnd=date(2026, 2, 14),
+                weekStart=date(2026, 2, 9),
+                weekEnd=date(2026, 2, 15),
                 triggeredBy="cron",
             )
             return {
-                "weekStart": date(2026, 2, 8),
-                "weekEnd": date(2026, 2, 14),
+                "weekStart": date(2026, 2, 9),
+                "weekEnd": date(2026, 2, 15),
                 "processed": 1,
                 "sent": 1,
                 "skipped": 0,
@@ -144,7 +144,7 @@ class WeeklySummaryCronCommandTests(unittest.TestCase):
         self.assertEqual(result["sent"], 1)
         self.assertIn("=== EMAIL SEND ===", output)
         self.assertIn("To: member@example.com", output)
-        self.assertIn("Subject: Your Avenu Mail Summary (Feb 08", output)
+        self.assertIn("Subject: Your Avenu Mail Summary (Feb 09", output)
 
 
 if __name__ == "__main__":

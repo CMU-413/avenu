@@ -63,17 +63,17 @@ class FakeLogger:
 
 
 class WeeklySummaryCronJobTests(unittest.TestCase):
-    def test_compute_previous_week_range_uses_deterministic_sunday_to_saturday_window(self):
+    def test_compute_previous_week_range_uses_deterministic_monday_to_sunday_window(self):
         now = datetime(2026, 2, 18, 15, 30, tzinfo=timezone.utc)  # Wednesday
         week_start, week_end = compute_previous_week_range(now)
-        self.assertEqual(week_start.isoformat(), "2026-02-08")
-        self.assertEqual(week_end.isoformat(), "2026-02-14")
+        self.assertEqual(week_start.isoformat(), "2026-02-09")
+        self.assertEqual(week_end.isoformat(), "2026-02-15")
 
     def test_compute_previous_week_range_normalizes_non_utc_input(self):
         now = datetime(2026, 2, 16, 0, 30, tzinfo=timezone(timedelta(hours=14)))  # 2026-02-15T10:30:00Z
         week_start, week_end = compute_previous_week_range(now)
-        self.assertEqual(week_start.isoformat(), "2026-02-08")
-        self.assertEqual(week_end.isoformat(), "2026-02-14")
+        self.assertEqual(week_start.isoformat(), "2026-02-02")
+        self.assertEqual(week_end.isoformat(), "2026-02-08")
 
     def test_run_weekly_summary_cron_job_fetches_only_opted_in_users(self):
         user_email = ObjectId()
@@ -112,8 +112,8 @@ class WeeklySummaryCronJobTests(unittest.TestCase):
         )
 
         self.assertEqual(notifier.calls[0]["triggeredBy"], "cron")
-        self.assertEqual(notifier.calls[0]["weekStart"].isoformat(), "2026-02-08")
-        self.assertEqual(notifier.calls[0]["weekEnd"].isoformat(), "2026-02-14")
+        self.assertEqual(notifier.calls[0]["weekStart"].isoformat(), "2026-02-09")
+        self.assertEqual(notifier.calls[0]["weekEnd"].isoformat(), "2026-02-15")
 
     def test_run_weekly_summary_cron_job_continues_on_notifier_exception(self):
         first = ObjectId()
@@ -186,7 +186,7 @@ class WeeklySummaryCronJobTests(unittest.TestCase):
 
         self.assertEqual(len(logger.info_messages), 2)
         self.assertIn("weekly_summary_cron_job_start", logger.info_messages[0])
-        self.assertIn("weekStart=2026-02-08", logger.info_messages[0])
+        self.assertIn("weekStart=2026-02-09", logger.info_messages[0])
         self.assertIn("weekly_summary_cron_job_complete", logger.info_messages[1])
         self.assertIn("processed=1", logger.info_messages[1])
         self.assertIn("sent=1", logger.info_messages[1])

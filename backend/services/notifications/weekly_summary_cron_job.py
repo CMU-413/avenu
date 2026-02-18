@@ -17,8 +17,8 @@ def compute_previous_week_range(now: datetime) -> tuple[date, date]:
         utc_now = now.astimezone(timezone.utc)
 
     today = utc_now.date()
-    days_since_sunday = (today.weekday() + 1) % 7
-    current_week_start = today - timedelta(days=days_since_sunday)
+    days_since_monday = today.weekday()
+    current_week_start = today - timedelta(days=days_since_monday)
     previous_week_start = current_week_start - timedelta(days=7)
     previous_week_end = current_week_start - timedelta(days=1)
     return previous_week_start, previous_week_end
