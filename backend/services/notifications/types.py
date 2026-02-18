@@ -31,6 +31,7 @@ class WeeklySummaryNotificationPayload(TypedDict):
 class ChannelResult(TypedDict, total=False):
     channel: str
     status: ChannelStatus
+    messageId: str
     error: str
 
 
