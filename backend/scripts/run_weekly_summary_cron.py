@@ -14,7 +14,7 @@ if str(BACKEND_ROOT) not in sys.path:
 from app import create_app
 from services.notifications.channels.email_channel import EmailChannel
 from services.notifications.interfaces import Notifier
-from services.notifications.providers.console_provider import ConsoleEmailProvider
+from services.notifications.providers.factory import build_email_provider
 from services.notifications.types import WeeklyCronJobResult
 from services.notifications.weekly_summary_cron_job import run_weekly_summary_cron_job
 from services.notifications.weekly_summary_notifier import WeeklySummaryNotifier
@@ -25,8 +25,10 @@ def _is_testing_mode() -> bool:
     return raw.strip().lower() in {"1", "true", "yes", "on"}
 
 
-def build_default_notifier() -> Notifier:
-    return WeeklySummaryNotifier(channels=[EmailChannel(ConsoleEmailProvider())])
+def build_default_notifier(*, testing: bool | None = None) -> Notifier:
+    resolved_testing = _is_testing_mode() if testing is None else testing
+    provider = build_email_provider(testing=resolved_testing)
+    return WeeklySummaryNotifier(channels=[EmailChannel(provider)])
 
 
 def run_weekly_summary_cron_command(
@@ -37,8 +39,9 @@ def run_weekly_summary_cron_command(
     job_runner: Callable[..., WeeklyCronJobResult] = run_weekly_summary_cron_job,
     app_factory: Callable[..., object] = create_app,
 ) -> WeeklyCronJobResult:
-    resolved_notifier = notifier or build_default_notifier()
-    app = app_factory(testing=_is_testing_mode(), ensure_db_indexes_on_startup=not _is_testing_mode())
+    resolved_testing = _is_testing_mode()
+    resolved_notifier = notifier or build_default_notifier(testing=resolved_testing)
+    app = app_factory(testing=resolved_testing, ensure_db_indexes_on_startup=not resolved_testing)
     with app.app_context():
         return job_runner(notifier=resolved_notifier, now=now, logger=logger)
 
