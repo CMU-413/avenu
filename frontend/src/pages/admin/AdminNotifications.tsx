@@ -4,7 +4,26 @@ import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/lib/store";
-import { ApiError, listUsers, sendMailArrivedNotification } from "@/lib/api";
+import { ApiError, listUsers, sendMailArrivedNotification, sendWeeklySummaryNotification } from "@/lib/api";
+
+function computePreviousWeekRange(reference: Date): { weekStart: string; weekEnd: string } {
+  const date = new Date(reference);
+  date.setHours(0, 0, 0, 0);
+  const daysSinceMonday = (date.getDay() + 6) % 7;
+  const currentWeekStart = new Date(date);
+  currentWeekStart.setDate(date.getDate() - daysSinceMonday);
+
+  const previousWeekStart = new Date(currentWeekStart);
+  previousWeekStart.setDate(currentWeekStart.getDate() - 7);
+  const previousWeekEnd = new Date(currentWeekStart);
+  previousWeekEnd.setDate(currentWeekStart.getDate() - 1);
+
+  const formatDate = (value: Date) => value.toISOString().slice(0, 10);
+  return {
+    weekStart: formatDate(previousWeekStart),
+    weekEnd: formatDate(previousWeekEnd),
+  };
+}
 
 const AdminNotifications = () => {
   const navigate = useNavigate();
@@ -13,7 +32,8 @@ const AdminNotifications = () => {
 
   const [users, setUsers] = useState<{ id: string; fullname: string }[]>([]);
   const [selectedUserId, setSelectedUserId] = useState("");
-  const [sending, setSending] = useState(false);
+  const [sendingWeekly, setSendingWeekly] = useState(false);
+  const [sendingSpecial, setSendingSpecial] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -43,7 +63,42 @@ const AdminNotifications = () => {
     };
   }, [logout, navigate, toast]);
 
-  const handleSend = async () => {
+  const handleSendWeekly = async () => {
+    if (!selectedUserId) {
+      toast({ title: "Select a recipient", variant: "destructive" });
+      return;
+    }
+
+    const { weekStart, weekEnd } = computePreviousWeekRange(new Date());
+    if (!window.confirm(`Send Weekly Mail Notification for ${weekStart} to ${weekEnd}?`)) {
+      return;
+    }
+
+    setSendingWeekly(true);
+    try {
+      const result = await sendWeeklySummaryNotification({
+        userId: selectedUserId,
+        weekStart,
+        weekEnd,
+      });
+      if (result.status === "sent") {
+        toast({ title: "Weekly notification sent" });
+      } else {
+        toast({ title: `Weekly notification ${result.status}`, description: result.reason || undefined });
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to send weekly notification";
+      toast({ title: message, variant: "destructive" });
+      if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
+        logout();
+        navigate("/");
+      }
+    } finally {
+      setSendingWeekly(false);
+    }
+  };
+
+  const handleSendSpecial = async () => {
     if (!selectedUserId) {
       toast({ title: "Select a recipient", variant: "destructive" });
       return;
@@ -52,7 +107,7 @@ const AdminNotifications = () => {
       return;
     }
 
-    setSending(true);
+    setSendingSpecial(true);
     try {
       const result = await sendMailArrivedNotification({
         userId: selectedUserId,
@@ -70,7 +125,7 @@ const AdminNotifications = () => {
         navigate("/");
       }
     } finally {
-      setSending(false);
+      setSendingSpecial(false);
     }
   };
 
@@ -102,8 +157,12 @@ const AdminNotifications = () => {
           ))}
         </select>
 
-        <Button onClick={handleSend} disabled={sending} className="w-full h-11 text-sm">
-          {sending ? "Sending..." : "Send Mail Arrived Notification"}
+        <Button onClick={handleSendWeekly} disabled={sendingWeekly || sendingSpecial} className="w-full h-11 text-sm">
+          {sendingWeekly ? "Sending..." : "Send Weekly Mail Notification"}
+        </Button>
+
+        <Button onClick={handleSendSpecial} disabled={sendingWeekly || sendingSpecial} className="w-full h-11 text-sm">
+          {sendingSpecial ? "Sending..." : "Send Mail Arrived Notification"}
         </Button>
       </div>
     </div>

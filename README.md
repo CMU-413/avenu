@@ -30,20 +30,12 @@ You need the following installed locally:
 
 ### Backend (`.env` in repo root)
 
-Create a `.env` file at the repo root (a `.env.sample` copy lives here as well):
-
-```env
-MONGO_URI=mongodb+srv://<user>:<password>@<cluster>.mongodb.net
-DB_NAME=avenu_db
-SECRET_KEY=replace-with-a-long-random-secret
-# Optional: set true when app is served over HTTPS
-SESSION_COOKIE_SECURE=false
-SESSION_COOKIE_SAMESITE=Lax
-SESSION_COOKIE_PARTITIONED=false
-```
+Copy `.env.sample` into `.env` and fill out the required values.
 
 Notes:
 - `SECRET_KEY` is required outside tests.
+- In testing mode (`FLASK_TESTING=true`), notifications use `ConsoleEmailProvider`.
+- Outside testing mode, notifications use Microsoft Graph and require all `MS_GRAPH_*` values above.
 - For iframe/Canvas embedding, set:
   - `SESSION_COOKIE_SAMESITE=None`
   - `SESSION_COOKIE_SECURE=true`

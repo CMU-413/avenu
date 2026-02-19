@@ -3,7 +3,7 @@ None.
 
 # Locked Decisions
 - Weekly job execution will reuse `WeeklySummaryNotifier.notifyWeeklySummary(...)` as the only dispatch entrypoint.
-- Cron/manual execution will compute a deterministic previous full week window from one clock source (`now` injected for tests, UTC in production), anchored to UTC Sunday-Saturday.
+- Cron/manual execution will compute a deterministic previous full week window from one clock source (`now` injected for tests, UTC in production), anchored to UTC Monday-Sunday.
 - Opted-in audience is users where `notifPrefs` contains `"email"`.
 - Job execution is best-effort per user: per-user failures are logged and do not stop remaining users.
 - Job emits explicit start/completion logs with week window and explicit counters (`processed`, `sent`, `skipped`, `failed`, `errors`).
@@ -33,7 +33,7 @@ Affected files and changes
 ### Core behavior
 - Add `compute_previous_week_range(now: datetime) -> tuple[date, date]`:
   - Normalize `now` to UTC before deriving date boundaries.
-  - Derive previous full Sunday-Saturday range deterministically.
+  - Derive previous full Monday-Sunday range deterministically.
   - Return immutable `(week_start, week_end)` values.
 - Add `run_weekly_summary_cron_job(...)` function with injected dependencies (`notifier`, `users collection`, `now`, `logger`).
 - Query opted-in users with projection-first query (`{"notifPrefs": {"$in": ["email"]}}` with `{"_id": 1}`).
@@ -71,7 +71,7 @@ Affected files and changes
 - `backend/tests/test_weekly_summary_cron_command.py` (new) or extension in existing notifier/email tests: unit tests for manual-run wiring and console output path.
 
 ### Unit tests
-- `test_compute_previous_week_range_uses_deterministic_sunday_to_saturday_window`
+- `test_compute_previous_week_range_uses_deterministic_monday_to_sunday_window`
   - Fixed `now` (UTC) and assert exact `weekStart/weekEnd` dates.
 - `test_run_weekly_summary_cron_job_fetches_only_opted_in_users`
   - Fake users collection with mixed `notifPrefs`; assert notifier called only for `"email"` users.

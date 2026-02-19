@@ -3,15 +3,17 @@ import os
 import unittest
 from contextlib import redirect_stdout
 from datetime import date, datetime, timezone
+from unittest.mock import patch
 
 from bson import ObjectId
 
 os.environ.setdefault("MONGO_URI", "mongodb://localhost:27017")
 
 from app import create_app
-from scripts.run_weekly_summary_cron import run_weekly_summary_cron_command
+from scripts.run_weekly_summary_cron import build_default_notifier, run_weekly_summary_cron_command
 from services.notifications.channels.email_channel import EmailChannel
 from services.notifications.providers.console_provider import ConsoleEmailProvider
+from services.notifications.providers.email_provider import EmailProvider
 from services.notifications.weekly_summary_notifier import WeeklySummaryNotifier
 
 
@@ -44,6 +46,19 @@ class FakeNotificationLogCollection:
 
 
 class WeeklySummaryCronCommandTests(unittest.TestCase):
+    def test_build_default_notifier_uses_factory_selected_provider(self):
+        class SentinelProvider(EmailProvider):
+            def send(self, *, to: str, subject: str, html: str) -> str:
+                _ = to, subject, html
+                return "sentinel-id"
+
+        sentinel_provider = SentinelProvider()
+        with patch("scripts.run_weekly_summary_cron.build_email_provider", return_value=sentinel_provider) as factory_mock:
+            notifier = build_default_notifier(testing=False)
+
+        factory_mock.assert_called_once_with(testing=False)
+        self.assertIs(notifier._channels[0].provider, sentinel_provider)
+
     def test_manual_command_uses_same_notifier_entrypoint(self):
         captured = {}
         sentinel_notifier = object()
@@ -54,8 +69,8 @@ class WeeklySummaryCronCommandTests(unittest.TestCase):
             captured["now"] = now
             captured["logger"] = logger
             return {
-                "weekStart": date(2026, 2, 8),
-                "weekEnd": date(2026, 2, 14),
+                "weekStart": date(2026, 2, 9),
+                "weekEnd": date(2026, 2, 15),
                 "processed": 0,
                 "sent": 0,
                 "skipped": 0,
@@ -73,7 +88,7 @@ class WeeklySummaryCronCommandTests(unittest.TestCase):
 
         self.assertIs(captured["notifier"], sentinel_notifier)
         self.assertEqual(captured["now"], fixed_now)
-        self.assertEqual(result["weekStart"], date(2026, 2, 8))
+        self.assertEqual(result["weekStart"], date(2026, 2, 9))
 
     def test_manual_command_console_provider_path_emits_expected_output(self):
         user_id = ObjectId()
@@ -89,8 +104,8 @@ class WeeklySummaryCronCommandTests(unittest.TestCase):
             ),
             summaryService=FakeSummaryService(
                 {
-                    "weekStart": "2026-02-08",
-                    "weekEnd": "2026-02-14",
+                    "weekStart": "2026-02-09",
+                    "weekEnd": "2026-02-15",
                     "totalLetters": 2,
                     "totalPackages": 1,
                     "mailboxes": [],
@@ -102,13 +117,13 @@ class WeeklySummaryCronCommandTests(unittest.TestCase):
         def fake_job_runner(*, notifier, now, logger):
             notifier.notifyWeeklySummary(
                 userId=user_id,
-                weekStart=date(2026, 2, 8),
-                weekEnd=date(2026, 2, 14),
+                weekStart=date(2026, 2, 9),
+                weekEnd=date(2026, 2, 15),
                 triggeredBy="cron",
             )
             return {
-                "weekStart": date(2026, 2, 8),
-                "weekEnd": date(2026, 2, 14),
+                "weekStart": date(2026, 2, 9),
+                "weekEnd": date(2026, 2, 15),
                 "processed": 1,
                 "sent": 1,
                 "skipped": 0,
@@ -129,7 +144,7 @@ class WeeklySummaryCronCommandTests(unittest.TestCase):
         self.assertEqual(result["sent"], 1)
         self.assertIn("=== EMAIL SEND ===", output)
         self.assertIn("To: member@example.com", output)
-        self.assertIn("Subject: Your Avenu Mail Summary (Feb 08", output)
+        self.assertIn("Subject: Your Avenu Mail Summary (Feb 09", output)
 
 
 if __name__ == "__main__":

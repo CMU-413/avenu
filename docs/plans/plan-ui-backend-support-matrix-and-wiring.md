@@ -87,16 +87,16 @@
 - Required response shape:
   ```json
   {
-    "weekStart": "2026-02-15",
-    "weekEnd": "2026-02-21",
+    "weekStart": "2026-02-16",
+    "weekEnd": "2026-02-22",
     "mailboxes": [
       {
         "mailboxId": "<id>",
         "name": "Autumn Q's Personal",
         "type": "personal",
         "days": [
-          { "date": "2026-02-15", "letters": 0, "packages": 1 },
-          { "date": "2026-02-16", "letters": 2, "packages": 0 }
+          { "date": "2026-02-16", "letters": 0, "packages": 1 },
+          { "date": "2026-02-17", "letters": 2, "packages": 0 }
         ]
       }
     ]

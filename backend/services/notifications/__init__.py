@@ -9,7 +9,9 @@ from services.notifications.log_repository import (
     insert_special_case_notification_log,
 )
 from services.notifications.providers.console_provider import ConsoleEmailProvider
-from services.notifications.providers.email_provider import EmailProvider
+from services.notifications.providers.email_provider import EmailProvider, MailProviderError
+from services.notifications.providers.factory import build_email_provider
+from services.notifications.providers.ms_graph_provider import MSGraphEmailProvider
 from services.notifications.special_case_notifier import SpecialCaseNotifier
 from services.notifications.types import (
     ChannelResult,
@@ -29,9 +31,12 @@ from services.notifications.weekly_summary_notifier import WeeklySummaryNotifier
 
 __all__ = [
     "ChannelResult",
+    "build_email_provider",
     "ConsoleEmailProvider",
     "EmailChannel",
     "EmailProvider",
+    "MailProviderError",
+    "MSGraphEmailProvider",
     "NotificationChannel",
     "NotificationLogEntry",
     "NotificationLogStatus",

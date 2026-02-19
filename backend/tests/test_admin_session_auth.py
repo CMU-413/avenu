@@ -252,11 +252,15 @@ class AdminSessionAuthTests(unittest.TestCase):
         notify_result = {"status": "sent", "channelResults": [{"channel": "email", "status": "sent"}]}
         notifier = Mock()
         notifier.notifyWeeklySummary.return_value = notify_result
+        provider = object()
 
         with patch("auth.find_user", return_value={"_id": ObjectId(session_user_id), "isAdmin": True}), patch(
+            "app.build_email_provider",
+            return_value=provider,
+        ) as provider_factory_mock, patch(
             "app.WeeklySummaryNotifier",
             return_value=notifier,
-        ):
+        ) as notifier_ctor_mock:
             response = self.client.post(
                 "/admin/notifications/summary",
                 json={"userId": target_user_id, "weekStart": "2026-02-15", "weekEnd": "2026-02-21"},
@@ -264,6 +268,10 @@ class AdminSessionAuthTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json, notify_result)
+        provider_factory_mock.assert_called_once_with(testing=True)
+        channels = notifier_ctor_mock.call_args.kwargs["channels"]
+        self.assertEqual(len(channels), 1)
+        self.assertIs(channels[0].provider, provider)
         notifier.notifyWeeklySummary.assert_called_once_with(
             userId=ObjectId(target_user_id),
             weekStart=date(2026, 2, 15),
@@ -323,11 +331,15 @@ class AdminSessionAuthTests(unittest.TestCase):
         notify_result = {"status": "sent", "channelResults": [{"channel": "email", "status": "sent"}]}
         notifier = Mock()
         notifier.notifySpecialCase.return_value = notify_result
+        provider = object()
 
         with patch("auth.find_user", return_value={"_id": ObjectId(session_user_id), "isAdmin": True}), patch(
+            "app.build_email_provider",
+            return_value=provider,
+        ) as provider_factory_mock, patch(
             "app.SpecialCaseNotifier",
             return_value=notifier,
-        ):
+        ) as notifier_ctor_mock:
             response = self.client.post(
                 "/admin/notifications/special",
                 json={"userId": target_user_id},
@@ -335,6 +347,10 @@ class AdminSessionAuthTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json, notify_result)
+        provider_factory_mock.assert_called_once_with(testing=True)
+        channels = notifier_ctor_mock.call_args.kwargs["channels"]
+        self.assertEqual(len(channels), 1)
+        self.assertIs(channels[0].provider, provider)
         notifier.notifySpecialCase.assert_called_once_with(
             userId=ObjectId(target_user_id),
             triggeredBy="admin",

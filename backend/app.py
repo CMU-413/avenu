@@ -24,7 +24,7 @@ from services.mail_service import create_mail, delete_mail, get_mail, list_mail,
 from services.mailbox_service import get_mailbox, list_mailboxes, update_mailbox
 from services.member_service import list_member_mail_summary, update_member_email_notifications
 from services.notifications.channels.email_channel import EmailChannel
-from services.notifications.providers.console_provider import ConsoleEmailProvider
+from services.notifications.providers.factory import build_email_provider
 from services.notifications.special_case_notifier import SpecialCaseNotifier
 from services.notifications.weekly_summary_notifier import WeeklySummaryNotifier
 from services.team_service import create_team, delete_team, get_team, list_teams, update_team
@@ -326,7 +326,7 @@ def create_app(
         if week_end < week_start:
             raise APIError(422, "weekEnd must be on or after weekStart")
 
-        notifier = WeeklySummaryNotifier(channels=[EmailChannel(ConsoleEmailProvider())])
+        notifier = WeeklySummaryNotifier(channels=[EmailChannel(build_email_provider(testing=testing))])
         result = notifier.notifyWeeklySummary(
             userId=user_id,
             weekStart=week_start,
@@ -342,7 +342,7 @@ def create_app(
         payload = _json_payload()
         user_id = parse_object_id(require_string(payload, "userId"), "user id")
 
-        notifier = SpecialCaseNotifier(channels=[EmailChannel(ConsoleEmailProvider())])
+        notifier = SpecialCaseNotifier(channels=[EmailChannel(build_email_provider(testing=testing))])
         result = notifier.notifySpecialCase(
             userId=user_id,
             triggeredBy="admin",
