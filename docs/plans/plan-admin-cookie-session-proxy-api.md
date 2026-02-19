@@ -70,7 +70,7 @@ Affected files and changes
 - On successful login, allow admin actions (for current UI: fetch users).
 - On `401` from admin endpoints, reset local admin state and prompt login.
 - Remove all `VITE_ADMIN_API_KEY` references from frontend runtime/build logic.
-- Set `API_BASE_URL = '/api'` in browser code (no `http://backend:5001` or `localhost:5001` in shipped frontend code).
+- Set `API_BASE_URL = '/api'` in browser code (no `http://backend:8000` or `localhost:8000` in shipped frontend code).
 
 ### Unit tests (phase-local)
 - If lightweight unit-test setup is added (Vitest + RTL), add focused tests for helper/login behavior:
@@ -81,8 +81,8 @@ Affected files and changes
 
 ## Phase 3: /api Reverse Proxy + Config/Docs Cleanup
 Affected files and changes
-- `frontend/vite.config.ts`: add dev server proxy mapping `/api` -> backend (`http://localhost:5001`) with cookie-preserving proxy defaults.
-- `frontend/nginx.conf`: add `/api` location block proxying to backend container service (`http://backend:5001`) while keeping SPA fallback for `/`.
+- `frontend/vite.config.ts`: add dev server proxy mapping `/api` -> backend (`http://localhost:8000`) with cookie-preserving proxy defaults.
+- `frontend/nginx.conf`: add `/api` location block proxying to backend container service (`http://backend:8000`) while keeping SPA fallback for `/`.
 - `docker-compose.yml`: remove `VITE_ADMIN_API_KEY` build arg/env; simplify frontend build args to no backend host coupling in browser bundle.
 - `frontend/Dockerfile`: remove `VITE_ADMIN_API_KEY` and unnecessary API host build args now that browser code uses relative `/api`.
 - `README.md`: replace API-key instructions with session-auth env config (`SECRET_KEY`, admin credentials), and document `/api` proxy behavior in dev/docker.
