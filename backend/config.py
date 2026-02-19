@@ -23,10 +23,6 @@ def _env_bool(name: str, default: bool) -> bool:
     return raw.strip().lower() in {"1", "true", "yes", "on"}
 
 
-SESSION_COOKIE_SECURE = _env_bool("SESSION_COOKIE_SECURE", False)
-SESSION_COOKIE_PARTITIONED = _env_bool("SESSION_COOKIE_PARTITIONED", False)
-
-
 def _env_samesite(name: str, default: str) -> str:
     raw = os.getenv(name, default).strip().lower()
     allowed = {
@@ -39,7 +35,19 @@ def _env_samesite(name: str, default: str) -> str:
     return allowed[raw]
 
 
+SESSION_COOKIE_SECURE = _env_bool("SESSION_COOKIE_SECURE", False)
+SESSION_COOKIE_PARTITIONED = _env_bool("SESSION_COOKIE_PARTITIONED", False)
 SESSION_COOKIE_SAMESITE = _env_samesite("SESSION_COOKIE_SAMESITE", "Lax")
+
+SCHEDULER_INTERNAL_TOKEN = os.getenv("SCHEDULER_INTERNAL_TOKEN", "").strip()
+
+
+def parse_frontend_origins() -> tuple[str, ...]:
+    raw = os.getenv("FRONTEND_ORIGINS", "")
+    values = [item.strip() for item in raw.split(",")]
+    return tuple(item for item in values if item)
+
+FRONTEND_ORIGINS = parse_frontend_origins()
 
 client = MongoClient(
     MONGO_URI,

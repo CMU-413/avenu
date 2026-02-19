@@ -1,7 +1,10 @@
 ## 1. Deployment Constraints
 
-TC-1
+TC-1.1
 The system must be deployable using Docker Compose. All required services must run within a single Docker Compose configuration.
+
+TC-1.2
+No internal reverse proxy may be embedded inside application containers.
 
 ## 2. Infrastructure Constraints
 
@@ -15,5 +18,5 @@ The system must be able to run on:
 
 ## 3. Architectural Constraints
 
-TC-3
+TC-3.1
 User and company identity data must be sourced from Optix and treated as authoritative for identity keys.

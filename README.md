@@ -1,15 +1,16 @@
 # Avenu
 
-Full-stack web application with a Vite + React frontend and a Flask + MongoDB backend.
-The project is fully containerized using Docker.
+Full-stack web application with a React frontend, Flask backend API, dedicated Scheduler container, and MongoDB database.
 
 ---
 
 ## Repo Structure
 
 ```
-├── frontend/        # Vite + React app
-├── backend/         # Flask API (MongoDB Atlas)
+├── frontend/        # React SPA build/runtime container
+├── backend/         # Flask API + business logic + external integrations
+├── scheduler/       # Scheduled job runner (HTTP client of backend)
+├── docs/            # Architecture and API docs
 ├── docker-compose.yml
 └── README.md
 ```
@@ -22,13 +23,11 @@ You need the following installed locally:
 
 - Docker (with Docker Compose v2)
 - Node.js (only if running frontend outside Docker)
-- Python 3.11+ (only if running backend outside Docker)
+- Python 3.11+ (only if running backend/scheduler outside Docker)
 
 ---
 
 ## Environment Variables
-
-### Backend (`.env` in repo root)
 
 Copy `.env.sample` into `.env` and fill out the required values.
 
@@ -43,11 +42,18 @@ Notes:
 - User sessions are created via `POST /api/session/login` with a user email.
 - `POST /api/session/logout` clears the session.
 - Admin routes authorize by loading `session["user_id"]` from DB and requiring `user.isAdmin == true`.
+- `FRONTEND_ORIGINS` (comma-separated origin allowlist for CORS)
+- `SCHEDULER_INTERNAL_TOKEN` (shared secret for internal scheduler endpoint)
 
 ### Frontend
+- `VITE_API_BASE_URL` (default in compose: `http://localhost:8000`)
 
-No admin API key env var is needed.
-Browser code calls same-origin `/api` and sends cookies via `credentials: 'include'`.
+### Scheduler
+- `BACKEND_API_URL` (must point to backend service DNS, default `http://backend:8000`)
+- `SCHEDULER_INTERNAL_TOKEN` (must match backend)
+- `SCHEDULER_CRON` (default `0 8 * * 1`)
+- `SCHEDULER_TIMEZONE` (default `UTC`)
+- `SCHEDULER_TICK_SECONDS` (default `20`)
 
 ---
 
@@ -59,16 +65,16 @@ From the repo root:
 docker compose up --build
 ```
 
-This will:
-
-- build the frontend and backend images
-- start both services
-- proxy frontend `/api/*` requests to backend automatically
+This starts four services:
+- `frontend` on `http://localhost:8080`
+- `backend` on `http://localhost:8000`
+- `scheduler` (internal job runner container)
+- `database` (MongoDB with persistent volume)
 
 ### Access
 
 - Frontend: http://localhost:8080
-- Backend health check: http://localhost:5001/health
+- Backend health check: http://localhost:8000/health
 
 ---
 
@@ -81,10 +87,10 @@ cd backend
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-python app.py
+PORT=8000 python app.py
 ```
 
-Runs on: http://localhost:5001
+Runs on: http://localhost:8000
 
 ### Frontend
 
@@ -96,11 +102,18 @@ npm run dev
 
 Runs on: http://localhost:5173
 
-Vite dev server proxies `/api/*` to `http://localhost:5001`.
+Set `VITE_API_BASE_URL` for local dev if backend is not on the default URL.
+
+### Scheduler
+
+```bash
+cd scheduler
+SCHEDULER_INTERNAL_TOKEN=<token> BACKEND_API_URL=http://localhost:8000 python main.py
+```
 
 ## Notes
 
 - Frontend environment variables are build-time and public.
 - Backend environment variables are runtime and private.
+- Scheduler is an internal backend API client and does not connect to MongoDB directly.
 - Docker is the source of truth for prod and CI.
-- No local MongoDB instance is required.

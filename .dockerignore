@@ -7,6 +7,8 @@ frontend/.turbo
 frontend/.idea
 backend/__pycache__
 backend/*.pyc
+scheduler/__pycache__
+scheduler/**/*.pyc
 __pycache__
 *.pyc
 npm-debug.log*

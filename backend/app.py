@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hmac
 import os
 import requests
 
@@ -10,6 +11,8 @@ from flask import Flask, jsonify, request, session
 
 from auth import ensure_admin_session, ensure_member_session, ensure_session_user, require_admin_session
 from config import (
+    FRONTEND_ORIGINS,
+    SCHEDULER_INTERNAL_TOKEN,
     SECRET_KEY,
     SESSION_COOKIE_PARTITIONED,
     SESSION_COOKIE_SAMESITE,
@@ -26,6 +29,7 @@ from services.member_service import list_member_mail_summary, update_member_emai
 from services.notifications.channels.email_channel import EmailChannel
 from services.notifications.providers.factory import build_email_provider
 from services.notifications.special_case_notifier import SpecialCaseNotifier
+from services.notifications.weekly_summary_cron_job import run_weekly_summary_cron_job
 from services.notifications.weekly_summary_notifier import WeeklySummaryNotifier
 from services.team_service import create_team, delete_team, get_team, list_teams, update_team
 from services.user_service import (
@@ -97,6 +101,26 @@ def _idempotent_create(
         raise
 
 
+def _require_scheduler_token() -> None:
+    provided = (request.headers.get("X-Scheduler-Token") or "").strip()
+    if not SCHEDULER_INTERNAL_TOKEN:
+        raise APIError(503, "scheduler token is not configured")
+    if not provided or not hmac.compare_digest(provided, SCHEDULER_INTERNAL_TOKEN):
+        raise APIError(401, "unauthorized")
+
+
+def _weekly_job_response_body(result: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "weekStart": result["weekStart"].isoformat(),
+        "weekEnd": result["weekEnd"].isoformat(),
+        "processed": result["processed"],
+        "sent": result["sent"],
+        "skipped": result["skipped"],
+        "failed": result["failed"],
+        "errors": result["errors"],
+    }
+
+
 def create_app(
     *,
     testing: bool = False,
@@ -105,11 +129,16 @@ def create_app(
 ) -> Flask:
     app = Flask(__name__)
     app.config["TESTING"] = testing
+    resolved_frontend_origins = tuple(FRONTEND_ORIGINS)
 
     resolved_secret_key = SECRET_KEY if secret_key is None else secret_key
 
     if not testing and not resolved_secret_key:
         raise RuntimeError("SECRET_KEY must be set")
+    if not testing and "*" in resolved_frontend_origins:
+        raise RuntimeError("FRONTEND_ORIGINS cannot include wildcard '*' in non-testing mode")
+    if not testing and not SCHEDULER_INTERNAL_TOKEN:
+        raise RuntimeError("SCHEDULER_INTERNAL_TOKEN must be set")
 
     app.config["SECRET_KEY"] = resolved_secret_key or "test-secret-key"
     app.config["SESSION_COOKIE_HTTPONLY"] = True
@@ -131,9 +160,78 @@ def create_app(
     def handle_unexpected(_err):
         return jsonify({"error": "internal server error"}), 500
 
+    @app.after_request
+    def apply_cors_headers(response):
+        origin = request.headers.get("Origin")
+        if origin and origin in resolved_frontend_origins:
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Access-Control-Allow-Credentials"] = "true"
+            response.headers["Access-Control-Allow-Headers"] = "Content-Type, Idempotency-Key, X-Scheduler-Token"
+            response.headers["Access-Control-Allow-Methods"] = "GET, POST, PATCH, DELETE, OPTIONS"
+            existing_vary = response.headers.get("Vary")
+            response.headers["Vary"] = "Origin" if not existing_vary else f"{existing_vary}, Origin"
+        return response
+
     @app.route("/health", methods=["GET"])
     def health():
         return jsonify({"message": "HEALTH OK"}), 200
+
+    @app.route("/api/internal/jobs/weekly-summary", methods=["POST"])
+    def internal_weekly_summary_job_route():
+        _require_scheduler_token()
+
+        body_raw = request.get_json(silent=True)
+        payload = {} if body_raw is None else require_dict(body_raw)
+        week_start_value = payload.get("weekStart")
+        week_end_value = payload.get("weekEnd")
+        week_start = None
+        week_end = None
+
+        if (week_start_value is None) != (week_end_value is None):
+            raise APIError(422, "weekStart and weekEnd must be provided together")
+        if week_start_value is not None:
+            if not isinstance(week_start_value, str):
+                raise APIError(422, "weekStart must be YYYY-MM-DD")
+            if not isinstance(week_end_value, str):
+                raise APIError(422, "weekEnd must be YYYY-MM-DD")
+            week_start = _parse_iso_date(week_start_value, field_name="weekStart")
+            week_end = _parse_iso_date(week_end_value, field_name="weekEnd")
+            if week_end < week_start:
+                raise APIError(422, "weekEnd must be on or after weekStart")
+
+        idempotency_key = require_idempotency_key(request.headers)
+        request_hash = payload_hash(payload)
+        route = "/api/internal/jobs/weekly-summary"
+        replay = reserve_or_replay(
+            idempotency_keys_collection,
+            key=idempotency_key,
+            route=route,
+            method="POST",
+            request_hash=request_hash,
+        )
+        if replay is not None:
+            return jsonify(replay["body"]), replay["status"]
+
+        try:
+            notifier = WeeklySummaryNotifier(channels=[EmailChannel(build_email_provider(testing=testing))])
+            result = run_weekly_summary_cron_job(
+                notifier=notifier,
+                week_start=week_start,
+                week_end=week_end,
+            )
+            body = _weekly_job_response_body(result)
+            store_idempotent_response(
+                idempotency_keys_collection,
+                key=idempotency_key,
+                route=route,
+                method="POST",
+                status=200,
+                body=body,
+            )
+            return jsonify(body), 200
+        except Exception:
+            idempotency_keys_collection.delete_one({"key": idempotency_key, "route": route, "method": "POST"})
+            raise
 
     @app.route("/api/session/login", methods=["POST"])
     def session_login():
@@ -455,4 +553,5 @@ def optix_token_route():
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5001, debug=True)
+    port = int(os.getenv("PORT", "8000"))
+    app.run(host="0.0.0.0", port=port, debug=True)

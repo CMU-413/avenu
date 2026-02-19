@@ -6,7 +6,7 @@ An authenticated member (Source) requests weekly mail totals for all authorized 
 
 **QA-P2 — Weekly Email Job Completion**
 
-An internal scheduler (Source) triggers the weekly summary job for all opted-in members (Stimulus) in a single-instance deployment with up to 500 members (Environment). The aggregation logic and email dispatch logic (Artifact) process each opted-in member and send a summary email (Response), ensuring the entire job completes within 5 minutes while the system remains responsive to API requests during execution (Response Measure).
+The Scheduler container (Source) calls Backend internal HTTP job endpoint for all opted-in members (Stimulus) in a single-instance deployment with up to 500 members (Environment). The backend aggregation and email dispatch logic (Artifact) process each opted-in member and send a summary email (Response), ensuring the entire job completes within 5 minutes while the system remains responsive to API requests during execution (Response Measure).
 
 ---
 
@@ -34,7 +34,7 @@ An authenticated member (Source) attempts to access a mailbox not owned by them 
 
 **QA-A1 — Single-Instance Failure**
 
-A host machine failure (Source) causes the backend container to stop (Stimulus) in an on-prem deployment (Environment). The entire system (Artifact) becomes unavailable until the host is restored and containers are relaunched (Response), ensuring data integrity is preserved and the system restarts cleanly upon container recovery (Response Measure).
+A host machine failure (Source) causes service containers to stop (Stimulus) in an on-prem deployment (Environment). The system (Artifact) becomes unavailable until the host is restored and containers are relaunched (Response), ensuring MongoDB persistent volume data integrity is preserved and services restart cleanly upon recovery (Response Measure).
 
 ---
 
@@ -50,4 +50,4 @@ A developer (Source) introduces a new OCR implementation to replace the existing
 
 **QA-O1 — Weekly Job Failure Visibility**
 
-An unhandled exception (Source) triggers a runtime error during execution of the weekly job (Stimulus) in production (Environment). The scheduler and logging system (Artifact) log the error with sufficient diagnostic context (Response), ensuring the log entry includes a stack trace and that the failure can be detected through log review without requiring database inspection (Response Measure).
+An unhandled exception (Source) occurs during scheduler-triggered weekly execution (Stimulus) in production (Environment). Scheduler and Backend logs (Artifact) capture the failure with sufficient diagnostic context (Response), ensuring stack trace visibility and that operators can detect failures from logs without direct database inspection (Response Measure).

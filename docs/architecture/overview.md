@@ -1,165 +1,95 @@
-Below is a clean, professional draft of:
-
-`docs/architecture/overview.md`
-
-It reflects:
-
-* Single `app` container (nginx + Flask + frontend)
-* Separate MongoDB container
-* Scheduled identity sync
-* Scheduled weekly email job
-* Reverse proxy topology
-* Modular monolith backend
-* Alignment with your three-pillar model
-
----
-
 # Architecture Overview
 
 ## 1. Architectural Style
 
-Avenu is implemented as a **modular monolith** deployed as a single application container.
+Avenu uses a modular backend with a four-container deployment topology:
 
-The system favors:
+- Frontend container (React SPA)
+- Backend container (Flask API)
+- Scheduler container (time-based job runner)
+- Database container (MongoDB)
 
-* Operational simplicity
-* Minimal infrastructure
-* Single-instance deployment
-* Clear internal module boundaries
-
-No distributed services, message queues, or horizontal scaling mechanisms are required at the current scale.
-
----
+This architecture keeps service responsibilities separate while preserving a single backend business-logic boundary.
 
 ## 2. Deployment Topology
 
-The system consists of two containers:
+### 2.1 Frontend (`frontend`)
 
-### 2.1 Application Container (`app`)
+- Serves static React SPA assets.
+- Used by members and admins.
+- Calls Backend HTTP API only.
+- Does not access MongoDB or external providers directly.
 
-Contains:
+### 2.2 Backend (`backend`)
 
-* Nginx (reverse proxy)
-* Flask backend (API + scheduled jobs)
-* Static frontend build artifacts
+- Hosts all API routes and business logic.
+- Owns persistence and data access to MongoDB.
+- Owns all external integrations (Optix, Email Provider, OCR Provider).
+- Exposes HTTP API on port `8000`.
 
-This container exposes a single public port.
+### 2.3 Scheduler (`scheduler`)
 
-### 2.2 Database Container (`mongodb`)
+- Runs independent schedule loop via `SCHEDULER_CRON` and `SCHEDULER_TIMEZONE`.
+- Triggers weekly-summary job through backend internal endpoint:
+  - `POST /api/internal/jobs/weekly-summary`
+- Uses shared secret header (`X-Scheduler-Token`) and idempotency key.
+- Does not access MongoDB directly.
 
-* MongoDB instance
-* Persistent volume for data storage
+### 2.4 Database (`database`)
 
-All application persistence flows through this container.
+- MongoDB with persistent volume.
+- Stores users, teams, mailboxes, mail entries, and notification preferences.
+- Accessible only to Backend in application architecture.
 
----
+## 3. Communication Boundaries
 
-## 3. Backend Structure
+Allowed communication paths:
 
-The backend is logically divided into internal modules:
+- Frontend -> Backend (HTTP)
+- Scheduler -> Backend (HTTP)
+- Backend -> Database
+- Backend -> Optix
+- Backend -> Email Provider
+- Backend -> OCR Provider
 
-* Identity Sync Module
-  Handles scheduled synchronization with Optix and authoritative user/team hydration.
+Disallowed paths:
 
-* Mailbox Module
-  Defines ownership boundaries and authorization checks.
+- Frontend -> Database
+- Scheduler -> Database
+- Frontend -> External providers
+- Scheduler -> External providers
 
-* Mail Logging Module
-  Persists mail entries and integrates OCR.
+## 4. Internal Docker DNS Model
 
-* Aggregation Module
-  Computes weekly totals for dashboard and notifications.
+Within the compose network, service DNS names are:
 
-* Notification Module
-  Executes scheduled weekly summary emails.
+- `frontend`
+- `backend`
+- `scheduler`
+- `database`
 
-These modules exist within a single service and communicate in-process.
+Scheduler reaches backend at `http://backend:8000`.
 
----
+## 5. Logical vs Deployment Architecture
 
-## 4. Scheduled Jobs
+Logical architecture:
 
-Two scheduled processes run inside the backend:
+- Backend modules for identity, mailbox management, mail logging, aggregation, and notifications.
 
-### 4.1 Identity Synchronization
+Deployment architecture:
 
-* Periodically pulls user and team data from Optix.
-* Upserts records locally.
-* Treats Optix identifiers as authoritative.
+- Those backend modules all run in the single Backend container.
+- Frontend and Scheduler run as separate containers that consume backend APIs.
 
-This decouples identity freshness from user login events.
+## 6. Scheduling Model
 
-### 4.2 Weekly Email Job
+- Weekly summary execution is initiated by Scheduler container.
+- Backend executes the job and handles notification dispatch.
+- API-level idempotency prevents duplicate execution on retries/restarts.
 
-* Runs on a fixed schedule.
-* Aggregates weekly totals.
-* Sends summary emails to opted-in members.
-* Logs failures without halting processing.
+## 7. Design Constraints
 
-No external scheduler or distributed coordination is required under current constraints.
-
----
-
-## 5. Data Ownership Model
-
-The system uses a **Mailbox** abstraction as the ownership and authorization boundary.
-
-Mail entries attach to mailboxes rather than directly to users or teams.
-
-This:
-
-* Simplifies query patterns
-* Keeps aggregation predictable
-* Centralizes authorization logic
-
-Detailed schema and invariants are defined in:
-
-* `data_model.md`
-* `data_model_decisions.md`
-
----
-
-## 6. External Integrations
-
-### Optix
-
-* Source of truth for user and team identity.
-* Identity keys treated as authoritative.
-
-### Email Provider
-
-* Used for weekly summary delivery.
-* Failures logged but do not block processing.
-
-### OCR Provider (Optional)
-
-* Assists in extracting mailbox identifiers from images.
-* Low-confidence results require manual confirmation.
-
----
-
-## 7. Design Principles
-
-The architecture intentionally prioritizes:
-
-* Simplicity over distribution
-* Operational clarity
-* Single-instance correctness
-* Low infrastructure cost
-* Clear ownership boundaries
-
-Complex infrastructure patterns (queues, distributed locks, horizontal scaling) are intentionally excluded at current scale.
-
----
-
-## 8. Non-Goals
-
-The current architecture does not attempt to provide:
-
-* Horizontal scaling
-* High-availability failover
-* Multi-region deployment
-* Multi-tenant enterprise isolation
-* Event-driven microservices
-
-If operating scale or constraints change, architectural revision may be required.
+- No combined monolithic application container.
+- No internal reverse-proxy routing inside application containers.
+- Inter-service app communication uses explicit HTTP boundaries.
+- Secrets/configuration come from environment variables, not image-embedded values.

@@ -1,41 +1,52 @@
 flowchart TB
 
-%% Client
-Client["Browser"]
+%% =============================
+%% PERSONS
+%% =============================
 
-%% App Container
-subgraph AppContainer["App Container (Docker)"]
-    direction TB
+Member["Avenu Member<br>[Person]"]
 
-    Nginx["Nginx Reverse Proxy"]
-    Static["Frontend (React)"]
+Admin["Avenu Admin<br>[Person]"]
 
-    subgraph Backend["Backend (Flask)"]
-        direction TB
-        AppLogic["Application Logic"]
-        Scheduler["Scheduled Jobs"]
-    end
+%% =============================
+%% SYSTEM BOUNDARY
+%% =============================
 
-    Nginx -->|/| Static
-    Nginx -->|/api/*| AppLogic
-    Scheduler --> AppLogic
+subgraph Avenu["Avenu Mail System"]
+
+    Frontend["Frontend<br>[Container: React, JavaScript]<br>Single-page application used by admins and members"]
+
+    Backend["Backend<br>[Container: Python, Flask]<br>Implements application business logic and coordinates persistence and external services"]
+
+    Scheduler["Scheduler<br>[Container: Python Job Runner]<br>Executes time-based jobs by invoking the Backend API"]
+
+    Database["Database<br>[Container: MongoDB]<br>Stores users, teams, mailboxes, mail entries,<br>and notification preferences"]
+
 end
 
-%% MongoDB Container
-subgraph MongoContainer["MongoDB Container"]
-    Mongo["MongoDB"]
-end
+%% =============================
+%% EXTERNAL SYSTEMS
+%% =============================
 
-%% External Services
-Optix["Optix API"]
-Email["Email Provider"]
-OCR["OCR Provider"]
+Optix["Optix<br>Authoritative source for user and team identity"]
 
-%% Connections
-Client -->|HTTP :10000| Nginx
+EmailProvider["Email Provider<br>Sends weekly summary emails"]
 
-AppLogic --> Mongo
+OCRProvider["OCR Provider<br>Extracts mailbox identifiers from images"]
 
-AppLogic -->|Identity Sync| Optix
-AppLogic -->|Send Weekly Email| Email
-AppLogic -->|OCR Requests| OCR
+%% =============================
+%% RELATIONSHIPS
+%% =============================
+
+Member -->|"Views mail totals and weekly summaries from"| Frontend
+Admin -->|"Logs and manages incoming mail using"| Frontend
+
+Frontend -->|"Makes API requests to"| Backend
+
+Scheduler -->|"Makes API requests to"| Backend
+
+Backend -->|"Reads from and writes to"| Database
+
+Backend -->|"Synchronizes identity data using"| Optix
+Backend -->|"Sends summary emails using"| EmailProvider
+Backend -->|"Performs OCR extraction using"| OCRProvider
