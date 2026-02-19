@@ -29,19 +29,21 @@ You need the following installed locally:
 
 ## Environment Variables
 
-Create a `.env` file at the repo root (see `.env.sample`):
+Copy `.env.sample` into `.env` and fill out the required values.
 
-### Backend
-- `MONGO_URI`
-- `DB_NAME`
-- `SECRET_KEY`
-- `SESSION_COOKIE_SECURE`
+Notes:
+- `SECRET_KEY` is required outside tests.
+- In testing mode (`FLASK_TESTING=true`), notifications use `ConsoleEmailProvider`.
+- Outside testing mode, notifications use Microsoft Graph and require all `MS_GRAPH_*` values above.
+- For iframe/Canvas embedding, set:
+  - `SESSION_COOKIE_SAMESITE=None`
+  - `SESSION_COOKIE_SECURE=true`
+  - optional: `SESSION_COOKIE_PARTITIONED=true`
+- User sessions are created via `POST /api/session/login` with a user email.
+- `POST /api/session/logout` clears the session.
+- Admin routes authorize by loading `session["user_id"]` from DB and requiring `user.isAdmin == true`.
 - `FRONTEND_ORIGINS` (comma-separated origin allowlist for CORS)
 - `SCHEDULER_INTERNAL_TOKEN` (shared secret for internal scheduler endpoint)
-- `MS_GRAPH_TENANT_ID`
-- `MS_GRAPH_CLIENT_ID`
-- `MS_GRAPH_CLIENT_SECRET`
-- `MS_GRAPH_SENDER_EMAIL`
 
 ### Frontend
 - `VITE_API_BASE_URL` (default in compose: `http://localhost:8000`)
