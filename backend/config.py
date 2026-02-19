@@ -23,6 +23,18 @@ def _env_bool(name: str, default: bool) -> bool:
     return raw.strip().lower() in {"1", "true", "yes", "on"}
 
 
+def _env_samesite(name: str, default: str) -> str:
+    raw = os.getenv(name, default).strip().lower()
+    allowed = {
+        "lax": "Lax",
+        "strict": "Strict",
+        "none": "None",
+    }
+    if raw not in allowed:
+        raise RuntimeError(f"{name} must be one of: Lax, Strict, None")
+    return allowed[raw]
+
+
 SESSION_COOKIE_SECURE = _env_bool("SESSION_COOKIE_SECURE", False)
 SESSION_COOKIE_PARTITIONED = _env_bool("SESSION_COOKIE_PARTITIONED", False)
 SESSION_COOKIE_SAMESITE = _env_samesite("SESSION_COOKIE_SAMESITE", "Lax")
@@ -36,17 +48,6 @@ def parse_frontend_origins() -> tuple[str, ...]:
     return tuple(item for item in values if item)
 
 FRONTEND_ORIGINS = parse_frontend_origins()
-
-def _env_samesite(name: str, default: str) -> str:
-    raw = os.getenv(name, default).strip().lower()
-    allowed = {
-        "lax": "Lax",
-        "strict": "Strict",
-        "none": "None",
-    }
-    if raw not in allowed:
-        raise RuntimeError(f"{name} must be one of: Lax, Strict, None")
-    return allowed[raw]
 
 client = MongoClient(
     MONGO_URI,
