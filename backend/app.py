@@ -9,10 +9,17 @@ from typing import Any, Callable
 from flask import Flask, jsonify, request, session
 
 from auth import ensure_admin_session, ensure_member_session, ensure_session_user, require_admin_session
-from config import SECRET_KEY, SESSION_COOKIE_SECURE, ensure_indexes, idempotency_keys_collection
+from config import (
+    SECRET_KEY,
+    SESSION_COOKIE_PARTITIONED,
+    SESSION_COOKIE_SAMESITE,
+    SESSION_COOKIE_SECURE,
+    ensure_indexes,
+    idempotency_keys_collection,
+)
 from errors import APIError
 from idempotency import payload_hash, require_idempotency_key, reserve_or_replay, store_idempotent_response
-from repositories import to_api_doc, find_user, find_team
+from repositories import find_team_by_optix_id, find_user_by_optix_id, to_api_doc
 from services.mail_service import create_mail, delete_mail, get_mail, list_mail, update_mail
 from services.mailbox_service import get_mailbox, list_mailboxes, update_mailbox
 from services.member_service import list_member_mail_summary, update_member_email_notifications
@@ -106,8 +113,12 @@ def create_app(
 
     app.config["SECRET_KEY"] = resolved_secret_key or "test-secret-key"
     app.config["SESSION_COOKIE_HTTPONLY"] = True
-    app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+    app.config["SESSION_COOKIE_SAMESITE"] = SESSION_COOKIE_SAMESITE
     app.config["SESSION_COOKIE_SECURE"] = False if testing else SESSION_COOKIE_SECURE
+    app.config["SESSION_COOKIE_PARTITIONED"] = False if testing else SESSION_COOKIE_PARTITIONED
+
+    if not testing and SESSION_COOKIE_SAMESITE == "None" and not SESSION_COOKIE_SECURE:
+        raise RuntimeError("SESSION_COOKIE_SAMESITE=None requires SESSION_COOKIE_SECURE=true")
 
     if ensure_db_indexes_on_startup and not testing:
         ensure_indexes()
@@ -343,6 +354,19 @@ def create_app(
 
 app = create_app(testing=os.getenv("FLASK_TESTING", "").strip().lower() in {"1", "true", "yes"})
 
+
+def _coerce_positive_int(value: Any, *, field_name: str) -> int:
+    if isinstance(value, bool):
+        raise APIError(422, f"{field_name} must be a positive integer")
+    if isinstance(value, str):
+        value = value.strip()
+        if value.isdigit():
+            value = int(value)
+    if not isinstance(value, int) or value < 1:
+        raise APIError(422, f"{field_name} must be a positive integer")
+    return value
+
+
 # Optix token endpoint
 @app.route("/api/optix-token", methods=["POST"])
 def optix_token_route():
@@ -390,13 +414,13 @@ def optix_token_route():
         return jsonify({"error": "No user info returned from Optix"}), 400
 
     # Check if user exists by optixId using find_user
-    optix_user_id = user_info.get("user_id")
-    existing_user = find_user(optix_user_id)
+    optix_user_id = _coerce_positive_int(user_info.get("user_id"), field_name="user_id")
+    existing_user = find_user_by_optix_id(optix_user_id)
     # Always ensure all teams exist and update user fields if needed
     team_ids = []
     for team in user_info.get("teams", []):
-        optix_team_id = team.get("team_id")
-        team_doc = find_team(optix_team_id)
+        optix_team_id = _coerce_positive_int(team.get("team_id"), field_name="team_id")
+        team_doc = find_team_by_optix_id(optix_team_id)
         if not team_doc:
             # Create team
             team_payload = {
@@ -417,13 +441,17 @@ def optix_token_route():
 
     if not existing_user:
         user_doc = create_user(user_payload)
-        return jsonify({"created": True, "user": user_doc}), 201
+        session["user_id"] = str(user_doc["_id"])
+        return jsonify({"created": True, "user": to_api_doc(user_doc)}), 201
     else:
         # Update user fields if changed
         user_id = existing_user["_id"]
         update_user(user_id, user_payload)
-        updated_user = find_user(user_id)
-        return jsonify({"created": False, "user": updated_user}), 200
+        updated_user = find_user_by_optix_id(optix_user_id)
+        if not updated_user:
+            raise APIError(500, "failed to fetch updated user")
+        session["user_id"] = str(updated_user["_id"])
+        return jsonify({"created": False, "user": to_api_doc(updated_user)}), 200
 
 
 if __name__ == "__main__":

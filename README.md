@@ -30,24 +30,16 @@ You need the following installed locally:
 
 ### Backend (`.env` in repo root)
 
-Create a `.env` file at the repo root (a `.env.sample` copy lives here as well):
-
-```env
-MONGO_URI=mongodb+srv://<user>:<password>@<cluster>.mongodb.net
-DB_NAME=avenu_db
-SECRET_KEY=replace-with-a-long-random-secret
-# Optional: set true when app is served over HTTPS
-SESSION_COOKIE_SECURE=false
-MS_GRAPH_TENANT_ID=<azure-tenant-id>
-MS_GRAPH_CLIENT_ID=<azure-client-id>
-MS_GRAPH_CLIENT_SECRET=<azure-client-secret>
-MS_GRAPH_SENDER_EMAIL=mail@avenuworkspaces.com
-```
+Copy `.env.sample` into `.env` and fill out the required values.
 
 Notes:
 - `SECRET_KEY` is required outside tests.
 - In testing mode (`FLASK_TESTING=true`), notifications use `ConsoleEmailProvider`.
 - Outside testing mode, notifications use Microsoft Graph and require all `MS_GRAPH_*` values above.
+- For iframe/Canvas embedding, set:
+  - `SESSION_COOKIE_SAMESITE=None`
+  - `SESSION_COOKIE_SECURE=true`
+  - optional: `SESSION_COOKIE_PARTITIONED=true`
 - User sessions are created via `POST /api/session/login` with a user email.
 - `POST /api/session/logout` clears the session.
 - Admin routes authorize by loading `session["user_id"]` from DB and requiring `user.isAdmin == true`.
