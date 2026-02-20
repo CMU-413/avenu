@@ -5,7 +5,7 @@ from typing import Any
 
 from bson import ObjectId
 
-from config import notification_log_collection, users_collection
+from repositories.users_repository import find_for_notification
 from services.mail_summary_service import MailSummaryService
 from services.notifications.interfaces import NotificationChannel
 from services.notifications.log_repository import find_sent_weekly_summary, insert_notification_log
@@ -49,8 +49,8 @@ class WeeklySummaryNotifier:
         *,
         channels: list[NotificationChannel],
         summaryService: MailSummaryService | None = None,
-        users=users_collection,
-        notificationLogs=notification_log_collection,
+        users=None,
+        notificationLogs=None,
     ) -> None:
         self._channels = list(channels)
         self._summary_service = summaryService or MailSummaryService()
@@ -102,7 +102,10 @@ class WeeklySummaryNotifier:
             )
             return {"status": "skipped", "reason": "already_sent", "channelResults": []}
 
-        user = self._users.find_one({"_id": userId}, {"email": 1, "fullname": 1, "notifPrefs": 1})
+        if self._users is None:
+            user = find_for_notification(userId)
+        else:
+            user = self._users.find_one({"_id": userId}, {"email": 1, "fullname": 1, "notifPrefs": 1})
         if user is None:
             self._log_attempt(
                 user_id=userId,

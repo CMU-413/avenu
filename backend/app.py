@@ -2,14 +2,13 @@ from __future__ import annotations
 
 import hmac
 import os
+from datetime import date, datetime
+from typing import Any
+
 import requests
-
-from datetime import date, datetime, timedelta, timezone
-from typing import Any, Callable
-
+from bson import ObjectId
 from flask import Flask, jsonify, request, session
 
-from auth import ensure_admin_session, ensure_member_session, ensure_session_user, require_admin_session
 from config import (
     FRONTEND_ORIGINS,
     SCHEDULER_INTERNAL_TOKEN,
@@ -20,10 +19,14 @@ from config import (
     ensure_indexes,
     idempotency_keys_collection,
 )
+from controllers import register_phase1_blueprints
+from controllers.auth_guard import ensure_admin_session, ensure_member_session, ensure_session_user, require_admin_session
+from controllers.common import json_payload, parse_iso_date, parse_optional_object_id_filter
 from errors import APIError
 from idempotency import payload_hash, require_idempotency_key, reserve_or_replay, store_idempotent_response
-from repositories import find_team_by_optix_id, find_user_by_optix_id, to_api_doc
-from services.mail_service import create_mail, delete_mail, get_mail, list_mail, update_mail
+from repositories import to_api_doc
+from repositories.teams_repository import find_team_by_optix_id
+from repositories.users_repository import find_user_by_optix_id
 from services.mail_request_service import (
     cancel_member_mail_request,
     create_mail_request,
@@ -32,89 +35,14 @@ from services.mail_request_service import (
     resolve_mail_request_and_notify,
     retry_mail_request_notification,
 )
-from services.mailbox_service import get_mailbox, list_mailboxes, update_mailbox
-from services.member_service import list_member_mail_summary, update_member_email_notifications
 from services.notifications.channels.email_channel import EmailChannel
 from services.notifications.providers.factory import build_email_provider
 from services.notifications.special_case_notifier import SpecialCaseNotifier
 from services.notifications.weekly_summary_cron_job import run_weekly_summary_cron_job
 from services.notifications.weekly_summary_notifier import WeeklySummaryNotifier
-from services.team_service import create_team, delete_team, get_team, list_teams, update_team
-from services.user_service import (
-    create_user,
-    delete_user,
-    find_user_by_email,
-    get_user,
-    list_users,
-    update_user,
-)
-from validators import normalize_email, parse_object_id, require_dict, require_string
-
-from bson import ObjectId
-
-def _json_payload() -> dict[str, Any]:
-    return require_dict(request.get_json(silent=True))
-
-
-def _parse_day_utc(date_value: str) -> tuple[datetime, datetime]:
-    try:
-        day = datetime.strptime(date_value, "%Y-%m-%d").replace(tzinfo=timezone.utc)
-    except ValueError as exc:
-        raise APIError(422, "date must be YYYY-MM-DD") from exc
-    return day, day + timedelta(days=1)
-
-
-def _parse_iso_date(value: str, *, field_name: str) -> date:
-    try:
-        return datetime.strptime(value, "%Y-%m-%d").date()
-    except ValueError as exc:
-        raise APIError(422, f"{field_name} must be YYYY-MM-DD") from exc
-
-
-def _parse_optional_object_id_filter(value: str | None, *, field_name: str) -> ObjectId | None:
-    if value is None:
-        return None
-    if not ObjectId.is_valid(value):
-        raise APIError(422, f"{field_name} must be a valid ObjectId string")
-    return ObjectId(value)
-
-
-def _idempotent_create(
-    *,
-    route: str,
-    create_fn: Callable[[dict[str, Any]], dict[str, Any]],
-) -> tuple[dict[str, Any], int]:
-    payload = _json_payload()
-    key = require_idempotency_key(request.headers)
-    request_hash = payload_hash(payload)
-
-    replay = reserve_or_replay(
-        idempotency_keys_collection,
-        key=key,
-        route=route,
-        method="POST",
-        request_hash=request_hash,
-    )
-    if replay is not None:
-        return replay["body"], replay["status"]
-
-    try:
-        created = create_fn(payload)
-        body = to_api_doc(created)
-        if body is None:
-            raise APIError(500, "failed to build response")
-        store_idempotent_response(
-            idempotency_keys_collection,
-            key=key,
-            route=route,
-            method="POST",
-            status=201,
-            body=body,
-        )
-        return body, 201
-    except Exception:
-        idempotency_keys_collection.delete_one({"key": key, "route": route, "method": "POST"})
-        raise
+from services.team_service import create_team
+from services.user_service import create_user, update_user
+from validators import parse_object_id, require_dict, require_string
 
 
 def _require_scheduler_token() -> None:
@@ -192,6 +120,8 @@ def create_app(
     def health():
         return jsonify({"message": "HEALTH OK"}), 200
 
+    register_phase1_blueprints(app)
+
     @app.route("/api/internal/jobs/weekly-summary", methods=["POST"])
     def internal_weekly_summary_job_route():
         _require_scheduler_token()
@@ -210,8 +140,8 @@ def create_app(
                 raise APIError(422, "weekStart must be YYYY-MM-DD")
             if not isinstance(week_end_value, str):
                 raise APIError(422, "weekEnd must be YYYY-MM-DD")
-            week_start = _parse_iso_date(week_start_value, field_name="weekStart")
-            week_end = _parse_iso_date(week_end_value, field_name="weekEnd")
+            week_start = parse_iso_date(week_start_value, field_name="weekStart")
+            week_end = parse_iso_date(week_end_value, field_name="weekEnd")
             if week_end < week_start:
                 raise APIError(422, "weekEnd must be on or after weekStart")
 
@@ -249,190 +179,10 @@ def create_app(
             idempotency_keys_collection.delete_one({"key": idempotency_key, "route": route, "method": "POST"})
             raise
 
-    @app.route("/api/session/login", methods=["POST"])
-    def session_login():
-        payload = _json_payload()
-        email = normalize_email(require_string(payload, "email", max_len=320))
-        user = find_user_by_email(email)
-        if user is None:
-            raise APIError(401, "unauthorized")
-        session["user_id"] = str(user["_id"])
-        return "", 204
-
-    @app.route("/api/session/logout", methods=["POST"])
-    def session_logout():
-        session.pop("user_id", None)
-        return "", 204
-
-    @app.route("/api/session/me", methods=["GET"])
-    def session_me():
-        user = ensure_session_user()
-        return (
-            jsonify(
-                {
-                    "id": str(user["_id"]),
-                    "email": user.get("email", ""),
-                    "fullname": user.get("fullname", ""),
-                    "isAdmin": user.get("isAdmin", False),
-                    "teamIds": [str(tid) for tid in user.get("teamIds", [])],
-                    "emailNotifications": "email" in list(user.get("notifPrefs", [])),
-                }
-            ),
-            200,
-        )
-
-    @app.route("/api/users", methods=["POST"])
-    def users_create():
-        body, status = _idempotent_create(route="/api/users", create_fn=create_user)
-        return jsonify(body), status
-
-    @app.route("/api/users", methods=["GET"])
-    @require_admin_session
-    def users_list():
-        return jsonify([to_api_doc(d) for d in list_users()]), 200
-
-    @app.route("/api/users/<user_id>", methods=["GET"])
-    def users_get(user_id: str):
-        oid = parse_object_id(user_id, "user id")
-        doc = to_api_doc(get_user(oid))
-        if not doc:
-            raise APIError(404, "user not found")
-        return jsonify(doc), 200
-
-    @app.route("/api/users/<user_id>", methods=["PATCH"])
-    @require_admin_session
-    def users_patch(user_id: str):
-        oid = parse_object_id(user_id, "user id")
-        updated = update_user(oid, _json_payload())
-        return jsonify(to_api_doc(updated)), 200
-
-    @app.route("/api/users/<user_id>", methods=["DELETE"])
-    @require_admin_session
-    def users_delete(user_id: str):
-        oid = parse_object_id(user_id, "user id")
-        delete_user(oid)
-        return "", 204
-
-    @app.route("/api/teams", methods=["POST"])
-    def teams_create():
-        body, status = _idempotent_create(route="/api/teams", create_fn=create_team)
-        return jsonify(body), status
-
-    @app.route("/api/teams", methods=["GET"])
-    def teams_list_route():
-        return jsonify([to_api_doc(d) for d in list_teams()]), 200
-
-    @app.route("/api/teams/<team_id>", methods=["GET"])
-    def teams_get_route(team_id: str):
-        oid = parse_object_id(team_id, "team id")
-        doc = to_api_doc(get_team(oid))
-        if not doc:
-            raise APIError(404, "team not found")
-        return jsonify(doc), 200
-
-    @app.route("/api/teams/<team_id>", methods=["PATCH"])
-    def teams_patch_route(team_id: str):
-        oid = parse_object_id(team_id, "team id")
-        updated = update_team(oid, _json_payload())
-        return jsonify(to_api_doc(updated)), 200
-
-    @app.route("/api/teams/<team_id>", methods=["DELETE"])
-    def teams_delete_route(team_id: str):
-        oid = parse_object_id(team_id, "team id")
-        prune_users = request.args.get("pruneUsers", "false").lower() in {"1", "true", "yes"}
-        if prune_users:
-            ensure_admin_session()
-        delete_team(oid, prune_users=prune_users)
-        return "", 204
-
-    @app.route("/api/mailboxes", methods=["GET"])
-    @require_admin_session
-    def mailboxes_list_route():
-        return jsonify([to_api_doc(d) for d in list_mailboxes()]), 200
-
-    @app.route("/api/mailboxes/<mailbox_id>", methods=["GET"])
-    @require_admin_session
-    def mailboxes_get_route(mailbox_id: str):
-        oid = parse_object_id(mailbox_id, "mailbox id")
-        doc = to_api_doc(get_mailbox(oid))
-        if not doc:
-            raise APIError(404, "mailbox not found")
-        return jsonify(doc), 200
-
-    @app.route("/api/mailboxes/<mailbox_id>", methods=["PATCH"])
-    @require_admin_session
-    def mailboxes_patch_route(mailbox_id: str):
-        oid = parse_object_id(mailbox_id, "mailbox id")
-        updated = update_mailbox(oid, _json_payload())
-        return jsonify(to_api_doc(updated)), 200
-
-    @app.route("/api/mail", methods=["POST"])
-    @require_admin_session
-    def mail_create_route():
-        body, status = _idempotent_create(route="/api/mail", create_fn=create_mail)
-        return jsonify(body), status
-
-    @app.route("/api/mail", methods=["GET"])
-    @require_admin_session
-    def mail_list_route():
-        date_value = request.args.get("date")
-        mailbox_id_value = request.args.get("mailboxId")
-        day_start = None
-        day_end = None
-        if date_value is not None:
-            day_start, day_end = _parse_day_utc(date_value)
-        mailbox_id = parse_object_id(mailbox_id_value, "mailbox id") if mailbox_id_value else None
-        return jsonify([to_api_doc(d) for d in list_mail(day_start=day_start, day_end=day_end, mailbox_id=mailbox_id)]), 200
-
-    @app.route("/api/mail/<mail_id>", methods=["GET"])
-    @require_admin_session
-    def mail_get_route(mail_id: str):
-        oid = parse_object_id(mail_id, "mail id")
-        doc = to_api_doc(get_mail(oid))
-        if not doc:
-            raise APIError(404, "mail not found")
-        return jsonify(doc), 200
-
-    @app.route("/api/mail/<mail_id>", methods=["PATCH"])
-    @require_admin_session
-    def mail_patch_route(mail_id: str):
-        oid = parse_object_id(mail_id, "mail id")
-        updated = update_mail(oid, _json_payload())
-        return jsonify(to_api_doc(updated)), 200
-
-    @app.route("/api/mail/<mail_id>", methods=["DELETE"])
-    @require_admin_session
-    def mail_delete_route(mail_id: str):
-        oid = parse_object_id(mail_id, "mail id")
-        delete_mail(oid)
-        return "", 204
-
-    @app.route("/api/member/mail", methods=["GET"])
-    def member_mail_route():
-        user = ensure_member_session()
-        start_value = request.args.get("start")
-        end_value = request.args.get("end")
-        if start_value is None or end_value is None:
-            raise APIError(422, "start and end are required")
-        start_day = _parse_iso_date(start_value, field_name="start")
-        end_day = _parse_iso_date(end_value, field_name="end")
-        if end_day < start_day:
-            raise APIError(422, "end must be on or after start")
-        return jsonify(list_member_mail_summary(user=user, start_day=start_day, end_day=end_day)), 200
-
-    @app.route("/api/member/preferences", methods=["PATCH"])
-    def member_preferences_route():
-        user = ensure_member_session()
-        payload = _json_payload()
-        email_notifications = payload.get("emailNotifications")
-        if not isinstance(email_notifications, bool):
-            raise APIError(422, "emailNotifications must be a boolean")
-        return jsonify(update_member_email_notifications(user=user, enabled=email_notifications)), 200
-
     @app.route("/api/mail-requests", methods=["POST"])
     def member_mail_requests_create_route():
         user = ensure_member_session()
-        created = create_mail_request(user=user, payload=_json_payload())
+        created = create_mail_request(user=user, payload=json_payload())
         return jsonify(to_api_doc(created)), 201
 
     @app.route("/api/mail-requests", methods=["GET"])
@@ -446,15 +196,17 @@ def create_app(
     @app.route("/api/mail-requests/<request_id>", methods=["DELETE"])
     def member_mail_requests_cancel_route(request_id: str):
         user = ensure_member_session()
-        oid = parse_object_id(request_id, "mail request id")
+        oid = ObjectId(request_id) if ObjectId.is_valid(request_id) else None
+        if oid is None:
+            raise APIError(422, "mail request id must be a valid ObjectId string")
         cancel_member_mail_request(user=user, request_id=oid)
         return "", 204
 
     @app.route("/api/admin/mail-requests", methods=["GET"])
     @require_admin_session
     def admin_mail_requests_list_route():
-        mailbox_id = _parse_optional_object_id_filter(request.args.get("mailboxId"), field_name="mailboxId")
-        member_id = _parse_optional_object_id_filter(request.args.get("memberId"), field_name="memberId")
+        mailbox_id = parse_optional_object_id_filter(request.args.get("mailboxId"), field_name="mailboxId")
+        member_id = parse_optional_object_id_filter(request.args.get("memberId"), field_name="memberId")
         return jsonify(
             [to_api_doc(doc) for doc in list_admin_active_mail_requests(mailbox_id=mailbox_id, member_id=member_id)]
         ), 200
@@ -463,7 +215,9 @@ def create_app(
     @require_admin_session
     def admin_mail_requests_resolve_route(request_id: str):
         admin_user = ensure_session_user()
-        oid = parse_object_id(request_id, "mail request id")
+        oid = ObjectId(request_id) if ObjectId.is_valid(request_id) else None
+        if oid is None:
+            raise APIError(422, "mail request id must be a valid ObjectId string")
         notifier = SpecialCaseNotifier(channels=[EmailChannel(build_email_provider(testing=testing))])
         updated = resolve_mail_request_and_notify(request_id=oid, admin_user=admin_user, notifier=notifier)
         return jsonify(to_api_doc(updated)), 200
@@ -472,7 +226,9 @@ def create_app(
     @require_admin_session
     def admin_mail_requests_retry_notification_route(request_id: str):
         admin_user = ensure_session_user()
-        oid = parse_object_id(request_id, "mail request id")
+        oid = ObjectId(request_id) if ObjectId.is_valid(request_id) else None
+        if oid is None:
+            raise APIError(422, "mail request id must be a valid ObjectId string")
         notifier = SpecialCaseNotifier(channels=[EmailChannel(build_email_provider(testing=testing))])
         updated = retry_mail_request_notification(request_id=oid, admin_user=admin_user, notifier=notifier)
         return jsonify(to_api_doc(updated)), 200
@@ -481,10 +237,10 @@ def create_app(
     @app.route("/admin/notifications/summary", methods=["POST"])
     @require_admin_session
     def admin_weekly_summary_route():
-        payload = _json_payload()
+        payload = json_payload()
         user_id = parse_object_id(require_string(payload, "userId"), "user id")
-        week_start = _parse_iso_date(require_string(payload, "weekStart"), field_name="weekStart")
-        week_end = _parse_iso_date(require_string(payload, "weekEnd"), field_name="weekEnd")
+        week_start = parse_iso_date(require_string(payload, "weekStart"), field_name="weekStart")
+        week_end = parse_iso_date(require_string(payload, "weekEnd"), field_name="weekEnd")
         if week_end < week_start:
             raise APIError(422, "weekEnd must be on or after weekStart")
 
@@ -515,20 +271,16 @@ def _coerce_positive_int(value: Any, *, field_name: str) -> int:
     return value
 
 
-# Optix token endpoint
 @app.route("/api/optix-token", methods=["POST"])
 def optix_token_route():
-    payload = _json_payload()
+    payload = json_payload()
     token = payload.get("token")
     if not token:
         raise APIError(400, "Missing token")
-    # Query Optix API for current user
+
     resp = requests.post(
         "https://api.optixapp.com/graphql",
-        headers={
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {token}"
-        },
+        headers={"Content-Type": "application/json", "Authorization": f"Bearer {token}"},
         json={
             "query": """
             query {
@@ -545,37 +297,27 @@ def optix_token_route():
                 }
               }
             }
-            """
-        }
+            """,
+        },
     )
 
     if resp.status_code != 200:
         return jsonify({"error": "Failed to query Optix API", "status": resp.status_code}), resp.status_code
-    
+
     data = resp.json()
-    user_info = (
-        data.get("data", {})
-        .get("me", {})
-        .get("user", {})
-    )
+    user_info = data.get("data", {}).get("me", {}).get("user", {})
     if not user_info:
         return jsonify({"error": "No user info returned from Optix"}), 400
 
-    # Check if user exists by optixId using find_user
     optix_user_id = _coerce_positive_int(user_info.get("user_id"), field_name="user_id")
     existing_user = find_user_by_optix_id(optix_user_id)
-    # Always ensure all teams exist and update user fields if needed
+
     team_ids = []
     for team in user_info.get("teams", []):
         optix_team_id = _coerce_positive_int(team.get("team_id"), field_name="team_id")
         team_doc = find_team_by_optix_id(optix_team_id)
         if not team_doc:
-            # Create team
-            team_payload = {
-                "optixId": optix_team_id,
-                "name": team.get("name", "")
-            }
-            team_doc = create_team(team_payload)
+            team_doc = create_team({"optixId": optix_team_id, "name": team.get("name", "")})
         team_ids.append(team_doc["_id"])
 
     user_payload = {
@@ -584,22 +326,21 @@ def optix_token_route():
         "email": user_info.get("email", ""),
         "isAdmin": user_info.get("is_admin", False),
         "teamIds": team_ids,
-        "notifPrefs": ["email"]
+        "notifPrefs": ["email"],
     }
 
     if not existing_user:
         user_doc = create_user(user_payload)
         session["user_id"] = str(user_doc["_id"])
         return jsonify({"created": True, "user": to_api_doc(user_doc)}), 201
-    else:
-        # Update user fields if changed
-        user_id = existing_user["_id"]
-        update_user(user_id, user_payload)
-        updated_user = find_user_by_optix_id(optix_user_id)
-        if not updated_user:
-            raise APIError(500, "failed to fetch updated user")
-        session["user_id"] = str(updated_user["_id"])
-        return jsonify({"created": False, "user": to_api_doc(updated_user)}), 200
+
+    user_id = existing_user["_id"]
+    update_user(user_id, user_payload)
+    updated_user = find_user_by_optix_id(optix_user_id)
+    if not updated_user:
+        raise APIError(500, "failed to fetch updated user")
+    session["user_id"] = str(updated_user["_id"])
+    return jsonify({"created": False, "user": to_api_doc(updated_user)}), 200
 
 
 if __name__ == "__main__":

@@ -23,7 +23,7 @@ class AdminSessionAuthTests(unittest.TestCase):
 
     def test_login_sets_user_id_session(self):
         user_id = ObjectId()
-        with patch("app.find_user_by_email", return_value={"_id": user_id, "isAdmin": True}):
+        with patch("controllers.session_controller.find_user_by_email", return_value={"_id": user_id, "isAdmin": True}):
             response = self.client.post("/api/session/login", json={"email": "admin@example.com"})
         self.assertEqual(response.status_code, 204)
 
@@ -31,7 +31,7 @@ class AdminSessionAuthTests(unittest.TestCase):
             self.assertEqual(sess.get("user_id"), str(user_id))
 
     def test_login_unknown_user_returns_401(self):
-        with patch("app.find_user_by_email", return_value=None):
+        with patch("controllers.session_controller.find_user_by_email", return_value=None):
             response = self.client.post("/api/session/login", json={"email": "missing@example.com"})
         self.assertEqual(response.status_code, 401)
 
@@ -44,7 +44,7 @@ class AdminSessionAuthTests(unittest.TestCase):
         with self.client.session_transaction() as sess:
             sess["user_id"] = user_id
 
-        with patch("auth.find_user", return_value={"_id": ObjectId(user_id), "isAdmin": False}):
+        with patch("controllers.auth_guard.find_user", return_value={"_id": ObjectId(user_id), "isAdmin": False}):
             response = self.client.get("/api/users")
         self.assertEqual(response.status_code, 403)
 
@@ -53,8 +53,8 @@ class AdminSessionAuthTests(unittest.TestCase):
         with self.client.session_transaction() as sess:
             sess["user_id"] = user_id
 
-        with patch("auth.find_user", return_value={"_id": ObjectId(user_id), "isAdmin": True}), patch(
-            "app.list_users", return_value=[]
+        with patch("controllers.auth_guard.find_user", return_value={"_id": ObjectId(user_id), "isAdmin": True}), patch(
+            "controllers.users_controller.list_users", return_value=[]
         ):
             response = self.client.get("/api/users")
         self.assertEqual(response.status_code, 200)
@@ -74,7 +74,7 @@ class AdminSessionAuthTests(unittest.TestCase):
         with self.client.session_transaction() as sess:
             sess["user_id"] = user_id
 
-        with patch("auth.find_user", return_value={"_id": ObjectId(user_id), "isAdmin": False}):
+        with patch("controllers.auth_guard.find_user", return_value={"_id": ObjectId(user_id), "isAdmin": False}):
             response = self.client.delete("/api/teams/000000000000000000000000?pruneUsers=true")
         self.assertEqual(response.status_code, 403)
 
@@ -95,8 +95,8 @@ class AdminSessionAuthTests(unittest.TestCase):
         with self.client.session_transaction() as sess:
             sess["user_id"] = user_id
 
-        with patch("auth.find_user", return_value={"_id": ObjectId(user_id), "isAdmin": True}), patch(
-            "app.list_mail", return_value=[]
+        with patch("controllers.auth_guard.find_user", return_value={"_id": ObjectId(user_id), "isAdmin": True}), patch(
+            "controllers.mail_controller.list_mail", return_value=[]
         ) as list_mail_mock:
             response = self.client.get(f"/api/mail?date=2026-02-17&mailboxId={mailbox_id}")
 
@@ -113,7 +113,7 @@ class AdminSessionAuthTests(unittest.TestCase):
         with self.client.session_transaction() as sess:
             sess["user_id"] = user_id
 
-        with patch("auth.find_user", return_value={"_id": ObjectId(user_id), "isAdmin": True}):
+        with patch("controllers.auth_guard.find_user", return_value={"_id": ObjectId(user_id), "isAdmin": True}):
             response = self.client.get("/api/mail?date=not-a-date")
 
         self.assertEqual(response.status_code, 422)
@@ -129,7 +129,7 @@ class AdminSessionAuthTests(unittest.TestCase):
             sess["user_id"] = user_id
 
         with patch(
-            "auth.find_user",
+            "controllers.auth_guard.find_user",
             return_value={
                 "_id": ObjectId(user_id),
                 "email": "member@example.com",
@@ -159,7 +159,7 @@ class AdminSessionAuthTests(unittest.TestCase):
         with self.client.session_transaction() as sess:
             sess["user_id"] = user_id
 
-        with patch("auth.find_user", return_value={"_id": ObjectId(user_id), "isAdmin": True}):
+        with patch("controllers.auth_guard.find_user", return_value={"_id": ObjectId(user_id), "isAdmin": True}):
             response = self.client.get("/api/member/mail?start=2026-02-15&end=2026-02-21")
 
         self.assertEqual(response.status_code, 403)
@@ -171,8 +171,8 @@ class AdminSessionAuthTests(unittest.TestCase):
             sess["user_id"] = user_id
 
         expected = {"start": "2026-02-15", "end": "2026-02-21", "mailboxes": []}
-        with patch("auth.find_user", return_value=user_doc), patch(
-            "app.list_member_mail_summary", return_value=expected
+        with patch("controllers.auth_guard.find_user", return_value=user_doc), patch(
+            "controllers.member_controller.list_member_mail_summary", return_value=expected
         ) as member_mail_mock:
             response = self.client.get("/api/member/mail?start=2026-02-15&end=2026-02-21")
 
@@ -191,8 +191,8 @@ class AdminSessionAuthTests(unittest.TestCase):
             sess["user_id"] = user_id
 
         expected = {"id": user_id, "emailNotifications": True}
-        with patch("auth.find_user", return_value=user_doc), patch(
-            "app.update_member_email_notifications", return_value=expected
+        with patch("controllers.auth_guard.find_user", return_value=user_doc), patch(
+            "controllers.member_controller.update_member_email_notifications", return_value=expected
         ) as prefs_mock:
             response = self.client.patch("/api/member/preferences", json={"emailNotifications": True})
 
@@ -205,7 +205,7 @@ class AdminSessionAuthTests(unittest.TestCase):
         with self.client.session_transaction() as sess:
             sess["user_id"] = user_id
 
-        with patch("auth.find_user", return_value={"_id": ObjectId(user_id), "isAdmin": False}):
+        with patch("controllers.auth_guard.find_user", return_value={"_id": ObjectId(user_id), "isAdmin": False}):
             response = self.client.patch("/api/member/preferences", json={"emailNotifications": "yes"})
 
         self.assertEqual(response.status_code, 422)
@@ -216,7 +216,7 @@ class AdminSessionAuthTests(unittest.TestCase):
         with self.client.session_transaction() as sess:
             sess["user_id"] = user_id
 
-        with patch("auth.find_user", return_value=user_doc), patch(
+        with patch("controllers.auth_guard.find_user", return_value=user_doc), patch(
             "app.create_mail_request",
             side_effect=APIError(403, "forbidden"),
         ):
@@ -236,7 +236,7 @@ class AdminSessionAuthTests(unittest.TestCase):
         with self.client.session_transaction() as sess:
             sess["user_id"] = user_id
 
-        with patch("auth.find_user", return_value=user_doc), patch(
+        with patch("controllers.auth_guard.find_user", return_value=user_doc), patch(
             "app.create_mail_request",
             side_effect=APIError(400, "expectedSender or description is required"),
         ):
@@ -253,7 +253,7 @@ class AdminSessionAuthTests(unittest.TestCase):
         with self.client.session_transaction() as sess:
             sess["user_id"] = user_id
 
-        with patch("auth.find_user", return_value=user_doc), patch(
+        with patch("controllers.auth_guard.find_user", return_value=user_doc), patch(
             "app.create_mail_request",
             side_effect=APIError(400, "endDate must be on or after startDate"),
         ):
@@ -289,7 +289,7 @@ class AdminSessionAuthTests(unittest.TestCase):
                 "updatedAt": datetime(2026, 2, 18, tzinfo=timezone.utc),
             }
         ]
-        with patch("auth.find_user", return_value=user_doc), patch(
+        with patch("controllers.auth_guard.find_user", return_value=user_doc), patch(
             "app.list_member_mail_requests",
             return_value=expected,
         ) as list_mock:
@@ -305,7 +305,7 @@ class AdminSessionAuthTests(unittest.TestCase):
         with self.client.session_transaction() as sess:
             sess["user_id"] = user_id
 
-        with patch("auth.find_user", return_value=user_doc), patch(
+        with patch("controllers.auth_guard.find_user", return_value=user_doc), patch(
             "app.list_member_mail_requests",
             return_value=[],
         ) as list_mock:
@@ -320,7 +320,7 @@ class AdminSessionAuthTests(unittest.TestCase):
         with self.client.session_transaction() as sess:
             sess["user_id"] = user_id
 
-        with patch("auth.find_user", return_value=user_doc):
+        with patch("controllers.auth_guard.find_user", return_value=user_doc):
             response = self.client.get("/api/mail-requests?status=NOPE")
 
         self.assertEqual(response.status_code, 422)
@@ -333,7 +333,7 @@ class AdminSessionAuthTests(unittest.TestCase):
         with self.client.session_transaction() as sess:
             sess["user_id"] = user_id
 
-        with patch("auth.find_user", return_value=user_doc), patch(
+        with patch("controllers.auth_guard.find_user", return_value=user_doc), patch(
             "app.cancel_member_mail_request",
             side_effect=APIError(404, "mail request not found"),
         ):
@@ -348,7 +348,7 @@ class AdminSessionAuthTests(unittest.TestCase):
         with self.client.session_transaction() as sess:
             sess["user_id"] = user_id
 
-        with patch("auth.find_user", return_value=user_doc), patch(
+        with patch("controllers.auth_guard.find_user", return_value=user_doc), patch(
             "app.cancel_member_mail_request",
             side_effect=APIError(404, "mail request not found"),
         ):
@@ -367,7 +367,7 @@ class AdminSessionAuthTests(unittest.TestCase):
         with self.client.session_transaction() as sess:
             sess["user_id"] = session_user_id
 
-        with patch("auth.find_user", return_value={"_id": ObjectId(session_user_id), "isAdmin": True}), patch(
+        with patch("controllers.auth_guard.find_user", return_value={"_id": ObjectId(session_user_id), "isAdmin": True}), patch(
             "app.list_admin_active_mail_requests",
             return_value=[],
         ) as list_mock:
@@ -381,7 +381,7 @@ class AdminSessionAuthTests(unittest.TestCase):
         with self.client.session_transaction() as sess:
             sess["user_id"] = session_user_id
 
-        with patch("auth.find_user", return_value={"_id": ObjectId(session_user_id), "isAdmin": True}):
+        with patch("controllers.auth_guard.find_user", return_value={"_id": ObjectId(session_user_id), "isAdmin": True}):
             response = self.client.get("/api/admin/mail-requests?memberId=not-object-id")
 
         self.assertEqual(response.status_code, 422)
@@ -409,7 +409,7 @@ class AdminSessionAuthTests(unittest.TestCase):
             "createdAt": datetime(2026, 2, 19, tzinfo=timezone.utc),
             "updatedAt": datetime(2026, 2, 20, tzinfo=timezone.utc),
         }
-        with patch("auth.find_user", return_value={"_id": ObjectId(session_user_id), "isAdmin": True}), patch(
+        with patch("controllers.auth_guard.find_user", return_value={"_id": ObjectId(session_user_id), "isAdmin": True}), patch(
             "app.resolve_mail_request_and_notify",
             return_value=expected,
         ) as resolve_mock:
@@ -429,7 +429,7 @@ class AdminSessionAuthTests(unittest.TestCase):
         with self.client.session_transaction() as sess:
             sess["user_id"] = session_user_id
 
-        with patch("auth.find_user", return_value={"_id": ObjectId(session_user_id), "isAdmin": True}), patch(
+        with patch("controllers.auth_guard.find_user", return_value={"_id": ObjectId(session_user_id), "isAdmin": True}), patch(
             "app.resolve_mail_request_and_notify",
             side_effect=APIError(404, "mail request not found"),
         ):
@@ -459,7 +459,7 @@ class AdminSessionAuthTests(unittest.TestCase):
             "createdAt": datetime(2026, 2, 19, tzinfo=timezone.utc),
             "updatedAt": datetime(2026, 2, 21, tzinfo=timezone.utc),
         }
-        with patch("auth.find_user", return_value={"_id": ObjectId(session_user_id), "isAdmin": True}), patch(
+        with patch("controllers.auth_guard.find_user", return_value={"_id": ObjectId(session_user_id), "isAdmin": True}), patch(
             "app.retry_mail_request_notification",
             return_value=expected,
         ) as retry_mock:
@@ -483,7 +483,7 @@ class AdminSessionAuthTests(unittest.TestCase):
         with self.client.session_transaction() as sess:
             sess["user_id"] = session_user_id
 
-        with patch("auth.find_user", return_value={"_id": ObjectId(session_user_id), "isAdmin": False}):
+        with patch("controllers.auth_guard.find_user", return_value={"_id": ObjectId(session_user_id), "isAdmin": False}):
             response = self.client.post(
                 "/admin/notifications/summary",
                 json={"userId": str(ObjectId()), "weekStart": "2026-02-15", "weekEnd": "2026-02-21"},
@@ -496,7 +496,7 @@ class AdminSessionAuthTests(unittest.TestCase):
         with self.client.session_transaction() as sess:
             sess["user_id"] = session_user_id
 
-        with patch("auth.find_user", return_value={"_id": ObjectId(session_user_id), "isAdmin": True}):
+        with patch("controllers.auth_guard.find_user", return_value={"_id": ObjectId(session_user_id), "isAdmin": True}):
             response = self.client.post(
                 "/admin/notifications/summary",
                 json={"userId": str(ObjectId()), "weekStart": "2026-02-22", "weekEnd": "2026-02-21"},
@@ -516,7 +516,7 @@ class AdminSessionAuthTests(unittest.TestCase):
         notifier.notifyWeeklySummary.return_value = notify_result
         provider = object()
 
-        with patch("auth.find_user", return_value={"_id": ObjectId(session_user_id), "isAdmin": True}), patch(
+        with patch("controllers.auth_guard.find_user", return_value={"_id": ObjectId(session_user_id), "isAdmin": True}), patch(
             "app.build_email_provider",
             return_value=provider,
         ) as provider_factory_mock, patch(

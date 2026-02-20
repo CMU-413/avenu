@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import date, datetime, timezone
 from typing import Any
 
-from config import users_collection
+from repositories.users_repository import update_notif_prefs
 from services.mail_summary_service import MailSummaryService
 
 
@@ -31,10 +31,7 @@ def update_member_email_notifications(*, user: dict[str, Any], enabled: bool) ->
     if enabled:
         next_prefs.append("email")
 
-    users_collection.update_one(
-        {"_id": user["_id"]},
-        {"$set": {"notifPrefs": next_prefs, "updatedAt": datetime.now(tz=timezone.utc)}},
-    )
+    update_notif_prefs(user["_id"], next_prefs, updated_at=datetime.now(tz=timezone.utc))
 
     return {
         "id": str(user["_id"]),

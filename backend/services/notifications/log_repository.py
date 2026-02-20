@@ -3,14 +3,19 @@ from __future__ import annotations
 from datetime import date, datetime, timezone
 
 from bson import ObjectId
-from pymongo.collection import Collection
 
+from repositories.notification_logs_repository import (
+    find_sent_weekly_summary as repo_find_sent_weekly_summary,
+    insert_special_case_log,
+    insert_weekly_summary_log,
+)
 from services.notifications.types import NotificationLogEntry, NotificationLogStatus, NotifyReason, NotifyTrigger
 
 
 WEEKLY_SUMMARY_TYPE = "weekly-summary"
 SPECIAL_CASE_TYPE = "special-case"
 MAIL_ARRIVED_TEMPLATE_TYPE = "mail-arrived"
+
 
 def _to_utc_datetime(value: date | datetime) -> datetime:
     if isinstance(value, datetime):
@@ -19,23 +24,20 @@ def _to_utc_datetime(value: date | datetime) -> datetime:
 
 
 def find_sent_weekly_summary(
-    collection: Collection,
+    collection,
     *,
     user_id: ObjectId,
     week_start: date,
 ) -> NotificationLogEntry | None:
+    if collection is None:
+        return repo_find_sent_weekly_summary(user_id=user_id, week_start=week_start)
     return collection.find_one(
-        {
-            "userId": user_id,
-            "type": WEEKLY_SUMMARY_TYPE,
-            "weekStart": _to_utc_datetime(week_start),
-            "status": "sent",
-        }
+        {"userId": user_id, "type": WEEKLY_SUMMARY_TYPE, "weekStart": _to_utc_datetime(week_start), "status": "sent"}
     )
 
 
 def insert_notification_log(
-    collection: Collection,
+    collection,
     *,
     user_id: ObjectId,
     week_start: date,
@@ -45,6 +47,17 @@ def insert_notification_log(
     error_message: str | None,
     sent_at: datetime | None,
 ) -> None:
+    if collection is None:
+        insert_weekly_summary_log(
+            user_id=user_id,
+            week_start=week_start,
+            status=status,
+            reason=reason,
+            triggered_by=triggered_by,
+            error_message=error_message,
+            sent_at=sent_at,
+        )
+        return
     collection.insert_one(
         {
             "userId": user_id,
@@ -63,7 +76,7 @@ def insert_notification_log(
 
 
 def insert_special_case_notification_log(
-    collection: Collection,
+    collection,
     *,
     user_id: ObjectId,
     status: NotificationLogStatus,
@@ -72,6 +85,16 @@ def insert_special_case_notification_log(
     error_message: str | None,
     sent_at: datetime | None,
 ) -> None:
+    if collection is None:
+        insert_special_case_log(
+            user_id=user_id,
+            status=status,
+            reason=reason,
+            triggered_by=triggered_by,
+            error_message=error_message,
+            sent_at=sent_at,
+        )
+        return
     collection.insert_one(
         {
             "userId": user_id,
