@@ -51,8 +51,8 @@ Notes:
 ### Scheduler
 - `BACKEND_API_URL` (must point to backend service DNS, default `http://backend:8000`)
 - `SCHEDULER_INTERNAL_TOKEN` (must match backend)
-- `SCHEDULER_CRON` (default `0 8 * * 1`)
-- `SCHEDULER_TIMEZONE` (default `UTC`)
+- `SCHEDULER_CRON` (default `0 8 * * 1`, i.e. 8 AM on Monday)
+- `SCHEDULER_TIMEZONE` (default `America/New_York`)
 - `SCHEDULER_TICK_SECONDS` (default `20`)
 
 ---
