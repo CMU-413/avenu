@@ -9,6 +9,7 @@ os.environ.setdefault("MONGO_URI", "mongodb://localhost:27017")
 os.environ.setdefault("FLASK_TESTING", "1")
 
 from app import create_app
+from errors import APIError
 
 
 class AdminSessionAuthTests(unittest.TestCase):
@@ -208,6 +209,156 @@ class AdminSessionAuthTests(unittest.TestCase):
             response = self.client.patch("/api/member/preferences", json={"emailNotifications": "yes"})
 
         self.assertEqual(response.status_code, 422)
+
+    def test_member_mail_requests_create_unauthorized_mailbox_returns_403(self):
+        user_id = str(ObjectId())
+        user_doc = {"_id": ObjectId(user_id), "isAdmin": False, "teamIds": []}
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = user_id
+
+        with patch("auth.find_user", return_value=user_doc), patch(
+            "app.create_mail_request",
+            side_effect=APIError(403, "forbidden"),
+        ):
+            response = self.client.post(
+                "/api/mail-requests",
+                json={
+                    "mailboxId": str(ObjectId()),
+                    "expectedSender": "Sender",
+                },
+            )
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_member_mail_requests_create_validation_failure_missing_text_returns_400(self):
+        user_id = str(ObjectId())
+        user_doc = {"_id": ObjectId(user_id), "isAdmin": False, "teamIds": []}
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = user_id
+
+        with patch("auth.find_user", return_value=user_doc), patch(
+            "app.create_mail_request",
+            side_effect=APIError(400, "expectedSender or description is required"),
+        ):
+            response = self.client.post(
+                "/api/mail-requests",
+                json={"mailboxId": str(ObjectId())},
+            )
+
+        self.assertEqual(response.status_code, 400)
+
+    def test_member_mail_requests_create_validation_failure_bad_window_returns_400(self):
+        user_id = str(ObjectId())
+        user_doc = {"_id": ObjectId(user_id), "isAdmin": False, "teamIds": []}
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = user_id
+
+        with patch("auth.find_user", return_value=user_doc), patch(
+            "app.create_mail_request",
+            side_effect=APIError(400, "endDate must be on or after startDate"),
+        ):
+            response = self.client.post(
+                "/api/mail-requests",
+                json={
+                    "mailboxId": str(ObjectId()),
+                    "expectedSender": "Sender",
+                    "startDate": "2026-02-10",
+                    "endDate": "2026-02-09",
+                },
+            )
+
+        self.assertEqual(response.status_code, 400)
+
+    def test_member_mail_requests_list_calls_scoped_service(self):
+        user_id = str(ObjectId())
+        user_doc = {"_id": ObjectId(user_id), "isAdmin": False, "teamIds": []}
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = user_id
+
+        expected = [
+            {
+                "_id": ObjectId(),
+                "memberId": ObjectId(user_id),
+                "mailboxId": ObjectId(),
+                "expectedSender": "Sender",
+                "description": None,
+                "startDate": None,
+                "endDate": None,
+                "status": "ACTIVE",
+                "createdAt": datetime(2026, 2, 18, tzinfo=timezone.utc),
+                "updatedAt": datetime(2026, 2, 18, tzinfo=timezone.utc),
+            }
+        ]
+        with patch("auth.find_user", return_value=user_doc), patch(
+            "app.list_member_active_mail_requests",
+            return_value=expected,
+        ) as list_mock:
+            response = self.client.get("/api/mail-requests")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.json), 1)
+        list_mock.assert_called_once_with(user=user_doc)
+
+    def test_member_mail_requests_delete_other_member_returns_404(self):
+        user_id = str(ObjectId())
+        user_doc = {"_id": ObjectId(user_id), "isAdmin": False, "teamIds": []}
+        request_id = str(ObjectId())
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = user_id
+
+        with patch("auth.find_user", return_value=user_doc), patch(
+            "app.cancel_member_mail_request",
+            side_effect=APIError(404, "mail request not found"),
+        ):
+            response = self.client.delete(f"/api/mail-requests/{request_id}")
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_member_mail_requests_delete_already_cancelled_returns_404(self):
+        user_id = str(ObjectId())
+        user_doc = {"_id": ObjectId(user_id), "isAdmin": False, "teamIds": []}
+        request_id = str(ObjectId())
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = user_id
+
+        with patch("auth.find_user", return_value=user_doc), patch(
+            "app.cancel_member_mail_request",
+            side_effect=APIError(404, "mail request not found"),
+        ):
+            response = self.client.delete(f"/api/mail-requests/{request_id}")
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_admin_mail_requests_list_requires_admin_session(self):
+        response = self.client.get("/api/admin/mail-requests")
+        self.assertEqual(response.status_code, 401)
+
+    def test_admin_mail_requests_list_accepts_objectid_filters(self):
+        session_user_id = str(ObjectId())
+        mailbox_id = str(ObjectId())
+        member_id = str(ObjectId())
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = session_user_id
+
+        with patch("auth.find_user", return_value={"_id": ObjectId(session_user_id), "isAdmin": True}), patch(
+            "app.list_admin_active_mail_requests",
+            return_value=[],
+        ) as list_mock:
+            response = self.client.get(f"/api/admin/mail-requests?mailboxId={mailbox_id}&memberId={member_id}")
+
+        self.assertEqual(response.status_code, 200)
+        list_mock.assert_called_once_with(mailbox_id=ObjectId(mailbox_id), member_id=ObjectId(member_id))
+
+    def test_admin_mail_requests_list_rejects_invalid_member_id_filter(self):
+        session_user_id = str(ObjectId())
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = session_user_id
+
+        with patch("auth.find_user", return_value={"_id": ObjectId(session_user_id), "isAdmin": True}):
+            response = self.client.get("/api/admin/mail-requests?memberId=not-object-id")
+
+        self.assertEqual(response.status_code, 422)
+        self.assertEqual(response.json, {"error": "memberId must be a valid ObjectId string"})
 
     def test_admin_weekly_summary_requires_admin_session(self):
         response = self.client.post(

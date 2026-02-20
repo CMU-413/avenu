@@ -10,6 +10,7 @@ from config import (
     client,
     idempotency_keys_collection,
     mail_collection,
+    mail_requests_collection,
     mailboxes_collection,
     teams_collection,
     users_collection,
@@ -62,6 +63,10 @@ def find_mailbox(mailbox_id: ObjectId):
 
 def find_mail(mail_id: ObjectId):
     return mail_collection.find_one({"_id": mail_id})
+
+
+def find_mail_request(mail_request_id: ObjectId):
+    return mail_requests_collection.find_one({"_id": mail_request_id})
 
 
 def owner_mailbox(owner_type: str, ref_id: ObjectId):

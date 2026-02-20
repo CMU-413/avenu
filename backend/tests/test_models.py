@@ -3,7 +3,7 @@ import unittest
 from bson import ObjectId
 
 from errors import APIError
-from models import build_mail_create, build_user_create
+from models import build_mail_create, build_mail_request_create, build_user_create
 
 
 class ModelBuilderTests(unittest.TestCase):
@@ -43,6 +43,45 @@ class ModelBuilderTests(unittest.TestCase):
                     "count": 0,
                 }
             )
+
+    def test_build_mail_request_create_requires_expected_sender_or_description(self):
+        with self.assertRaises(APIError) as ctx:
+            build_mail_request_create(
+                {"mailboxId": str(ObjectId())},
+                member_id=ObjectId(),
+            )
+        self.assertEqual(ctx.exception.status_code, 400)
+
+    def test_build_mail_request_create_rejects_end_before_start(self):
+        with self.assertRaises(APIError) as ctx:
+            build_mail_request_create(
+                {
+                    "mailboxId": str(ObjectId()),
+                    "expectedSender": "Sender",
+                    "startDate": "2026-02-10",
+                    "endDate": "2026-02-09",
+                },
+                member_id=ObjectId(),
+            )
+        self.assertEqual(ctx.exception.status_code, 400)
+
+    def test_build_mail_request_create_sets_member_status_and_timestamps(self):
+        member_id = ObjectId()
+        payload = {
+            "mailboxId": str(ObjectId()),
+            "expectedSender": "Sender Inc",
+            "description": "Important package",
+            "startDate": "2026-02-10",
+            "endDate": "2026-02-15",
+        }
+        doc = build_mail_request_create(payload, member_id=member_id)
+
+        self.assertEqual(doc["memberId"], member_id)
+        self.assertEqual(doc["status"], "ACTIVE")
+        self.assertEqual(doc["startDate"], "2026-02-10")
+        self.assertEqual(doc["endDate"], "2026-02-15")
+        self.assertIsNotNone(doc["createdAt"])
+        self.assertIsNotNone(doc["updatedAt"])
 
 
 if __name__ == "__main__":

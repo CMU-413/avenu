@@ -24,6 +24,12 @@ from errors import APIError
 from idempotency import payload_hash, require_idempotency_key, reserve_or_replay, store_idempotent_response
 from repositories import find_team_by_optix_id, find_user_by_optix_id, to_api_doc
 from services.mail_service import create_mail, delete_mail, get_mail, list_mail, update_mail
+from services.mail_request_service import (
+    cancel_member_mail_request,
+    create_mail_request,
+    list_admin_active_mail_requests,
+    list_member_active_mail_requests,
+)
 from services.mailbox_service import get_mailbox, list_mailboxes, update_mailbox
 from services.member_service import list_member_mail_summary, update_member_email_notifications
 from services.notifications.channels.email_channel import EmailChannel
@@ -61,6 +67,14 @@ def _parse_iso_date(value: str, *, field_name: str) -> date:
         return datetime.strptime(value, "%Y-%m-%d").date()
     except ValueError as exc:
         raise APIError(422, f"{field_name} must be YYYY-MM-DD") from exc
+
+
+def _parse_optional_object_id_filter(value: str | None, *, field_name: str) -> ObjectId | None:
+    if value is None:
+        return None
+    if not ObjectId.is_valid(value):
+        raise APIError(422, f"{field_name} must be a valid ObjectId string")
+    return ObjectId(value)
 
 
 def _idempotent_create(
@@ -412,6 +426,33 @@ def create_app(
         if not isinstance(email_notifications, bool):
             raise APIError(422, "emailNotifications must be a boolean")
         return jsonify(update_member_email_notifications(user=user, enabled=email_notifications)), 200
+
+    @app.route("/api/mail-requests", methods=["POST"])
+    def member_mail_requests_create_route():
+        user = ensure_member_session()
+        created = create_mail_request(user=user, payload=_json_payload())
+        return jsonify(to_api_doc(created)), 201
+
+    @app.route("/api/mail-requests", methods=["GET"])
+    def member_mail_requests_list_route():
+        user = ensure_member_session()
+        return jsonify([to_api_doc(doc) for doc in list_member_active_mail_requests(user=user)]), 200
+
+    @app.route("/api/mail-requests/<request_id>", methods=["DELETE"])
+    def member_mail_requests_cancel_route(request_id: str):
+        user = ensure_member_session()
+        oid = parse_object_id(request_id, "mail request id")
+        cancel_member_mail_request(user=user, request_id=oid)
+        return "", 204
+
+    @app.route("/api/admin/mail-requests", methods=["GET"])
+    @require_admin_session
+    def admin_mail_requests_list_route():
+        mailbox_id = _parse_optional_object_id_filter(request.args.get("mailboxId"), field_name="mailboxId")
+        member_id = _parse_optional_object_id_filter(request.args.get("memberId"), field_name="memberId")
+        return jsonify(
+            [to_api_doc(doc) for doc in list_admin_active_mail_requests(mailbox_id=mailbox_id, member_id=member_id)]
+        ), 200
 
     @app.route("/api/admin/notifications/summary", methods=["POST"])
     @app.route("/admin/notifications/summary", methods=["POST"])

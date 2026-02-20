@@ -7,6 +7,7 @@ from typing import Any
 from bson import ObjectId
 
 from config import mail_collection, mailboxes_collection, users_collection
+from services.mailbox_access_service import member_mailbox_scope
 
 
 def _date_range(start_day: date, end_day: date) -> list[str]:
@@ -40,13 +41,14 @@ class MailSummaryService:
 
     def getWeeklySummary(self, userId: ObjectId, weekStart: date, weekEnd: date) -> dict[str, Any]:
         user = self._users.find_one({"_id": userId}, {"teamIds": 1})
-        team_ids = user.get("teamIds") if user and isinstance(user.get("teamIds"), list) else []
+        mailbox_query = member_mailbox_scope(
+            {
+                "_id": userId,
+                "teamIds": user.get("teamIds") if user and isinstance(user.get("teamIds"), list) else [],
+            }
+        )
 
-        mailbox_or: list[dict[str, Any]] = [{"type": "user", "refId": userId}]
-        if team_ids:
-            mailbox_or.append({"type": "team", "refId": {"$in": team_ids}})
-
-        mailbox_docs = list(self._mailboxes.find({"$or": mailbox_or}).sort([("displayName", 1), ("_id", 1)]))
+        mailbox_docs = list(self._mailboxes.find(mailbox_query).sort([("displayName", 1), ("_id", 1)]))
         mailbox_ids = [m["_id"] for m in mailbox_docs]
 
         day_start = _day_bounds_utc(weekStart)
