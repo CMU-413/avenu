@@ -82,6 +82,10 @@ describe("MemberDashboard expected mail section", () => {
         startDate: null,
         endDate: null,
         status: "ACTIVE",
+        resolvedAt: null,
+        resolvedBy: null,
+        lastNotificationStatus: null,
+        lastNotificationAt: null,
         createdAt: "2026-02-18T00:00:00Z",
         updatedAt: "2026-02-18T00:00:00Z",
       },
@@ -142,5 +146,63 @@ describe("MemberDashboard expected mail section", () => {
       expect(cancelMailRequestMock).toHaveBeenCalledWith("req-1");
     });
     expect(listMemberMailRequestsMock.mock.calls.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("defaults to ACTIVE status filter and can switch to RESOLVED", async () => {
+    listMemberMailRequestsMock
+      .mockResolvedValueOnce([
+        {
+          id: "req-1",
+          memberId: "member-1",
+          mailboxId: "mailbox-1",
+          expectedSender: "Sender Inc",
+          description: null,
+          startDate: null,
+          endDate: null,
+          status: "ACTIVE",
+          resolvedAt: null,
+          resolvedBy: null,
+          lastNotificationStatus: null,
+          lastNotificationAt: null,
+          createdAt: "2026-02-18T00:00:00Z",
+          updatedAt: "2026-02-18T00:00:00Z",
+        },
+      ])
+      .mockResolvedValueOnce([
+        {
+          id: "req-2",
+          memberId: "member-1",
+          mailboxId: "mailbox-1",
+          expectedSender: "Sender Resolved",
+          description: null,
+          startDate: null,
+          endDate: null,
+          status: "RESOLVED",
+          resolvedAt: "2026-02-19T00:00:00Z",
+          resolvedBy: "admin-1",
+          lastNotificationStatus: "SENT",
+          lastNotificationAt: "2026-02-19T00:00:00Z",
+          createdAt: "2026-02-18T00:00:00Z",
+          updatedAt: "2026-02-19T00:00:00Z",
+        },
+      ]);
+
+    render(
+      <MemoryRouter>
+        <MemberDashboard />
+      </MemoryRouter>
+    );
+
+    await screen.findByText("Expected Mail");
+    await waitFor(() => {
+      expect(listMemberMailRequestsMock).toHaveBeenCalledWith({ status: "ACTIVE" });
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Resolved" }));
+    await waitFor(() => {
+      expect(listMemberMailRequestsMock).toHaveBeenLastCalledWith({ status: "RESOLVED" });
+    });
+    await screen.findByText(/Resolved /);
+    expect(screen.queryByRole("button", { name: "Cancel" })).not.toBeInTheDocument();
   });
 });

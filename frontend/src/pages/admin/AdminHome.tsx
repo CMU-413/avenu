@@ -36,7 +36,7 @@ const AdminHome = () => {
 
         <Button onClick={() => navigate("/admin/notifications")} className="w-full h-14 justify-start gap-3 text-base" variant="secondary">
           <Bell className="h-5 w-5" />
-          Send Mail Arrived Notification
+          Send Weekly Notifications
         </Button>
 
         <Button onClick={() => navigate("/admin/mail-requests")} className="w-full h-14 justify-start gap-3 text-base" variant="secondary">

@@ -74,7 +74,8 @@ export interface ApiMemberPreferences {
   emailNotifications: boolean;
 }
 
-export type ApiMailRequestStatus = "ACTIVE" | "CANCELLED";
+export type ApiMailRequestStatus = "ACTIVE" | "CANCELLED" | "RESOLVED";
+export type ApiMailRequestNotificationStatus = "SENT" | "FAILED";
 
 export interface ApiMailRequest {
   id: string;
@@ -85,6 +86,10 @@ export interface ApiMailRequest {
   startDate: string | null;
   endDate: string | null;
   status: ApiMailRequestStatus;
+  resolvedAt: string | null;
+  resolvedBy: string | null;
+  lastNotificationStatus: ApiMailRequestNotificationStatus | null;
+  lastNotificationAt: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -249,8 +254,13 @@ export function updateMemberPreferences(emailNotifications: boolean): Promise<Ap
   });
 }
 
-export function listMemberMailRequests(): Promise<ApiMailRequest[]> {
-  return apiFetch<ApiMailRequest[]>("/api/mail-requests");
+export function listMemberMailRequests(
+  params: { status?: "ACTIVE" | "RESOLVED" | "ALL" } = {}
+): Promise<ApiMailRequest[]> {
+  const search = new URLSearchParams();
+  if (params.status) search.set("status", params.status);
+  const query = search.toString();
+  return apiFetch<ApiMailRequest[]>(`/api/mail-requests${query ? `?${query}` : ""}`);
 }
 
 export function createMailRequest(payload: {
@@ -280,12 +290,15 @@ export function listAdminMailRequests(filters: { mailboxId?: string; memberId?: 
   return apiFetch<ApiMailRequest[]>(`/api/admin/mail-requests${query ? `?${query}` : ""}`);
 }
 
-export function sendMailArrivedNotification(payload: { userId: string }): Promise<ApiNotifyResult> {
-  return apiFetch<ApiNotifyResult>("/api/admin/notifications/special", {
+export function resolveAdminMailRequest(id: string): Promise<ApiMailRequest> {
+  return apiFetch<ApiMailRequest>(`/api/admin/mail-requests/${id}/resolve`, {
     method: "POST",
-    body: JSON.stringify({
-      userId: payload.userId,
-    }),
+  });
+}
+
+export function retryAdminMailRequestNotification(id: string): Promise<ApiMailRequest> {
+  return apiFetch<ApiMailRequest>(`/api/admin/mail-requests/${id}/retry-notification`, {
+    method: "POST",
   });
 }
 

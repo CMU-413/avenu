@@ -10,11 +10,11 @@
 - ☑ Add backend unit tests for resolution transitions, retry behavior, and notification-failure non-rollback semantics.
 
 ## Phase 2
-- ☐ Add admin mail logging resolve UI in `RecordEntry` with selected-date window matching and “Resolve & Notify” action.
-- ☐ Add retry-notification action in admin request views where notification metadata is shown.
-- ☐ Add frontend API helpers/types for resolve/retry endpoints and member `status` filtering.
-- ☐ Add member dashboard ACTIVE/RESOLVED toggle and resolved-row rendering (`resolvedAt` visible, no cancel).
-- ☐ Update frontend unit tests for resolve/retry flows and member resolved filtering behavior.
+- ☑ Add admin mail logging resolve UI in `RecordEntry` with selected-date window matching and “Resolve & Notify” action.
+- ☑ Add retry-notification action in admin request views where notification metadata is shown.
+- ☑ Add frontend API helpers/types for resolve/retry endpoints and member `status` filtering.
+- ☑ Add member dashboard ACTIVE/RESOLVED toggle and resolved-row rendering (`resolvedAt` visible, no cancel).
+- ☑ Update frontend unit tests for resolve/retry flows and member resolved filtering behavior.
 
 ## Phase 3
 - ☐ Update architecture data model docs for `RESOLVED`, resolve metadata, notification metadata, and lifecycle transitions.

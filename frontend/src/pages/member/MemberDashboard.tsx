@@ -15,6 +15,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+type MailRequestView = "ACTIVE" | "RESOLVED";
 
 function formatIsoDateLocal(date: Date): string {
   const y = date.getFullYear();
@@ -61,6 +62,7 @@ const MemberDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [mailRequests, setMailRequests] = useState<ApiMailRequest[]>([]);
   const [mailRequestsLoading, setMailRequestsLoading] = useState(true);
+  const [mailRequestView, setMailRequestView] = useState<MailRequestView>("ACTIVE");
   const [mailboxId, setMailboxId] = useState("");
   const [expectedSender, setExpectedSender] = useState("");
   const [description, setDescription] = useState("");
@@ -78,10 +80,10 @@ const MemberDashboard = () => {
     return map;
   }, [mailSummary]);
 
-  const loadMailRequests = useCallback(async () => {
+  const loadMailRequests = useCallback(async (status: MailRequestView) => {
     setMailRequestsLoading(true);
     try {
-      const requests = await listMemberMailRequests();
+      const requests = await listMemberMailRequests({ status });
       setMailRequests(requests);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to load expected mail";
@@ -122,8 +124,8 @@ const MemberDashboard = () => {
   }, [logout, navigate, toast, week.start, week.end]);
 
   useEffect(() => {
-    void loadMailRequests();
-  }, [loadMailRequests]);
+    void loadMailRequests(mailRequestView);
+  }, [loadMailRequests, mailRequestView]);
 
   useEffect(() => {
     if (mailboxId) return;
@@ -157,7 +159,7 @@ const MemberDashboard = () => {
       setStartDate("");
       setEndDate("");
       toast({ title: "Expected mail request created" });
-      await loadMailRequests();
+      await loadMailRequests(mailRequestView);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to create request";
       toast({ title: message, variant: "destructive" });
@@ -175,7 +177,7 @@ const MemberDashboard = () => {
     try {
       await cancelMailRequest(requestId);
       toast({ title: "Expected mail request cancelled" });
-      await loadMailRequests();
+      await loadMailRequests(mailRequestView);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to cancel request";
       toast({ title: message, variant: "destructive" });
@@ -342,10 +344,27 @@ const MemberDashboard = () => {
             </button>
           </div>
 
+          <div className="inline-flex rounded-lg border bg-card p-1">
+            <button
+              onClick={() => setMailRequestView("ACTIVE")}
+              className={`px-3 py-1.5 text-xs rounded-md ${mailRequestView === "ACTIVE" ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}
+            >
+              Active
+            </button>
+            <button
+              onClick={() => setMailRequestView("RESOLVED")}
+              className={`px-3 py-1.5 text-xs rounded-md ${mailRequestView === "RESOLVED" ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}
+            >
+              Resolved
+            </button>
+          </div>
+
           {mailRequestsLoading ? (
             <div className="py-4 text-center text-sm text-muted-foreground">Loading requests...</div>
           ) : mailRequests.length === 0 ? (
-            <div className="py-4 text-center text-sm text-muted-foreground">No active requests</div>
+            <div className="py-4 text-center text-sm text-muted-foreground">
+              {mailRequestView === "ACTIVE" ? "No active requests" : "No resolved requests"}
+            </div>
           ) : (
             <div className="rounded-xl border bg-card divide-y divide-border">
               {mailRequests.map((req) => {
@@ -353,6 +372,7 @@ const MemberDashboard = () => {
                 const detail = req.expectedSender || req.description || "—";
                 const dateWindow = req.startDate || req.endDate ? `${req.startDate || "?"} to ${req.endDate || "?"}` : "No date window";
                 const createdLabel = new Date(req.createdAt).toLocaleString();
+                const resolvedLabel = req.resolvedAt ? new Date(req.resolvedAt).toLocaleString() : null;
 
                 return (
                   <div key={req.id} className="p-3 space-y-1.5">
@@ -362,14 +382,19 @@ const MemberDashboard = () => {
                         <p className="text-xs text-muted-foreground">{detail}</p>
                         <p className="text-xs text-muted-foreground">{dateWindow}</p>
                         <p className="text-xs text-muted-foreground">Created {createdLabel}</p>
+                        {mailRequestView === "RESOLVED" && resolvedLabel && (
+                          <p className="text-xs text-muted-foreground">Resolved {resolvedLabel}</p>
+                        )}
                       </div>
-                      <button
-                        onClick={() => handleCancelRequest(req.id)}
-                        disabled={cancellingRequestId === req.id}
-                        className="text-xs text-destructive hover:underline disabled:opacity-50"
-                      >
-                        {cancellingRequestId === req.id ? "Cancelling..." : "Cancel"}
-                      </button>
+                      {mailRequestView === "ACTIVE" && (
+                        <button
+                          onClick={() => handleCancelRequest(req.id)}
+                          disabled={cancellingRequestId === req.id}
+                          className="text-xs text-destructive hover:underline disabled:opacity-50"
+                        >
+                          {cancellingRequestId === req.id ? "Cancelling..." : "Cancel"}
+                        </button>
+                      )}
                     </div>
                   </div>
                 );

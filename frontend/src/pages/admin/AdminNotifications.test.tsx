@@ -8,12 +8,10 @@ import { ConfirmDialogProvider } from "@/components/ConfirmDialogProvider";
 const {
   toastSpy,
   listUsersMock,
-  sendMailArrivedNotificationMock,
   sendWeeklySummaryNotificationMock,
 } = vi.hoisted(() => ({
   toastSpy: vi.fn(),
   listUsersMock: vi.fn(),
-  sendMailArrivedNotificationMock: vi.fn(),
   sendWeeklySummaryNotificationMock: vi.fn(),
 }));
 
@@ -34,7 +32,6 @@ vi.mock("@/lib/api", () => {
   return {
     ApiError,
     listUsers: listUsersMock,
-    sendMailArrivedNotification: sendMailArrivedNotificationMock,
     sendWeeklySummaryNotification: sendWeeklySummaryNotificationMock,
   };
 });
@@ -50,17 +47,13 @@ describe("AdminNotifications", () => {
         teamIds: [],
       },
     ]);
-    sendMailArrivedNotificationMock.mockResolvedValue({
-      status: "sent",
-      channelResults: [{ channel: "email", status: "sent" }],
-    });
     sendWeeklySummaryNotificationMock.mockResolvedValue({
       status: "sent",
       channelResults: [{ channel: "email", status: "sent" }],
     });
   });
 
-  it("requires recipient selection for special notification", async () => {
+  it("does not render mail-arrived special controls", async () => {
     render(
       <MemoryRouter>
         <ConfirmDialogProvider>
@@ -69,31 +62,8 @@ describe("AdminNotifications", () => {
       </MemoryRouter>
     );
 
-    await screen.findByRole("button", { name: "Send Mail Arrived Notification" });
-    fireEvent.click(screen.getByRole("button", { name: "Send Mail Arrived Notification" }));
-
-    expect(toastSpy).toHaveBeenCalledWith({ title: "Select a recipient", variant: "destructive" });
-    expect(sendMailArrivedNotificationMock).not.toHaveBeenCalled();
-  });
-
-  it("submits selected recipient for special notification", async () => {
-    render(
-      <MemoryRouter>
-        <ConfirmDialogProvider>
-          <AdminNotifications />
-        </ConfirmDialogProvider>
-      </MemoryRouter>
-    );
-
-    await screen.findByRole("button", { name: "Send Mail Arrived Notification" });
-    fireEvent.change(screen.getByRole("combobox"), { target: { value: "user-1" } });
-    fireEvent.click(screen.getByRole("button", { name: "Send Mail Arrived Notification" }));
-    fireEvent.click(await screen.findByRole("button", { name: "Send" }));
-
-    await waitFor(() => {
-      expect(sendMailArrivedNotificationMock).toHaveBeenCalledWith({ userId: "user-1" });
-    });
-    expect(toastSpy).toHaveBeenCalledWith({ title: "Notification sent" });
+    await screen.findByRole("button", { name: "Send Weekly Mail Notification" });
+    expect(screen.queryByRole("button", { name: "Send Mail Arrived Notification" })).not.toBeInTheDocument();
   });
 
   it("submits selected recipient for weekly notification", async () => {
