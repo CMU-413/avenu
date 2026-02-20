@@ -269,7 +269,7 @@ class AdminSessionAuthTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 400)
 
-    def test_member_mail_requests_list_calls_scoped_service(self):
+    def test_member_mail_requests_status_filter_defaults_to_active(self):
         user_id = str(ObjectId())
         user_doc = {"_id": ObjectId(user_id), "isAdmin": False, "teamIds": []}
         with self.client.session_transaction() as sess:
@@ -290,14 +290,41 @@ class AdminSessionAuthTests(unittest.TestCase):
             }
         ]
         with patch("auth.find_user", return_value=user_doc), patch(
-            "app.list_member_active_mail_requests",
+            "app.list_member_mail_requests",
             return_value=expected,
         ) as list_mock:
             response = self.client.get("/api/mail-requests")
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.json), 1)
-        list_mock.assert_called_once_with(user=user_doc)
+        list_mock.assert_called_once_with(user=user_doc, status_filter="ACTIVE")
+
+    def test_member_mail_requests_status_filter_accepts_resolved(self):
+        user_id = str(ObjectId())
+        user_doc = {"_id": ObjectId(user_id), "isAdmin": False, "teamIds": []}
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = user_id
+
+        with patch("auth.find_user", return_value=user_doc), patch(
+            "app.list_member_mail_requests",
+            return_value=[],
+        ) as list_mock:
+            response = self.client.get("/api/mail-requests?status=RESOLVED")
+
+        self.assertEqual(response.status_code, 200)
+        list_mock.assert_called_once_with(user=user_doc, status_filter="RESOLVED")
+
+    def test_member_mail_requests_status_filter_rejects_invalid_value_with_422(self):
+        user_id = str(ObjectId())
+        user_doc = {"_id": ObjectId(user_id), "isAdmin": False, "teamIds": []}
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = user_id
+
+        with patch("auth.find_user", return_value=user_doc):
+            response = self.client.get("/api/mail-requests?status=NOPE")
+
+        self.assertEqual(response.status_code, 422)
+        self.assertEqual(response.json, {"error": "status must be one of ACTIVE, RESOLVED, ALL"})
 
     def test_member_mail_requests_delete_other_member_returns_404(self):
         user_id = str(ObjectId())
@@ -359,6 +386,90 @@ class AdminSessionAuthTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 422)
         self.assertEqual(response.json, {"error": "memberId must be a valid ObjectId string"})
+
+    def test_admin_resolve_mail_request_requires_admin_session(self):
+        response = self.client.post(f"/api/admin/mail-requests/{ObjectId()}/resolve")
+        self.assertEqual(response.status_code, 401)
+
+    def test_admin_resolve_mail_request_returns_updated_mail_request_payload(self):
+        session_user_id = str(ObjectId())
+        request_id = str(ObjectId())
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = session_user_id
+
+        expected = {
+            "_id": ObjectId(request_id),
+            "memberId": ObjectId(),
+            "mailboxId": ObjectId(),
+            "status": "RESOLVED",
+            "resolvedAt": datetime(2026, 2, 20, tzinfo=timezone.utc),
+            "resolvedBy": ObjectId(session_user_id),
+            "lastNotificationStatus": "SENT",
+            "lastNotificationAt": datetime(2026, 2, 20, tzinfo=timezone.utc),
+            "createdAt": datetime(2026, 2, 19, tzinfo=timezone.utc),
+            "updatedAt": datetime(2026, 2, 20, tzinfo=timezone.utc),
+        }
+        with patch("auth.find_user", return_value={"_id": ObjectId(session_user_id), "isAdmin": True}), patch(
+            "app.resolve_mail_request_and_notify",
+            return_value=expected,
+        ) as resolve_mock:
+            response = self.client.post(f"/api/admin/mail-requests/{request_id}/resolve")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json["id"], request_id)
+        self.assertEqual(response.json["status"], "RESOLVED")
+        self.assertEqual(response.json["lastNotificationStatus"], "SENT")
+        resolve_mock.assert_called_once()
+        self.assertEqual(resolve_mock.call_args.kwargs["request_id"], ObjectId(request_id))
+        self.assertEqual(resolve_mock.call_args.kwargs["admin_user"]["_id"], ObjectId(session_user_id))
+
+    def test_admin_resolve_mail_request_returns_404_for_resolved_or_cancelled(self):
+        session_user_id = str(ObjectId())
+        request_id = str(ObjectId())
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = session_user_id
+
+        with patch("auth.find_user", return_value={"_id": ObjectId(session_user_id), "isAdmin": True}), patch(
+            "app.resolve_mail_request_and_notify",
+            side_effect=APIError(404, "mail request not found"),
+        ):
+            response = self.client.post(f"/api/admin/mail-requests/{request_id}/resolve")
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_admin_retry_notification_requires_admin_session(self):
+        response = self.client.post(f"/api/admin/mail-requests/{ObjectId()}/retry-notification")
+        self.assertEqual(response.status_code, 401)
+
+    def test_admin_retry_notification_returns_updated_notification_metadata(self):
+        session_user_id = str(ObjectId())
+        request_id = str(ObjectId())
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = session_user_id
+
+        expected = {
+            "_id": ObjectId(request_id),
+            "memberId": ObjectId(),
+            "mailboxId": ObjectId(),
+            "status": "RESOLVED",
+            "resolvedAt": datetime(2026, 2, 20, tzinfo=timezone.utc),
+            "resolvedBy": ObjectId(session_user_id),
+            "lastNotificationStatus": "FAILED",
+            "lastNotificationAt": datetime(2026, 2, 21, tzinfo=timezone.utc),
+            "createdAt": datetime(2026, 2, 19, tzinfo=timezone.utc),
+            "updatedAt": datetime(2026, 2, 21, tzinfo=timezone.utc),
+        }
+        with patch("auth.find_user", return_value={"_id": ObjectId(session_user_id), "isAdmin": True}), patch(
+            "app.retry_mail_request_notification",
+            return_value=expected,
+        ) as retry_mock:
+            response = self.client.post(f"/api/admin/mail-requests/{request_id}/retry-notification")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json["id"], request_id)
+        self.assertEqual(response.json["lastNotificationStatus"], "FAILED")
+        retry_mock.assert_called_once()
+        self.assertEqual(retry_mock.call_args.kwargs["request_id"], ObjectId(request_id))
 
     def test_admin_weekly_summary_requires_admin_session(self):
         response = self.client.post(
@@ -429,84 +540,6 @@ class AdminSessionAuthTests(unittest.TestCase):
             weekEnd=date(2026, 2, 21),
             triggeredBy="admin",
         )
-
-    def test_admin_special_notification_requires_admin_session(self):
-        response = self.client.post(
-            "/admin/notifications/special",
-            json={"userId": str(ObjectId())},
-        )
-        self.assertEqual(response.status_code, 401)
-
-    def test_admin_special_notification_rejects_non_admin_session(self):
-        session_user_id = str(ObjectId())
-        with self.client.session_transaction() as sess:
-            sess["user_id"] = session_user_id
-
-        with patch("auth.find_user", return_value={"_id": ObjectId(session_user_id), "isAdmin": False}):
-            response = self.client.post(
-                "/admin/notifications/special",
-                json={"userId": str(ObjectId())},
-            )
-        self.assertEqual(response.status_code, 403)
-
-    def test_admin_special_notification_requires_user_id(self):
-        session_user_id = str(ObjectId())
-        with self.client.session_transaction() as sess:
-            sess["user_id"] = session_user_id
-
-        with patch("auth.find_user", return_value={"_id": ObjectId(session_user_id), "isAdmin": True}):
-            response = self.client.post("/admin/notifications/special", json={})
-
-        self.assertEqual(response.status_code, 422)
-        self.assertEqual(response.json, {"error": "userId must be a string"})
-
-    def test_admin_special_notification_rejects_invalid_object_ids(self):
-        session_user_id = str(ObjectId())
-        with self.client.session_transaction() as sess:
-            sess["user_id"] = session_user_id
-
-        with patch("auth.find_user", return_value={"_id": ObjectId(session_user_id), "isAdmin": True}):
-            response = self.client.post(
-                "/admin/notifications/special",
-                json={"userId": "bad-id"},
-            )
-        self.assertEqual(response.status_code, 400)
-        self.assertEqual(response.json, {"error": "invalid user id"})
-
-    def test_admin_special_notification_calls_notifier_and_returns_result(self):
-        session_user_id = str(ObjectId())
-        target_user_id = str(ObjectId())
-        with self.client.session_transaction() as sess:
-            sess["user_id"] = session_user_id
-
-        notify_result = {"status": "sent", "channelResults": [{"channel": "email", "status": "sent"}]}
-        notifier = Mock()
-        notifier.notifySpecialCase.return_value = notify_result
-        provider = object()
-
-        with patch("auth.find_user", return_value={"_id": ObjectId(session_user_id), "isAdmin": True}), patch(
-            "app.build_email_provider",
-            return_value=provider,
-        ) as provider_factory_mock, patch(
-            "app.SpecialCaseNotifier",
-            return_value=notifier,
-        ) as notifier_ctor_mock:
-            response = self.client.post(
-                "/admin/notifications/special",
-                json={"userId": target_user_id},
-            )
-
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json, notify_result)
-        provider_factory_mock.assert_called_once_with(testing=True)
-        channels = notifier_ctor_mock.call_args.kwargs["channels"]
-        self.assertEqual(len(channels), 1)
-        self.assertIs(channels[0].provider, provider)
-        notifier.notifySpecialCase.assert_called_once_with(
-            userId=ObjectId(target_user_id),
-            triggeredBy="admin",
-        )
-
 
 if __name__ == "__main__":
     unittest.main()

@@ -21,7 +21,8 @@ from validators import (
 NOTIF_PREFS = {"email", "text"}
 MAILBOX_TYPES = {"user", "team"}
 MAIL_TYPES = {"letter", "package"}
-MAIL_REQUEST_STATUSES = {"ACTIVE", "CANCELLED"}
+MAIL_REQUEST_STATUSES = {"ACTIVE", "CANCELLED", "RESOLVED"}
+MAIL_REQUEST_NOTIFICATION_STATUSES = {"SENT", "FAILED"}
 
 
 def _utcnow() -> datetime:
@@ -201,6 +202,10 @@ def build_mail_request_create(payload: dict[str, Any], *, member_id: ObjectId) -
         "startDate": start_date,
         "endDate": end_date,
         "status": "ACTIVE",
+        "resolvedAt": None,
+        "resolvedBy": None,
+        "lastNotificationStatus": None,
+        "lastNotificationAt": None,
         "createdAt": now,
         "updatedAt": now,
     }

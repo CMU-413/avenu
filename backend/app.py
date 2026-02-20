@@ -28,7 +28,9 @@ from services.mail_request_service import (
     cancel_member_mail_request,
     create_mail_request,
     list_admin_active_mail_requests,
-    list_member_active_mail_requests,
+    list_member_mail_requests,
+    resolve_mail_request_and_notify,
+    retry_mail_request_notification,
 )
 from services.mailbox_service import get_mailbox, list_mailboxes, update_mailbox
 from services.member_service import list_member_mail_summary, update_member_email_notifications
@@ -436,7 +438,10 @@ def create_app(
     @app.route("/api/mail-requests", methods=["GET"])
     def member_mail_requests_list_route():
         user = ensure_member_session()
-        return jsonify([to_api_doc(doc) for doc in list_member_active_mail_requests(user=user)]), 200
+        status_filter = (request.args.get("status") or "ACTIVE").strip().upper()
+        if status_filter not in {"ACTIVE", "RESOLVED", "ALL"}:
+            raise APIError(422, "status must be one of ACTIVE, RESOLVED, ALL")
+        return jsonify([to_api_doc(doc) for doc in list_member_mail_requests(user=user, status_filter=status_filter)]), 200
 
     @app.route("/api/mail-requests/<request_id>", methods=["DELETE"])
     def member_mail_requests_cancel_route(request_id: str):
@@ -454,6 +459,24 @@ def create_app(
             [to_api_doc(doc) for doc in list_admin_active_mail_requests(mailbox_id=mailbox_id, member_id=member_id)]
         ), 200
 
+    @app.route("/api/admin/mail-requests/<request_id>/resolve", methods=["POST"])
+    @require_admin_session
+    def admin_mail_requests_resolve_route(request_id: str):
+        admin_user = ensure_session_user()
+        oid = parse_object_id(request_id, "mail request id")
+        notifier = SpecialCaseNotifier(channels=[EmailChannel(build_email_provider(testing=testing))])
+        updated = resolve_mail_request_and_notify(request_id=oid, admin_user=admin_user, notifier=notifier)
+        return jsonify(to_api_doc(updated)), 200
+
+    @app.route("/api/admin/mail-requests/<request_id>/retry-notification", methods=["POST"])
+    @require_admin_session
+    def admin_mail_requests_retry_notification_route(request_id: str):
+        admin_user = ensure_session_user()
+        oid = parse_object_id(request_id, "mail request id")
+        notifier = SpecialCaseNotifier(channels=[EmailChannel(build_email_provider(testing=testing))])
+        updated = retry_mail_request_notification(request_id=oid, admin_user=admin_user, notifier=notifier)
+        return jsonify(to_api_doc(updated)), 200
+
     @app.route("/api/admin/notifications/summary", methods=["POST"])
     @app.route("/admin/notifications/summary", methods=["POST"])
     @require_admin_session
@@ -470,20 +493,6 @@ def create_app(
             userId=user_id,
             weekStart=week_start,
             weekEnd=week_end,
-            triggeredBy="admin",
-        )
-        return jsonify(result), 200
-
-    @app.route("/api/admin/notifications/special", methods=["POST"])
-    @app.route("/admin/notifications/special", methods=["POST"])
-    @require_admin_session
-    def admin_special_notification_route():
-        payload = _json_payload()
-        user_id = parse_object_id(require_string(payload, "userId"), "user id")
-
-        notifier = SpecialCaseNotifier(channels=[EmailChannel(build_email_provider(testing=testing))])
-        result = notifier.notifySpecialCase(
-            userId=user_id,
             triggeredBy="admin",
         )
         return jsonify(result), 200
