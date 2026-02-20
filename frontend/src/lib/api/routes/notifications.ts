@@ -6,7 +6,7 @@ export function sendWeeklySummaryNotification(payload: {
   weekStart: string;
   weekEnd: string;
 }): Promise<ApiNotifyResult> {
-  return apiFetch<ApiNotifyResult>("/api/admin/notifications/summary", {
+  return apiFetch<ApiNotifyResult>("/admin/notifications/summary", {
     method: "POST",
     body: JSON.stringify({
       userId: payload.userId,

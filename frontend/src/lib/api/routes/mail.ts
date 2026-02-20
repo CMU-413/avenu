@@ -2,7 +2,7 @@ import { apiFetch } from "../../http/client";
 import type { ApiMailRecord, ApiMailRequest, ApiMailbox, MailType } from "../contracts/types";
 
 export function listMailboxes(): Promise<ApiMailbox[]> {
-  return apiFetch<ApiMailbox[]>("/api/mailboxes");
+  return apiFetch<ApiMailbox[]>("/mailboxes");
 }
 
 export function listMail(params: { date?: string; mailboxId?: string } = {}): Promise<ApiMailRecord[]> {
@@ -10,7 +10,7 @@ export function listMail(params: { date?: string; mailboxId?: string } = {}): Pr
   if (params.date) search.set("date", params.date);
   if (params.mailboxId) search.set("mailboxId", params.mailboxId);
   const query = search.toString();
-  return apiFetch<ApiMailRecord[]>(`/api/mail${query ? `?${query}` : ""}`);
+  return apiFetch<ApiMailRecord[]>(`/mail${query ? `?${query}` : ""}`);
 }
 
 export function createMail(payload: {
@@ -20,7 +20,7 @@ export function createMail(payload: {
   count: number;
   idempotencyKey: string;
 }): Promise<ApiMailRecord> {
-  return apiFetch<ApiMailRecord>("/api/mail", {
+  return apiFetch<ApiMailRecord>("/mail", {
     method: "POST",
     headers: {
       "Idempotency-Key": payload.idempotencyKey,
@@ -43,14 +43,14 @@ export function updateMail(
     count: number;
   }>
 ): Promise<ApiMailRecord> {
-  return apiFetch<ApiMailRecord>(`/api/mail/${mailId}`, {
+  return apiFetch<ApiMailRecord>(`/mail/${mailId}`, {
     method: "PATCH",
     body: JSON.stringify(payload),
   });
 }
 
 export function deleteMail(mailId: string): Promise<void> {
-  return apiFetch<void>(`/api/mail/${mailId}`, {
+  return apiFetch<void>(`/mail/${mailId}`, {
     method: "DELETE",
   });
 }
@@ -61,7 +61,7 @@ export function listMemberMailRequests(
   const search = new URLSearchParams();
   if (params.status) search.set("status", params.status);
   const query = search.toString();
-  return apiFetch<ApiMailRequest[]>(`/api/mail-requests${query ? `?${query}` : ""}`);
+  return apiFetch<ApiMailRequest[]>(`/mail-requests${query ? `?${query}` : ""}`);
 }
 
 export function createMailRequest(payload: {
@@ -71,14 +71,14 @@ export function createMailRequest(payload: {
   startDate?: string;
   endDate?: string;
 }): Promise<ApiMailRequest> {
-  return apiFetch<ApiMailRequest>("/api/mail-requests", {
+  return apiFetch<ApiMailRequest>("/mail-requests", {
     method: "POST",
     body: JSON.stringify(payload),
   });
 }
 
 export function cancelMailRequest(mailRequestId: string): Promise<void> {
-  return apiFetch<void>(`/api/mail-requests/${mailRequestId}`, {
+  return apiFetch<void>(`/mail-requests/${mailRequestId}`, {
     method: "DELETE",
   });
 }

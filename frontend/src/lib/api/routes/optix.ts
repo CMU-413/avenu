@@ -6,7 +6,7 @@ export function bootstrapOptixSession(payload: {
   orgId: string | null;
   userId: string | null;
 }): Promise<ApiOptixTokenResult> {
-  return apiFetch<ApiOptixTokenResult>("/api/optix-token", {
+  return apiFetch<ApiOptixTokenResult>("/optix-token", {
     method: "POST",
     body: JSON.stringify(payload),
   });
