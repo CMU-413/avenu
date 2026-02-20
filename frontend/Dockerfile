@@ -7,6 +7,10 @@ COPY package.json package-lock.json ./
 RUN npm ci
 
 COPY . .
+ARG VITE_BASE_PATH=/mail/
+ARG VITE_API_BASE_URL=/mail/api
+ENV VITE_BASE_PATH=${VITE_BASE_PATH}
+ENV VITE_API_BASE_URL=${VITE_API_BASE_URL}
 RUN npm run build
 
 

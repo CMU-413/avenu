@@ -46,7 +46,8 @@ Notes:
 - `SCHEDULER_INTERNAL_TOKEN` (shared secret for internal scheduler endpoint)
 
 ### Frontend
-- `VITE_API_BASE_URL` (default in compose: `http://localhost:8000`)
+- `VITE_BASE_PATH` (default in compose: `/mail/`)
+- `VITE_API_BASE_URL` (default in compose: `/mail/api`)
 
 ### Scheduler
 - `BACKEND_API_URL` (must point to backend service DNS, default `http://backend:8000`)
@@ -66,15 +67,14 @@ docker compose up --build
 ```
 
 This starts four services:
-- `frontend` on `http://localhost:8080`
-- `backend` on `http://localhost:8000`
+- `frontend` on `http://localhost:8080/mail`
+- `backend` (internal Docker network only)
 - `scheduler` (internal job runner container)
 - `database` (MongoDB with persistent volume)
 
 ### Access
 
-- Frontend: http://localhost:8080
-- Backend health check: http://localhost:8000/health
+- Frontend: http://localhost:8080/mail
 
 ---
 
