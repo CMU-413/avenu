@@ -5,10 +5,14 @@ from typing import Any
 
 from bson import ObjectId
 
+from repositories.notification_logs_repository import find_sent_weekly_summary, insert_weekly_summary_log
 from repositories.users_repository import find_for_notification
 from services.mail_summary_service import MailSummaryService
 from services.notifications.interfaces import NotificationChannel
-from services.notifications.log_repository import find_sent_weekly_summary, insert_notification_log
+from services.notifications.log_repository import (
+    find_sent_weekly_summary as find_sent_weekly_summary_legacy,
+    insert_notification_log as insert_notification_log_legacy,
+)
 from services.notifications.types import (
     ChannelResult,
     NotificationLogStatus,
@@ -67,7 +71,19 @@ class WeeklySummaryNotifier:
         triggered_by: NotifyTrigger,
         error_message: str | None = None,
     ) -> None:
-        insert_notification_log(
+        sent_at = datetime.now(tz=timezone.utc) if status == "sent" else None
+        if self._notification_logs is None:
+            insert_weekly_summary_log(
+                user_id=user_id,
+                week_start=week_start,
+                status=status,
+                reason=reason,
+                triggered_by=triggered_by,
+                error_message=error_message,
+                sent_at=sent_at,
+            )
+            return
+        insert_notification_log_legacy(
             self._notification_logs,
             user_id=user_id,
             week_start=week_start,
@@ -75,7 +91,7 @@ class WeeklySummaryNotifier:
             reason=reason,
             triggered_by=triggered_by,
             error_message=error_message,
-            sent_at=datetime.now(tz=timezone.utc) if status == "sent" else None,
+            sent_at=sent_at,
         )
 
     def notifyWeeklySummary(
@@ -87,11 +103,17 @@ class WeeklySummaryNotifier:
         triggeredBy: NotifyTrigger,
     ) -> NotifyResult:
         normalized_week_start = _normalize_week_start(weekStart)
-        existing_sent = find_sent_weekly_summary(
-            self._notification_logs,
-            user_id=userId,
-            week_start=normalized_week_start,
-        )
+        if self._notification_logs is None:
+            existing_sent = find_sent_weekly_summary(
+                user_id=userId,
+                week_start=normalized_week_start,
+            )
+        else:
+            existing_sent = find_sent_weekly_summary_legacy(
+                self._notification_logs,
+                user_id=userId,
+                week_start=normalized_week_start,
+            )
         if existing_sent is not None:
             self._log_attempt(
                 user_id=userId,

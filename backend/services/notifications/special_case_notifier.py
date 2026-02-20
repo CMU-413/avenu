@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 
 from bson import ObjectId
 
+from repositories.notification_logs_repository import insert_special_case_log
 from repositories.users_repository import find_basic_profile
 from services.notifications.interfaces import NotificationChannel
 from services.notifications.log_repository import insert_special_case_notification_log
@@ -39,6 +40,17 @@ class SpecialCaseNotifier:
         triggered_by: NotifyTrigger,
         error_message: str | None = None,
     ) -> None:
+        sent_at = datetime.now(tz=timezone.utc) if status == "sent" else None
+        if self._notification_logs is None:
+            insert_special_case_log(
+                user_id=user_id,
+                status=status,
+                reason=reason,
+                triggered_by=triggered_by,
+                error_message=error_message,
+                sent_at=sent_at,
+            )
+            return
         insert_special_case_notification_log(
             self._notification_logs,
             user_id=user_id,
@@ -46,7 +58,7 @@ class SpecialCaseNotifier:
             reason=reason,
             triggered_by=triggered_by,
             error_message=error_message,
-            sent_at=datetime.now(tz=timezone.utc) if status == "sent" else None,
+            sent_at=sent_at,
         )
 
     def notifySpecialCase(

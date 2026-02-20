@@ -217,7 +217,7 @@ class AdminSessionAuthTests(unittest.TestCase):
             sess["user_id"] = user_id
 
         with patch("controllers.auth_guard.find_user", return_value=user_doc), patch(
-            "app.create_mail_request",
+            "controllers.mail_requests_controller.create_mail_request",
             side_effect=APIError(403, "forbidden"),
         ):
             response = self.client.post(
@@ -237,7 +237,7 @@ class AdminSessionAuthTests(unittest.TestCase):
             sess["user_id"] = user_id
 
         with patch("controllers.auth_guard.find_user", return_value=user_doc), patch(
-            "app.create_mail_request",
+            "controllers.mail_requests_controller.create_mail_request",
             side_effect=APIError(400, "expectedSender or description is required"),
         ):
             response = self.client.post(
@@ -254,7 +254,7 @@ class AdminSessionAuthTests(unittest.TestCase):
             sess["user_id"] = user_id
 
         with patch("controllers.auth_guard.find_user", return_value=user_doc), patch(
-            "app.create_mail_request",
+            "controllers.mail_requests_controller.create_mail_request",
             side_effect=APIError(400, "endDate must be on or after startDate"),
         ):
             response = self.client.post(
@@ -290,7 +290,7 @@ class AdminSessionAuthTests(unittest.TestCase):
             }
         ]
         with patch("controllers.auth_guard.find_user", return_value=user_doc), patch(
-            "app.list_member_mail_requests",
+            "controllers.mail_requests_controller.list_member_mail_requests",
             return_value=expected,
         ) as list_mock:
             response = self.client.get("/api/mail-requests")
@@ -306,7 +306,7 @@ class AdminSessionAuthTests(unittest.TestCase):
             sess["user_id"] = user_id
 
         with patch("controllers.auth_guard.find_user", return_value=user_doc), patch(
-            "app.list_member_mail_requests",
+            "controllers.mail_requests_controller.list_member_mail_requests",
             return_value=[],
         ) as list_mock:
             response = self.client.get("/api/mail-requests?status=RESOLVED")
@@ -334,7 +334,7 @@ class AdminSessionAuthTests(unittest.TestCase):
             sess["user_id"] = user_id
 
         with patch("controllers.auth_guard.find_user", return_value=user_doc), patch(
-            "app.cancel_member_mail_request",
+            "controllers.mail_requests_controller.cancel_member_mail_request",
             side_effect=APIError(404, "mail request not found"),
         ):
             response = self.client.delete(f"/api/mail-requests/{request_id}")
@@ -349,7 +349,7 @@ class AdminSessionAuthTests(unittest.TestCase):
             sess["user_id"] = user_id
 
         with patch("controllers.auth_guard.find_user", return_value=user_doc), patch(
-            "app.cancel_member_mail_request",
+            "controllers.mail_requests_controller.cancel_member_mail_request",
             side_effect=APIError(404, "mail request not found"),
         ):
             response = self.client.delete(f"/api/mail-requests/{request_id}")
@@ -368,7 +368,7 @@ class AdminSessionAuthTests(unittest.TestCase):
             sess["user_id"] = session_user_id
 
         with patch("controllers.auth_guard.find_user", return_value={"_id": ObjectId(session_user_id), "isAdmin": True}), patch(
-            "app.list_admin_active_mail_requests",
+            "controllers.mail_requests_controller.list_admin_active_mail_requests",
             return_value=[],
         ) as list_mock:
             response = self.client.get(f"/api/admin/mail-requests?mailboxId={mailbox_id}&memberId={member_id}")
@@ -410,7 +410,7 @@ class AdminSessionAuthTests(unittest.TestCase):
             "updatedAt": datetime(2026, 2, 20, tzinfo=timezone.utc),
         }
         with patch("controllers.auth_guard.find_user", return_value={"_id": ObjectId(session_user_id), "isAdmin": True}), patch(
-            "app.resolve_mail_request_and_notify",
+            "controllers.mail_requests_controller.resolve_mail_request_and_notify",
             return_value=expected,
         ) as resolve_mock:
             response = self.client.post(f"/api/admin/mail-requests/{request_id}/resolve")
@@ -430,7 +430,7 @@ class AdminSessionAuthTests(unittest.TestCase):
             sess["user_id"] = session_user_id
 
         with patch("controllers.auth_guard.find_user", return_value={"_id": ObjectId(session_user_id), "isAdmin": True}), patch(
-            "app.resolve_mail_request_and_notify",
+            "controllers.mail_requests_controller.resolve_mail_request_and_notify",
             side_effect=APIError(404, "mail request not found"),
         ):
             response = self.client.post(f"/api/admin/mail-requests/{request_id}/resolve")
@@ -460,7 +460,7 @@ class AdminSessionAuthTests(unittest.TestCase):
             "updatedAt": datetime(2026, 2, 21, tzinfo=timezone.utc),
         }
         with patch("controllers.auth_guard.find_user", return_value={"_id": ObjectId(session_user_id), "isAdmin": True}), patch(
-            "app.retry_mail_request_notification",
+            "controllers.mail_requests_controller.retry_mail_request_notification",
             return_value=expected,
         ) as retry_mock:
             response = self.client.post(f"/api/admin/mail-requests/{request_id}/retry-notification")
@@ -517,10 +517,10 @@ class AdminSessionAuthTests(unittest.TestCase):
         provider = object()
 
         with patch("controllers.auth_guard.find_user", return_value={"_id": ObjectId(session_user_id), "isAdmin": True}), patch(
-            "app.build_email_provider",
+            "controllers.notifications_controller.build_email_provider",
             return_value=provider,
         ) as provider_factory_mock, patch(
-            "app.WeeklySummaryNotifier",
+            "controllers.notifications_controller.WeeklySummaryNotifier",
             return_value=notifier,
         ) as notifier_ctor_mock:
             response = self.client.post(

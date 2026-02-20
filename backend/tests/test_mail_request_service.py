@@ -371,7 +371,7 @@ class MailRequestServiceTests(unittest.TestCase):
         notifier.notifySpecialCase.side_effect = RuntimeError("smtp offline")
 
         with patch("repositories.mail_requests_repository.mail_requests_collection", collection), patch(
-            "services.mail_request_service.insert_special_case_notification_log"
+            "services.mail_request_service.insert_special_case_log"
         ) as log_mock:
             updated = mail_request_service.resolve_mail_request_and_notify(
                 request_id=request_id,

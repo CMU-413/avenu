@@ -16,10 +16,10 @@ None.
 - ☑ Ensure transaction/session entrypoints are repository-owned only for all migrated Phase 1 flows.
 
 ## Phase 2
-- ☐ Refactor mail-request, weekly-summary, and notification paths to strict `Controller -> Service -> Repository -> DB` flow.
-- ☐ Ensure scheduler-triggered weekly summary follows documented sequence with no controller/service direct collection access.
-- ☐ Move idempotency persistence access behind repositories and keep request replay behavior unchanged.
-- ☐ Extend unit tests for weekly summary and mail request flows to validate repository-driven orchestration.
+- ☑ Refactor mail-request, weekly-summary, and notification paths to strict `Controller -> Service -> Repository -> DB` flow.
+- ☑ Ensure scheduler-triggered weekly summary follows documented sequence with no controller/service direct collection access.
+- ☑ Move idempotency persistence access behind repositories and keep request replay behavior unchanged.
+- ☑ Extend unit tests for weekly summary and mail request flows to validate repository-driven orchestration.
 
 ## Phase 3
 - ☐ Refactor Optix identity sync into layered flow with repository-owned upsert/data access.

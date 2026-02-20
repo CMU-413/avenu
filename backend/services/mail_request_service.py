@@ -15,9 +15,9 @@ from repositories.mail_requests_repository import (
     resolve_active_request,
     update_request_notification_status,
 )
+from repositories.notification_logs_repository import insert_special_case_log
 from services.mailbox_access_service import assert_member_mailbox_access
 from services.notifications.channels.email_channel import EmailChannel
-from services.notifications.log_repository import insert_special_case_notification_log
 from services.notifications.providers.factory import build_email_provider
 from services.notifications.special_case_notifier import SpecialCaseNotifier
 
@@ -74,8 +74,7 @@ def _default_special_case_notifier() -> SpecialCaseNotifier:
 
 
 def _log_special_case_exception(*, user_id: ObjectId, exc: Exception) -> None:
-    insert_special_case_notification_log(
-        None,
+    insert_special_case_log(
         user_id=user_id,
         status="failed",
         reason="all_channels_failed",

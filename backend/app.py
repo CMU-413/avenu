@@ -1,12 +1,9 @@
 from __future__ import annotations
 
-import hmac
 import os
-from datetime import date, datetime
 from typing import Any
 
 import requests
-from bson import ObjectId
 from flask import Flask, jsonify, request, session
 
 from config import (
@@ -17,52 +14,15 @@ from config import (
     SESSION_COOKIE_SAMESITE,
     SESSION_COOKIE_SECURE,
     ensure_indexes,
-    idempotency_keys_collection,
 )
-from controllers import register_phase1_blueprints
-from controllers.auth_guard import ensure_admin_session, ensure_member_session, ensure_session_user, require_admin_session
-from controllers.common import json_payload, parse_iso_date, parse_optional_object_id_filter
+from controllers import register_blueprints
+from controllers.common import json_payload
 from errors import APIError
-from idempotency import payload_hash, require_idempotency_key, reserve_or_replay, store_idempotent_response
 from repositories import to_api_doc
 from repositories.teams_repository import find_team_by_optix_id
 from repositories.users_repository import find_user_by_optix_id
-from services.mail_request_service import (
-    cancel_member_mail_request,
-    create_mail_request,
-    list_admin_active_mail_requests,
-    list_member_mail_requests,
-    resolve_mail_request_and_notify,
-    retry_mail_request_notification,
-)
-from services.notifications.channels.email_channel import EmailChannel
-from services.notifications.providers.factory import build_email_provider
-from services.notifications.special_case_notifier import SpecialCaseNotifier
-from services.notifications.weekly_summary_cron_job import run_weekly_summary_cron_job
-from services.notifications.weekly_summary_notifier import WeeklySummaryNotifier
 from services.team_service import create_team
 from services.user_service import create_user, update_user
-from validators import parse_object_id, require_dict, require_string
-
-
-def _require_scheduler_token() -> None:
-    provided = (request.headers.get("X-Scheduler-Token") or "").strip()
-    if not SCHEDULER_INTERNAL_TOKEN:
-        raise APIError(503, "scheduler token is not configured")
-    if not provided or not hmac.compare_digest(provided, SCHEDULER_INTERNAL_TOKEN):
-        raise APIError(401, "unauthorized")
-
-
-def _weekly_job_response_body(result: dict[str, Any]) -> dict[str, Any]:
-    return {
-        "weekStart": result["weekStart"].isoformat(),
-        "weekEnd": result["weekEnd"].isoformat(),
-        "processed": result["processed"],
-        "sent": result["sent"],
-        "skipped": result["skipped"],
-        "failed": result["failed"],
-        "errors": result["errors"],
-    }
 
 
 def create_app(
@@ -120,138 +80,7 @@ def create_app(
     def health():
         return jsonify({"message": "HEALTH OK"}), 200
 
-    register_phase1_blueprints(app)
-
-    @app.route("/api/internal/jobs/weekly-summary", methods=["POST"])
-    def internal_weekly_summary_job_route():
-        _require_scheduler_token()
-
-        body_raw = request.get_json(silent=True)
-        payload = {} if body_raw is None else require_dict(body_raw)
-        week_start_value = payload.get("weekStart")
-        week_end_value = payload.get("weekEnd")
-        week_start = None
-        week_end = None
-
-        if (week_start_value is None) != (week_end_value is None):
-            raise APIError(422, "weekStart and weekEnd must be provided together")
-        if week_start_value is not None:
-            if not isinstance(week_start_value, str):
-                raise APIError(422, "weekStart must be YYYY-MM-DD")
-            if not isinstance(week_end_value, str):
-                raise APIError(422, "weekEnd must be YYYY-MM-DD")
-            week_start = parse_iso_date(week_start_value, field_name="weekStart")
-            week_end = parse_iso_date(week_end_value, field_name="weekEnd")
-            if week_end < week_start:
-                raise APIError(422, "weekEnd must be on or after weekStart")
-
-        idempotency_key = require_idempotency_key(request.headers)
-        request_hash = payload_hash(payload)
-        route = "/api/internal/jobs/weekly-summary"
-        replay = reserve_or_replay(
-            idempotency_keys_collection,
-            key=idempotency_key,
-            route=route,
-            method="POST",
-            request_hash=request_hash,
-        )
-        if replay is not None:
-            return jsonify(replay["body"]), replay["status"]
-
-        try:
-            notifier = WeeklySummaryNotifier(channels=[EmailChannel(build_email_provider(testing=testing))])
-            result = run_weekly_summary_cron_job(
-                notifier=notifier,
-                week_start=week_start,
-                week_end=week_end,
-            )
-            body = _weekly_job_response_body(result)
-            store_idempotent_response(
-                idempotency_keys_collection,
-                key=idempotency_key,
-                route=route,
-                method="POST",
-                status=200,
-                body=body,
-            )
-            return jsonify(body), 200
-        except Exception:
-            idempotency_keys_collection.delete_one({"key": idempotency_key, "route": route, "method": "POST"})
-            raise
-
-    @app.route("/api/mail-requests", methods=["POST"])
-    def member_mail_requests_create_route():
-        user = ensure_member_session()
-        created = create_mail_request(user=user, payload=json_payload())
-        return jsonify(to_api_doc(created)), 201
-
-    @app.route("/api/mail-requests", methods=["GET"])
-    def member_mail_requests_list_route():
-        user = ensure_member_session()
-        status_filter = (request.args.get("status") or "ACTIVE").strip().upper()
-        if status_filter not in {"ACTIVE", "RESOLVED", "ALL"}:
-            raise APIError(422, "status must be one of ACTIVE, RESOLVED, ALL")
-        return jsonify([to_api_doc(doc) for doc in list_member_mail_requests(user=user, status_filter=status_filter)]), 200
-
-    @app.route("/api/mail-requests/<request_id>", methods=["DELETE"])
-    def member_mail_requests_cancel_route(request_id: str):
-        user = ensure_member_session()
-        oid = ObjectId(request_id) if ObjectId.is_valid(request_id) else None
-        if oid is None:
-            raise APIError(422, "mail request id must be a valid ObjectId string")
-        cancel_member_mail_request(user=user, request_id=oid)
-        return "", 204
-
-    @app.route("/api/admin/mail-requests", methods=["GET"])
-    @require_admin_session
-    def admin_mail_requests_list_route():
-        mailbox_id = parse_optional_object_id_filter(request.args.get("mailboxId"), field_name="mailboxId")
-        member_id = parse_optional_object_id_filter(request.args.get("memberId"), field_name="memberId")
-        return jsonify(
-            [to_api_doc(doc) for doc in list_admin_active_mail_requests(mailbox_id=mailbox_id, member_id=member_id)]
-        ), 200
-
-    @app.route("/api/admin/mail-requests/<request_id>/resolve", methods=["POST"])
-    @require_admin_session
-    def admin_mail_requests_resolve_route(request_id: str):
-        admin_user = ensure_session_user()
-        oid = ObjectId(request_id) if ObjectId.is_valid(request_id) else None
-        if oid is None:
-            raise APIError(422, "mail request id must be a valid ObjectId string")
-        notifier = SpecialCaseNotifier(channels=[EmailChannel(build_email_provider(testing=testing))])
-        updated = resolve_mail_request_and_notify(request_id=oid, admin_user=admin_user, notifier=notifier)
-        return jsonify(to_api_doc(updated)), 200
-
-    @app.route("/api/admin/mail-requests/<request_id>/retry-notification", methods=["POST"])
-    @require_admin_session
-    def admin_mail_requests_retry_notification_route(request_id: str):
-        admin_user = ensure_session_user()
-        oid = ObjectId(request_id) if ObjectId.is_valid(request_id) else None
-        if oid is None:
-            raise APIError(422, "mail request id must be a valid ObjectId string")
-        notifier = SpecialCaseNotifier(channels=[EmailChannel(build_email_provider(testing=testing))])
-        updated = retry_mail_request_notification(request_id=oid, admin_user=admin_user, notifier=notifier)
-        return jsonify(to_api_doc(updated)), 200
-
-    @app.route("/api/admin/notifications/summary", methods=["POST"])
-    @app.route("/admin/notifications/summary", methods=["POST"])
-    @require_admin_session
-    def admin_weekly_summary_route():
-        payload = json_payload()
-        user_id = parse_object_id(require_string(payload, "userId"), "user id")
-        week_start = parse_iso_date(require_string(payload, "weekStart"), field_name="weekStart")
-        week_end = parse_iso_date(require_string(payload, "weekEnd"), field_name="weekEnd")
-        if week_end < week_start:
-            raise APIError(422, "weekEnd must be on or after weekStart")
-
-        notifier = WeeklySummaryNotifier(channels=[EmailChannel(build_email_provider(testing=testing))])
-        result = notifier.notifyWeeklySummary(
-            userId=user_id,
-            weekStart=week_start,
-            weekEnd=week_end,
-            triggeredBy="admin",
-        )
-        return jsonify(result), 200
+    register_blueprints(app)
 
     return app
 
