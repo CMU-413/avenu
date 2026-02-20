@@ -76,7 +76,7 @@ class MailRequestServiceTests(unittest.TestCase):
         user = {"_id": ObjectId(), "teamIds": []}
         payload = {"mailboxId": str(ObjectId()), "expectedSender": "Sender"}
 
-        with patch.object(mail_request_service, "mail_requests_collection", collection), patch(
+        with patch("repositories.mail_requests_repository.mail_requests_collection", collection), patch(
             "services.mail_request_service.assert_member_mailbox_access",
             side_effect=APIError(403, "forbidden"),
         ):
@@ -97,7 +97,7 @@ class MailRequestServiceTests(unittest.TestCase):
             ]
         )
 
-        with patch.object(mail_request_service, "mail_requests_collection", collection):
+        with patch("repositories.mail_requests_repository.mail_requests_collection", collection):
             docs = mail_request_service.list_member_mail_requests(user={"_id": member_id}, status_filter="ACTIVE")
 
         self.assertEqual(len(docs), 2)
@@ -114,7 +114,7 @@ class MailRequestServiceTests(unittest.TestCase):
             ]
         )
 
-        with patch.object(mail_request_service, "mail_requests_collection", collection):
+        with patch("repositories.mail_requests_repository.mail_requests_collection", collection):
             docs = mail_request_service.list_member_mail_requests(user={"_id": member_id}, status_filter="RESOLVED")
 
         self.assertEqual(len(docs), 1)
@@ -132,7 +132,7 @@ class MailRequestServiceTests(unittest.TestCase):
             ]
         )
 
-        with patch.object(mail_request_service, "mail_requests_collection", collection):
+        with patch("repositories.mail_requests_repository.mail_requests_collection", collection):
             docs = mail_request_service.list_member_mail_requests(user={"_id": member_id}, status_filter="ALL")
 
         self.assertEqual(len(docs), 2)
@@ -146,7 +146,7 @@ class MailRequestServiceTests(unittest.TestCase):
             [{"_id": request_id, "memberId": member_id, "status": "ACTIVE", "updatedAt": datetime(2026, 2, 1, tzinfo=timezone.utc)}]
         )
 
-        with patch.object(mail_request_service, "mail_requests_collection", collection):
+        with patch("repositories.mail_requests_repository.mail_requests_collection", collection):
             mail_request_service.cancel_member_mail_request(user={"_id": member_id}, request_id=request_id)
 
         updated = collection.find_one({"_id": request_id})
@@ -162,7 +162,7 @@ class MailRequestServiceTests(unittest.TestCase):
             ]
         )
 
-        with patch.object(mail_request_service, "mail_requests_collection", collection):
+        with patch("repositories.mail_requests_repository.mail_requests_collection", collection):
             with self.assertRaises(APIError) as ctx:
                 mail_request_service.cancel_member_mail_request(user={"_id": member_id}, request_id=request_id)
 
@@ -173,7 +173,7 @@ class MailRequestServiceTests(unittest.TestCase):
         request_id = ObjectId()
         collection = FakeCollection()
 
-        with patch.object(mail_request_service, "mail_requests_collection", collection):
+        with patch("repositories.mail_requests_repository.mail_requests_collection", collection):
             with self.assertRaises(APIError):
                 mail_request_service.cancel_member_mail_request(user={"_id": member_id}, request_id=request_id)
 
@@ -193,7 +193,7 @@ class MailRequestServiceTests(unittest.TestCase):
             ]
         )
 
-        with patch.object(mail_request_service, "mail_requests_collection", collection):
+        with patch("repositories.mail_requests_repository.mail_requests_collection", collection):
             docs = mail_request_service.list_admin_active_mail_requests(member_id=member_id, mailbox_id=mailbox_id)
 
         self.assertEqual(len(docs), 1)
@@ -223,7 +223,7 @@ class MailRequestServiceTests(unittest.TestCase):
         notifier = Mock()
         notifier.notifySpecialCase.return_value = {"status": "sent", "channelResults": [{"channel": "email", "status": "sent"}]}
 
-        with patch.object(mail_request_service, "mail_requests_collection", collection):
+        with patch("repositories.mail_requests_repository.mail_requests_collection", collection):
             updated = mail_request_service.resolve_mail_request_and_notify(
                 request_id=request_id,
                 admin_user={"_id": admin_id},
@@ -270,7 +270,7 @@ class MailRequestServiceTests(unittest.TestCase):
             "channelResults": [{"channel": "email", "status": "failed"}],
         }
 
-        with patch.object(mail_request_service, "mail_requests_collection", collection):
+        with patch("repositories.mail_requests_repository.mail_requests_collection", collection):
             updated = mail_request_service.resolve_mail_request_and_notify(
                 request_id=request_id,
                 admin_user={"_id": admin_id},
@@ -291,7 +291,7 @@ class MailRequestServiceTests(unittest.TestCase):
         )
         notifier = Mock()
 
-        with patch.object(mail_request_service, "mail_requests_collection", collection):
+        with patch("repositories.mail_requests_repository.mail_requests_collection", collection):
             with self.assertRaises(APIError) as ctx:
                 mail_request_service.resolve_mail_request_and_notify(
                     request_id=request_id,
@@ -323,7 +323,7 @@ class MailRequestServiceTests(unittest.TestCase):
         notifier = Mock()
         notifier.notifySpecialCase.return_value = {"status": "sent", "channelResults": [{"channel": "email", "status": "sent"}]}
 
-        with patch.object(mail_request_service, "mail_requests_collection", collection):
+        with patch("repositories.mail_requests_repository.mail_requests_collection", collection):
             updated = mail_request_service.retry_mail_request_notification(
                 request_id=request_id,
                 admin_user={"_id": ObjectId()},
@@ -339,7 +339,7 @@ class MailRequestServiceTests(unittest.TestCase):
         collection = FakeCollection([])
         notifier = Mock()
 
-        with patch.object(mail_request_service, "mail_requests_collection", collection):
+        with patch("repositories.mail_requests_repository.mail_requests_collection", collection):
             with self.assertRaises(APIError) as ctx:
                 mail_request_service.retry_mail_request_notification(
                     request_id=ObjectId(),
@@ -370,8 +370,8 @@ class MailRequestServiceTests(unittest.TestCase):
         notifier = Mock()
         notifier.notifySpecialCase.side_effect = RuntimeError("smtp offline")
 
-        with patch.object(mail_request_service, "mail_requests_collection", collection), patch(
-            "services.mail_request_service.insert_special_case_notification_log"
+        with patch("repositories.mail_requests_repository.mail_requests_collection", collection), patch(
+            "services.mail_request_service.insert_special_case_log"
         ) as log_mock:
             updated = mail_request_service.resolve_mail_request_and_notify(
                 request_id=request_id,

@@ -4,8 +4,12 @@ from typing import Any
 
 from bson import ObjectId
 
-from config import mailboxes_collection
 from errors import APIError
+from repositories.mailboxes_repository import (
+    find_member_mailbox,
+    list_member_mailboxes as repo_list_member_mailboxes,
+    member_mailbox_scope,
+)
 
 
 def member_mailbox_scope(user: dict[str, Any]) -> dict[str, Any]:
@@ -17,12 +21,11 @@ def member_mailbox_scope(user: dict[str, Any]) -> dict[str, Any]:
 
 
 def list_member_mailboxes(user: dict[str, Any]) -> list[dict[str, Any]]:
-    return list(mailboxes_collection.find(member_mailbox_scope(user)).sort([("displayName", 1), ("_id", 1)]))
+    return repo_list_member_mailboxes(user)
 
 
 def assert_member_mailbox_access(user: dict[str, Any], mailbox_id: ObjectId) -> dict[str, Any]:
-    query = {"_id": mailbox_id, **member_mailbox_scope(user)}
-    mailbox = mailboxes_collection.find_one(query)
+    mailbox = find_member_mailbox(user, mailbox_id)
     if mailbox is None:
         raise APIError(403, "forbidden")
     return mailbox

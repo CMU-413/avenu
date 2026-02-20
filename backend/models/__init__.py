@@ -1,0 +1,33 @@
+from .builders import (
+    MAILBOX_TYPES,
+    MAIL_REQUEST_NOTIFICATION_STATUSES,
+    MAIL_REQUEST_STATUSES,
+    MAIL_TYPES,
+    NOTIF_PREFS,
+    build_mail_create,
+    build_mail_patch,
+    build_mail_request_create,
+    build_mailbox_doc,
+    build_mailbox_patch,
+    build_team_create,
+    build_team_patch,
+    build_user_create,
+    build_user_patch,
+)
+
+__all__ = [
+    "NOTIF_PREFS",
+    "MAILBOX_TYPES",
+    "MAIL_TYPES",
+    "MAIL_REQUEST_STATUSES",
+    "MAIL_REQUEST_NOTIFICATION_STATUSES",
+    "build_user_create",
+    "build_user_patch",
+    "build_team_create",
+    "build_team_patch",
+    "build_mailbox_patch",
+    "build_mail_create",
+    "build_mail_patch",
+    "build_mailbox_doc",
+    "build_mail_request_create",
+]
