@@ -14,8 +14,16 @@ import {
 } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 
-const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+type DashboardView = "MAILBOX" | "EXPECTED";
 type MailRequestView = "ACTIVE" | "RESOLVED";
+type MailboxWeekSummary = {
+  mailboxId: string;
+  name: string;
+  type: "personal" | "company";
+  letters: number;
+  packages: number;
+  days: ApiMemberMailSummary["mailboxes"][number]["days"];
+};
 
 function formatIsoDateLocal(date: Date): string {
   const y = date.getFullYear();
@@ -36,30 +44,117 @@ function getWeekRange(weeksAgo: number) {
   endOfWeek.setDate(startOfThisWeek.getDate() + 6);
   endOfWeek.setHours(12, 0, 0, 0);
 
-  const dates: string[] = [];
-  for (let i = 0; i < 7; i++) {
-    const d = new Date(startOfThisWeek);
-    d.setDate(startOfThisWeek.getDate() + i);
-    dates.push(formatIsoDateLocal(d));
-  }
-
-  const formatShort = (d: Date) =>
-    `${d.getMonth() + 1}/${d.getDate()}`;
+  const formatShort = (d: Date) => `${d.getMonth() + 1}/${d.getDate()}`;
 
   return {
-    label: `${formatShort(startOfThisWeek)} – ${formatShort(endOfWeek)}`,
-    start: dates[0],
-    end: dates[6],
+    label: `${formatShort(startOfThisWeek)} - ${formatShort(endOfWeek)}`,
+    start: formatIsoDateLocal(startOfThisWeek),
+    end: formatIsoDateLocal(endOfWeek),
   };
+}
+
+function summarizeWeek(mailSummary: ApiMemberMailSummary | null) {
+  const totals = new Map<string, MailboxWeekSummary>();
+
+  for (const mailbox of mailSummary?.mailboxes || []) {
+    const letters = mailbox.days.reduce((sum, day) => sum + day.letters, 0);
+    const packages = mailbox.days.reduce((sum, day) => sum + day.packages, 0);
+    totals.set(mailbox.mailboxId, {
+      mailboxId: mailbox.mailboxId,
+      name: mailbox.name,
+      type: mailbox.type,
+      letters,
+      packages,
+      days: mailbox.days,
+    });
+  }
+
+  return Array.from(totals.values());
+}
+
+function MailCounts({ letters, packages }: { letters: number; packages: number }) {
+  const hasMail = letters > 0 || packages > 0;
+  if (!hasMail) {
+    return <span className="text-xs text-muted-foreground">No mail</span>;
+  }
+
+  return (
+    <div className="flex items-center gap-3 text-xs">
+      {letters > 0 && (
+        <span className="flex items-center gap-1 text-muted-foreground">
+          {letters} <Mail className="h-3.5 w-3.5" />
+        </span>
+      )}
+      {packages > 0 && (
+        <span className="flex items-center gap-1 text-muted-foreground">
+          {packages} <Package className="h-3.5 w-3.5" />
+        </span>
+      )}
+    </div>
+  );
+}
+
+function MailboxWeekCards({
+  mailboxes,
+  scope,
+  expandedMailboxIds,
+  onToggle,
+}: {
+  mailboxes: MailboxWeekSummary[];
+  scope: "current" | "historical";
+  expandedMailboxIds: Record<string, boolean>;
+  onToggle: (scope: "current" | "historical", mailboxId: string) => void;
+}) {
+  return (
+    <div className="space-y-2">
+      {mailboxes.map((mailbox) => {
+        const expandKey = `${scope}:${mailbox.mailboxId}`;
+        const isExpanded = !!expandedMailboxIds[expandKey];
+        return (
+          <div key={`${scope}-${mailbox.mailboxId}`} className="rounded-xl border bg-card overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3">
+              <div>
+                <p className="text-sm font-medium text-card-foreground">{mailbox.type === "personal" ? "You" : mailbox.name}</p>
+                <MailCounts letters={mailbox.letters} packages={mailbox.packages} />
+              </div>
+              <button
+                onClick={() => onToggle(scope, mailbox.mailboxId)}
+                className="text-xs text-muted-foreground hover:text-foreground"
+              >
+                {isExpanded ? "Hide daily" : "Show daily"}
+              </button>
+            </div>
+            {isExpanded && (
+              <div className="border-t divide-y divide-border">
+                {mailbox.days.map((day) => (
+                  <div key={day.date} className="flex items-center justify-between px-4 py-2.5">
+                    <span className="text-sm text-card-foreground">{day.date}</span>
+                    <MailCounts letters={day.letters} packages={day.packages} />
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
 }
 
 const MemberDashboard = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { sessionUser, logout } = useAppStore();
-  const [weeksAgo, setWeeksAgo] = useState(0);
-  const [mailSummary, setMailSummary] = useState<ApiMemberMailSummary | null>(null);
-  const [loading, setLoading] = useState(true);
+
+  const [dashboardView, setDashboardView] = useState<DashboardView>("MAILBOX");
+  const [historicalWeeksAgo, setHistoricalWeeksAgo] = useState(1);
+
+  const [currentSummary, setCurrentSummary] = useState<ApiMemberMailSummary | null>(null);
+  const [historicalSummary, setHistoricalSummary] = useState<ApiMemberMailSummary | null>(null);
+  const [mailSummaryLoading, setMailSummaryLoading] = useState(true);
+  const [historicalLoading, setHistoricalLoading] = useState(false);
+  const [expandedMailboxIds, setExpandedMailboxIds] = useState<Record<string, boolean>>({});
+
   const [mailRequests, setMailRequests] = useState<ApiMailRequest[]>([]);
   const [mailRequestsLoading, setMailRequestsLoading] = useState(true);
   const [mailRequestView, setMailRequestView] = useState<MailRequestView>("ACTIVE");
@@ -71,14 +166,22 @@ const MemberDashboard = () => {
   const [submittingRequest, setSubmittingRequest] = useState(false);
   const [cancellingRequestId, setCancellingRequestId] = useState<string | null>(null);
 
-  const week = useMemo(() => getWeekRange(weeksAgo), [weeksAgo]);
+  const currentWeek = useMemo(() => getWeekRange(0), []);
+  const historicalWeek = useMemo(() => getWeekRange(historicalWeeksAgo), [historicalWeeksAgo]);
+  const currentMailboxTotals = useMemo(() => summarizeWeek(currentSummary), [currentSummary]);
+  const historicalMailboxTotals = useMemo(() => summarizeWeek(historicalSummary), [historicalSummary]);
+
   const mailboxMap = useMemo(() => {
     const map = new Map<string, { name: string; type: "personal" | "company" }>();
-    for (const mailbox of mailSummary?.mailboxes || []) {
+    for (const mailbox of currentSummary?.mailboxes || []) {
       map.set(mailbox.mailboxId, { name: mailbox.name, type: mailbox.type });
     }
     return map;
-  }, [mailSummary]);
+  }, [currentSummary]);
+
+  const loadMemberMail = useCallback(async (params: { start: string; end: string }) => {
+    return getMemberMail({ start: params.start, end: params.end });
+  }, []);
 
   const loadMailRequests = useCallback(async (status: MailRequestView) => {
     setMailRequestsLoading(true);
@@ -100,11 +203,11 @@ const MemberDashboard = () => {
   useEffect(() => {
     let alive = true;
     const load = async () => {
-      setLoading(true);
+      setMailSummaryLoading(true);
       try {
-        const summary = await getMemberMail({ start: week.start, end: week.end });
+        const summary = await loadMemberMail({ start: currentWeek.start, end: currentWeek.end });
         if (!alive) return;
-        setMailSummary(summary);
+        setCurrentSummary(summary);
       } catch (err) {
         if (!alive) return;
         const message = err instanceof Error ? err.message : "Failed to load mail";
@@ -114,26 +217,66 @@ const MemberDashboard = () => {
           navigate("/");
         }
       } finally {
-        if (alive) setLoading(false);
+        if (alive) setMailSummaryLoading(false);
       }
     };
-    load();
+
+    void load();
     return () => {
       alive = false;
     };
-  }, [logout, navigate, toast, week.start, week.end]);
+  }, [currentWeek.end, currentWeek.start, loadMemberMail, logout, navigate, toast]);
 
   useEffect(() => {
+    if (dashboardView !== "MAILBOX") {
+      return;
+    }
+
+    let alive = true;
+    const load = async () => {
+      setHistoricalLoading(true);
+      try {
+        const summary = await loadMemberMail({ start: historicalWeek.start, end: historicalWeek.end });
+        if (!alive) return;
+        setHistoricalSummary(summary);
+      } catch (err) {
+        if (!alive) return;
+        const message = err instanceof Error ? err.message : "Failed to load mail history";
+        toast({ title: message, variant: "destructive" });
+        if (err instanceof ApiError && err.status === 401) {
+          logout();
+          navigate("/");
+        }
+      } finally {
+        if (alive) setHistoricalLoading(false);
+      }
+    };
+
+    void load();
+    return () => {
+      alive = false;
+    };
+  }, [dashboardView, historicalWeek.end, historicalWeek.start, loadMemberMail, logout, navigate, toast]);
+
+  useEffect(() => {
+    if (dashboardView !== "EXPECTED") {
+      return;
+    }
     void loadMailRequests(mailRequestView);
-  }, [loadMailRequests, mailRequestView]);
+  }, [dashboardView, loadMailRequests, mailRequestView]);
 
   useEffect(() => {
     if (mailboxId) return;
-    const firstMailbox = mailSummary?.mailboxes[0];
+    const firstMailbox = currentSummary?.mailboxes[0];
     if (firstMailbox) {
       setMailboxId(firstMailbox.mailboxId);
     }
-  }, [mailSummary, mailboxId]);
+  }, [currentSummary, mailboxId]);
+
+  const toggleMailboxExpanded = (scope: "current" | "historical", id: string) => {
+    const key = `${scope}:${id}`;
+    setExpandedMailboxIds((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
 
   const handleCreateRequest = async () => {
     if (!mailboxId) {
@@ -224,184 +367,188 @@ const MemberDashboard = () => {
       </header>
 
       <div className="px-4 py-4 max-w-lg mx-auto space-y-4">
-        {/* Week selector */}
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-medium text-muted-foreground">Week of</span>
-          <select
-            value={weeksAgo}
-            onChange={(e) => setWeeksAgo(Number(e.target.value))}
-            className="h-9 rounded-lg border border-input bg-card px-2 text-sm font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+        <div className="inline-flex rounded-lg border bg-card p-1">
+          <button
+            onClick={() => setDashboardView("MAILBOX")}
+            className={`px-3 py-1.5 text-xs rounded-md ${dashboardView === "MAILBOX" ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}
           >
-            {[0, 1, 2, 3, 4].map((w) => (
-              <option key={w} value={w}>
-                {getWeekRange(w).label}
-              </option>
-            ))}
-          </select>
+            Mailbox
+          </button>
+          <button
+            onClick={() => setDashboardView("EXPECTED")}
+            className={`px-3 py-1.5 text-xs rounded-md ${dashboardView === "EXPECTED" ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}
+          >
+            Expected Mail
+          </button>
         </div>
 
-        {/* Mailbox sections */}
-        {loading ? (
-          <div className="py-8 text-center text-sm text-muted-foreground">Loading...</div>
-        ) : !mailSummary || mailSummary.mailboxes.length === 0 ? (
-          <div className="py-8 text-center text-sm text-muted-foreground">No mailboxes</div>
-        ) : (
-          mailSummary.mailboxes.map((mb) => {
-            const hasMailInWeek = mb.days.some((day) => day.letters > 0 || day.packages > 0);
+        {dashboardView === "MAILBOX" ? (
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <h2 className="text-sm font-semibold text-primary uppercase tracking-wider px-1">This week</h2>
+              {mailSummaryLoading ? (
+                <div className="py-8 text-center text-sm text-muted-foreground">Loading...</div>
+              ) : currentMailboxTotals.length === 0 ? (
+                <div className="py-8 text-center text-sm text-muted-foreground">No mailboxes</div>
+              ) : (
+                <MailboxWeekCards
+                  mailboxes={currentMailboxTotals}
+                  scope="current"
+                  expandedMailboxIds={expandedMailboxIds}
+                  onToggle={toggleMailboxExpanded}
+                />
+              )}
+              <p className="px-1 text-xs text-muted-foreground">Week {currentWeek.label}</p>
+            </div>
 
-            return (
-              <div key={mb.mailboxId} className="space-y-2">
-                <h2 className="text-sm font-semibold text-primary uppercase tracking-wider px-1">
-                  {mb.type === "personal" ? "You received" : `${mb.name} received`}
-                </h2>
-                <div className="rounded-xl border bg-card overflow-hidden divide-y divide-border">
-                  {mb.days.map((day, i) => {
-                    const hasMail = day.letters > 0 || day.packages > 0;
-
-                    return (
-                      <div key={day.date} className="flex items-center justify-between px-4 py-2.5">
-                        <span className="text-sm font-medium text-card-foreground w-10">{DAYS[i]}</span>
-                        {hasMail ? (
-                          <div className="flex items-center gap-3 text-sm">
-                            {day.letters > 0 && (
-                              <span className="flex items-center gap-1 text-card-foreground">
-                                {day.letters} <Mail className="h-3.5 w-3.5 text-muted-foreground" />
-                              </span>
-                            )}
-                            {day.packages > 0 && (
-                              <span className="flex items-center gap-1 text-card-foreground">
-                                {day.packages} <Package className="h-3.5 w-3.5 text-muted-foreground" />
-                              </span>
-                            )}
-                          </div>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">—</span>
-                        )}
-                      </div>
-                    );
-                  })}
+            <div className="space-y-3">
+              <div className="space-y-2">
+                <h2 className="text-sm font-semibold text-primary uppercase tracking-wider px-1">Previous weeks</h2>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-muted-foreground">Week of</span>
+                  <select
+                    aria-label="Previous weeks"
+                    value={historicalWeeksAgo}
+                    onChange={(e) => setHistoricalWeeksAgo(Number(e.target.value))}
+                    className="h-9 rounded-lg border border-input bg-card px-2 text-sm font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                  >
+                    {[1, 2, 3, 4, 5, 6].map((w) => (
+                      <option key={w} value={w}>
+                        {getWeekRange(w).label}
+                      </option>
+                    ))}
+                  </select>
                 </div>
-                {!hasMailInWeek && (
-                  <p className="px-1 text-xs text-muted-foreground">No mail in selected range</p>
+
+                {historicalLoading ? (
+                  <div className="py-4 text-center text-sm text-muted-foreground">Loading week...</div>
+                ) : historicalMailboxTotals.length === 0 ? (
+                  <div className="py-4 text-center text-sm text-muted-foreground">No mailboxes</div>
+                ) : (
+                  <MailboxWeekCards
+                    mailboxes={historicalMailboxTotals}
+                    scope="historical"
+                    expandedMailboxIds={expandedMailboxIds}
+                    onToggle={toggleMailboxExpanded}
+                  />
                 )}
               </div>
-            );
-          })
-        )}
-
-        <div className="space-y-3 pt-2">
-          <h2 className="text-sm font-semibold text-primary uppercase tracking-wider px-1">Expected Mail</h2>
-          <div className="rounded-xl border bg-card p-3 space-y-2">
-            <select
-              aria-label="Expected Mailbox"
-              value={mailboxId}
-              onChange={(e) => setMailboxId(e.target.value)}
-              className="w-full h-10 rounded-lg border border-input bg-background px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-            >
-              <option value="">Select mailbox</option>
-              {(mailSummary?.mailboxes || []).map((mb) => (
-                <option key={mb.mailboxId} value={mb.mailboxId}>
-                  {mb.name}
-                </option>
-              ))}
-            </select>
-            <input
-              aria-label="Expected Sender"
-              value={expectedSender}
-              onChange={(e) => setExpectedSender(e.target.value)}
-              placeholder="Expected sender (optional)"
-              className="w-full h-10 rounded-lg border border-input bg-background px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-            />
-            <textarea
-              aria-label="Expected Description"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Description (optional)"
-              className="w-full min-h-20 rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-            />
-            <div className="grid grid-cols-2 gap-2">
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <div className="rounded-xl border bg-card p-3 space-y-2">
+              <select
+                aria-label="Expected Mailbox"
+                value={mailboxId}
+                onChange={(e) => setMailboxId(e.target.value)}
+                className="w-full h-10 rounded-lg border border-input bg-background px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+              >
+                <option value="">Select mailbox</option>
+                {(currentSummary?.mailboxes || []).map((mb) => (
+                  <option key={mb.mailboxId} value={mb.mailboxId}>
+                    {mb.name}
+                  </option>
+                ))}
+              </select>
               <input
-                aria-label="Expected Start Date"
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
+                aria-label="Expected Sender"
+                value={expectedSender}
+                onChange={(e) => setExpectedSender(e.target.value)}
+                placeholder="Expected sender (optional)"
                 className="w-full h-10 rounded-lg border border-input bg-background px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
               />
-              <input
-                aria-label="Expected End Date"
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                className="w-full h-10 rounded-lg border border-input bg-background px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+              <textarea
+                aria-label="Expected Description"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Description (optional)"
+                className="w-full min-h-20 rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
               />
+              <div className="grid grid-cols-2 gap-2">
+                <input
+                  aria-label="Expected Start Date"
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="w-full h-10 rounded-lg border border-input bg-background px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                />
+                <input
+                  aria-label="Expected End Date"
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="w-full h-10 rounded-lg border border-input bg-background px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                />
+              </div>
+              <button
+                onClick={handleCreateRequest}
+                disabled={submittingRequest}
+                className="w-full h-10 rounded-lg bg-primary text-primary-foreground text-sm font-medium disabled:opacity-50"
+              >
+                {submittingRequest ? "Creating..." : "Create Mail Request"}
+              </button>
             </div>
-            <button
-              onClick={handleCreateRequest}
-              disabled={submittingRequest}
-              className="w-full h-10 rounded-lg bg-primary text-primary-foreground text-sm font-medium disabled:opacity-50"
-            >
-              {submittingRequest ? "Creating..." : "Create Request"}
-            </button>
-          </div>
 
-          <div className="inline-flex rounded-lg border bg-card p-1">
-            <button
-              onClick={() => setMailRequestView("ACTIVE")}
-              className={`px-3 py-1.5 text-xs rounded-md ${mailRequestView === "ACTIVE" ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}
-            >
-              Active
-            </button>
-            <button
-              onClick={() => setMailRequestView("RESOLVED")}
-              className={`px-3 py-1.5 text-xs rounded-md ${mailRequestView === "RESOLVED" ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}
-            >
-              Resolved
-            </button>
-          </div>
-
-          {mailRequestsLoading ? (
-            <div className="py-4 text-center text-sm text-muted-foreground">Loading requests...</div>
-          ) : mailRequests.length === 0 ? (
-            <div className="py-4 text-center text-sm text-muted-foreground">
-              {mailRequestView === "ACTIVE" ? "No active requests" : "No resolved requests"}
+            <div className="inline-flex rounded-lg border bg-card p-1">
+              <button
+                onClick={() => setMailRequestView("ACTIVE")}
+                className={`px-3 py-1.5 text-xs rounded-md ${mailRequestView === "ACTIVE" ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}
+              >
+                Active
+              </button>
+              <button
+                onClick={() => setMailRequestView("RESOLVED")}
+                className={`px-3 py-1.5 text-xs rounded-md ${mailRequestView === "RESOLVED" ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}
+              >
+                Resolved
+              </button>
             </div>
-          ) : (
-            <div className="rounded-xl border bg-card divide-y divide-border">
-              {mailRequests.map((req) => {
-                const mailbox = mailboxMap.get(req.mailboxId);
-                const detail = req.expectedSender || req.description || "—";
-                const dateWindow = req.startDate || req.endDate ? `${req.startDate || "?"} to ${req.endDate || "?"}` : "No date window";
-                const createdLabel = new Date(req.createdAt).toLocaleString();
-                const resolvedLabel = req.resolvedAt ? new Date(req.resolvedAt).toLocaleString() : null;
 
-                return (
-                  <div key={req.id} className="p-3 space-y-1.5">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-medium text-card-foreground">{mailbox?.name || "Mailbox"}</p>
-                        <p className="text-xs text-muted-foreground">{detail}</p>
-                        <p className="text-xs text-muted-foreground">{dateWindow}</p>
-                        <p className="text-xs text-muted-foreground">Created {createdLabel}</p>
-                        {mailRequestView === "RESOLVED" && resolvedLabel && (
-                          <p className="text-xs text-muted-foreground">Resolved {resolvedLabel}</p>
+            {mailRequestsLoading ? (
+              <div className="py-4 text-center text-sm text-muted-foreground">Loading requests...</div>
+            ) : mailRequests.length === 0 ? (
+              <div className="py-4 text-center text-sm text-muted-foreground">
+                {mailRequestView === "ACTIVE" ? "No active requests" : "No resolved requests"}
+              </div>
+            ) : (
+              <div className="rounded-xl border bg-card divide-y divide-border">
+                {mailRequests.map((req) => {
+                  const mailbox = mailboxMap.get(req.mailboxId);
+                  const detail = req.expectedSender || req.description || "-";
+                  const dateWindow = req.startDate || req.endDate ? `${req.startDate || "?"} to ${req.endDate || "?"}` : "No date window";
+                  const createdLabel = new Date(req.createdAt).toLocaleString();
+                  const resolvedLabel = req.resolvedAt ? new Date(req.resolvedAt).toLocaleString() : null;
+
+                  return (
+                    <div key={req.id} className="p-3 space-y-1.5">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-medium text-card-foreground">{mailbox?.name || "Mailbox"}</p>
+                          <p className="text-xs text-muted-foreground">{detail}</p>
+                          <p className="text-xs text-muted-foreground">{dateWindow}</p>
+                          <p className="text-xs text-muted-foreground">Created {createdLabel}</p>
+                          {mailRequestView === "RESOLVED" && resolvedLabel && (
+                            <p className="text-xs text-muted-foreground">Resolved {resolvedLabel}</p>
+                          )}
+                        </div>
+                        {mailRequestView === "ACTIVE" && (
+                          <button
+                            onClick={() => handleCancelRequest(req.id)}
+                            disabled={cancellingRequestId === req.id}
+                            className="text-xs text-destructive hover:underline disabled:opacity-50"
+                          >
+                            {cancellingRequestId === req.id ? "Cancelling..." : "Cancel"}
+                          </button>
                         )}
                       </div>
-                      {mailRequestView === "ACTIVE" && (
-                        <button
-                          onClick={() => handleCancelRequest(req.id)}
-                          disabled={cancellingRequestId === req.id}
-                          className="text-xs text-destructive hover:underline disabled:opacity-50"
-                        >
-                          {cancellingRequestId === req.id ? "Cancelling..." : "Cancel"}
-                        </button>
-                      )}
                     </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
