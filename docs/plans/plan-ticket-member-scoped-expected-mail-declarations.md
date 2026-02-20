@@ -25,8 +25,8 @@
 - ☑ Add focused frontend unit tests for form validation and API wiring on member/admin mail-request UI flows.
 
 ## Phase 3
-- ☐ Update architecture data model docs with `MAIL_REQUEST` entity, fields, and lifecycle state semantics.
-- ☐ Update API docs with new member/admin mail-request endpoints, request/response schemas, and authorization behavior.
+- ☑ Update architecture data model docs with `MAIL_REQUEST` entity, fields, and lifecycle state semantics.
+- ☑ Update API docs with new member/admin mail-request endpoints, request/response schemas, and authorization behavior.
 
 ## Phase 1: Backend Domain + Auth-Scoped API
 Affected files and changes

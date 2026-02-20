@@ -32,6 +32,17 @@ erDiagram
         int count
     }
 
+    MAIL_REQUEST {
+        ObjectId id PK
+        ObjectId memberId FK
+        ObjectId mailboxId FK
+        string expectedSender
+        string description
+        string startDate
+        string endDate
+        enum status "ACTIVE | CANCELLED"
+    }
+
     %% Relationships
     USER }|--o{ TEAM : belongs_to
 
@@ -39,3 +50,5 @@ erDiagram
     TEAM ||--|| MAILBOX : owns
 
     MAILBOX ||--o{ MAIL : contains
+    USER ||--o{ MAIL_REQUEST : declares
+    MAILBOX ||--o{ MAIL_REQUEST : scoped_to
