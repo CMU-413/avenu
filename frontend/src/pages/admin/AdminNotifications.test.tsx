@@ -3,6 +3,7 @@ import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import AdminNotifications from "./AdminNotifications";
+import { ConfirmDialogProvider } from "@/components/ConfirmDialogProvider";
 
 const {
   toastSpy,
@@ -57,13 +58,14 @@ describe("AdminNotifications", () => {
       status: "sent",
       channelResults: [{ channel: "email", status: "sent" }],
     });
-    vi.stubGlobal("confirm", vi.fn(() => true));
   });
 
   it("requires recipient selection for special notification", async () => {
     render(
       <MemoryRouter>
-        <AdminNotifications />
+        <ConfirmDialogProvider>
+          <AdminNotifications />
+        </ConfirmDialogProvider>
       </MemoryRouter>
     );
 
@@ -77,13 +79,16 @@ describe("AdminNotifications", () => {
   it("submits selected recipient for special notification", async () => {
     render(
       <MemoryRouter>
-        <AdminNotifications />
+        <ConfirmDialogProvider>
+          <AdminNotifications />
+        </ConfirmDialogProvider>
       </MemoryRouter>
     );
 
     await screen.findByRole("button", { name: "Send Mail Arrived Notification" });
     fireEvent.change(screen.getByRole("combobox"), { target: { value: "user-1" } });
     fireEvent.click(screen.getByRole("button", { name: "Send Mail Arrived Notification" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Send" }));
 
     await waitFor(() => {
       expect(sendMailArrivedNotificationMock).toHaveBeenCalledWith({ userId: "user-1" });
@@ -105,13 +110,16 @@ describe("AdminNotifications", () => {
 
     render(
       <MemoryRouter>
-        <AdminNotifications />
+        <ConfirmDialogProvider>
+          <AdminNotifications />
+        </ConfirmDialogProvider>
       </MemoryRouter>
     );
 
     await screen.findByRole("button", { name: "Send Weekly Mail Notification" });
     fireEvent.change(screen.getByRole("combobox"), { target: { value: "user-1" } });
     fireEvent.click(screen.getByRole("button", { name: "Send Weekly Mail Notification" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Send" }));
 
     await waitFor(() => {
       expect(sendWeeklySummaryNotificationMock).toHaveBeenCalledWith({

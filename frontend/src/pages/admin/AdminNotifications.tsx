@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import { useConfirmDialog } from "@/hooks/use-confirm-dialog";
 import { useAppStore } from "@/lib/store";
 import { ApiError, listUsers, sendMailArrivedNotification, sendWeeklySummaryNotification } from "@/lib/api";
 
@@ -29,6 +30,7 @@ const AdminNotifications = () => {
   const navigate = useNavigate();
   const logout = useAppStore((s) => s.logout);
   const { toast } = useToast();
+  const confirm = useConfirmDialog();
 
   const [users, setUsers] = useState<{ id: string; fullname: string }[]>([]);
   const [selectedUserId, setSelectedUserId] = useState("");
@@ -70,7 +72,13 @@ const AdminNotifications = () => {
     }
 
     const { weekStart, weekEnd } = computePreviousWeekRange(new Date());
-    if (!window.confirm(`Send Weekly Mail Notification for ${weekStart} to ${weekEnd}?`)) {
+    const confirmed = await confirm({
+      title: "Send Weekly Mail Notification",
+      message: `Send Weekly Mail Notification for ${weekStart} to ${weekEnd}?`,
+      confirmLabel: "Send",
+      cancelLabel: "Cancel",
+    });
+    if (!confirmed) {
       return;
     }
 
@@ -103,7 +111,13 @@ const AdminNotifications = () => {
       toast({ title: "Select a recipient", variant: "destructive" });
       return;
     }
-    if (!window.confirm("Send Mail Arrived Notification?")) {
+    const confirmed = await confirm({
+      title: "Send Mail Arrived Notification",
+      message: "Send Mail Arrived Notification?",
+      confirmLabel: "Send",
+      cancelLabel: "Cancel",
+    });
+    if (!confirmed) {
       return;
     }
 

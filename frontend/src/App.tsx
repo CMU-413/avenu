@@ -15,6 +15,7 @@ import NotificationSettings from "./pages/member/NotificationSettings";
 import NotFound from "./pages/NotFound";
 import { ApiError, ApiSessionMe, bootstrapOptixSession, sessionMe } from "./lib/api";
 import { SessionUser, useAppStore } from "./lib/store";
+import { ConfirmDialogProvider } from "./components/ConfirmDialogProvider";
 
 const queryClient = new QueryClient();
 
@@ -139,9 +140,11 @@ const App = () => {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <AppRoutes />
+        <ConfirmDialogProvider>
+          <Toaster />
+          <Sonner />
+          <AppRoutes />
+        </ConfirmDialogProvider>
       </TooltipProvider>
     </QueryClientProvider>
   );
