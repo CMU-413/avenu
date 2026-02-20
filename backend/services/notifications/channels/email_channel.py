@@ -35,11 +35,17 @@ class EmailChannel:
             )
             subject = self._build_subject(payload["summary"])
         else:
+            mail_request = payload.get("mailRequest")
             html = render_template(
                 MAIL_ARRIVED_TEMPLATE["template"],
                 user=payload["user"],
+                mail_request=mail_request,
             )
             subject = MAIL_ARRIVED_TEMPLATE["subject"]
+            if isinstance(mail_request, dict):
+                expected_sender = mail_request.get("expectedSender")
+                if isinstance(expected_sender, str) and expected_sender.strip():
+                    subject = f"Mail has arrived: {expected_sender.strip()}"
 
         try:
             message_id = self.provider.send(

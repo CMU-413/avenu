@@ -235,7 +235,15 @@ class MailRequestServiceTests(unittest.TestCase):
         self.assertIsNotNone(updated["resolvedAt"])
         self.assertEqual(updated["lastNotificationStatus"], "SENT")
         self.assertIsNotNone(updated["lastNotificationAt"])
-        notifier.notifySpecialCase.assert_called_once_with(userId=member_id, triggeredBy="admin")
+        notifier.notifySpecialCase.assert_called_once()
+        call_kwargs = notifier.notifySpecialCase.call_args.kwargs
+        self.assertEqual(call_kwargs["userId"], member_id)
+        self.assertEqual(call_kwargs["triggeredBy"], "admin")
+        self.assertEqual(call_kwargs["mailRequest"]["expectedSender"], None)
+        self.assertEqual(call_kwargs["mailRequest"]["description"], None)
+        self.assertEqual(call_kwargs["mailRequest"]["startDate"], None)
+        self.assertEqual(call_kwargs["mailRequest"]["endDate"], None)
+        self.assertIsNotNone(call_kwargs["mailRequest"]["resolvedAt"])
 
     def test_resolve_mail_request_sets_last_notification_failed_metadata_on_failure_without_rollback(self):
         member_id = ObjectId()

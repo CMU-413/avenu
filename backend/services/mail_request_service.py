@@ -91,6 +91,25 @@ def _notification_status_from_notify_result(result: dict[str, Any]) -> Literal["
     return "SENT" if result.get("status") == "sent" else "FAILED"
 
 
+def _build_mail_request_notification_context(request_doc: dict[str, Any]) -> dict[str, Any]:
+    context: dict[str, Any] = {
+        "expectedSender": request_doc.get("expectedSender"),
+        "description": request_doc.get("description"),
+        "startDate": request_doc.get("startDate"),
+        "endDate": request_doc.get("endDate"),
+    }
+    request_id = request_doc.get("_id")
+    if request_id is not None:
+        context["requestId"] = str(request_id)
+    mailbox_id = request_doc.get("mailboxId")
+    if mailbox_id is not None:
+        context["mailboxId"] = str(mailbox_id)
+    resolved_at = request_doc.get("resolvedAt")
+    if isinstance(resolved_at, datetime):
+        context["resolvedAt"] = resolved_at.isoformat()
+    return context
+
+
 def resolve_mail_request_and_notify(
     *,
     request_id: ObjectId,
@@ -132,6 +151,7 @@ def resolve_mail_request_and_notify(
         notify_result = resolved_notifier.notifySpecialCase(
             userId=member_id,
             triggeredBy="admin",
+            mailRequest=_build_mail_request_notification_context(updated),
         )
         notification_status = _notification_status_from_notify_result(notify_result)
     except Exception as exc:
@@ -179,6 +199,7 @@ def retry_mail_request_notification(
         notify_result = resolved_notifier.notifySpecialCase(
             userId=member_id,
             triggeredBy="admin",
+            mailRequest=_build_mail_request_notification_context(request_doc),
         )
         notification_status = _notification_status_from_notify_result(notify_result)
     except Exception as exc:

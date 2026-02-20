@@ -9,6 +9,7 @@ from services.notifications.types import (
     ChannelResult,
     NotifyResult,
     NotifyTrigger,
+    SpecialCaseMailRequestContext,
     SpecialCaseNotificationPayload,
     WeeklySummaryNotificationPayload,
 )
@@ -37,5 +38,6 @@ class Notifier(Protocol):
         *,
         userId: ObjectId,
         triggeredBy: NotifyTrigger,
+        mailRequest: SpecialCaseMailRequestContext | None = None,
     ) -> NotifyResult:
         ...

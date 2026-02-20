@@ -13,6 +13,7 @@ from services.notifications.types import (
     NotifyReason,
     NotifyResult,
     NotifyTrigger,
+    SpecialCaseMailRequestContext,
     SpecialCaseNotificationPayload,
 )
 
@@ -53,6 +54,7 @@ class SpecialCaseNotifier:
         *,
         userId: ObjectId,
         triggeredBy: NotifyTrigger,
+        mailRequest: SpecialCaseMailRequestContext | None = None,
     ) -> NotifyResult:
         user = self._users.find_one({"_id": userId}, {"email": 1, "fullname": 1})
         if user is None:
@@ -72,6 +74,7 @@ class SpecialCaseNotifier:
             },
             "triggeredBy": triggeredBy,
             "templateType": "mail-arrived",
+            "mailRequest": mailRequest,
         }
 
         results: list[ChannelResult] = []
