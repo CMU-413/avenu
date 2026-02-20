@@ -74,6 +74,21 @@ export interface ApiMemberPreferences {
   emailNotifications: boolean;
 }
 
+export type ApiMailRequestStatus = "ACTIVE" | "CANCELLED";
+
+export interface ApiMailRequest {
+  id: string;
+  memberId: string;
+  mailboxId: string;
+  expectedSender: string | null;
+  description: string | null;
+  startDate: string | null;
+  endDate: string | null;
+  status: ApiMailRequestStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface ApiNotifyChannelResult {
   channel: string;
   status: "sent" | "failed";
@@ -232,6 +247,37 @@ export function updateMemberPreferences(emailNotifications: boolean): Promise<Ap
     method: "PATCH",
     body: JSON.stringify({ emailNotifications }),
   });
+}
+
+export function listMemberMailRequests(): Promise<ApiMailRequest[]> {
+  return apiFetch<ApiMailRequest[]>("/api/mail-requests");
+}
+
+export function createMailRequest(payload: {
+  mailboxId: string;
+  expectedSender?: string;
+  description?: string;
+  startDate?: string;
+  endDate?: string;
+}): Promise<ApiMailRequest> {
+  return apiFetch<ApiMailRequest>("/api/mail-requests", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function cancelMailRequest(mailRequestId: string): Promise<void> {
+  return apiFetch<void>(`/api/mail-requests/${mailRequestId}`, {
+    method: "DELETE",
+  });
+}
+
+export function listAdminMailRequests(filters: { mailboxId?: string; memberId?: string } = {}): Promise<ApiMailRequest[]> {
+  const search = new URLSearchParams();
+  if (filters.mailboxId) search.set("mailboxId", filters.mailboxId);
+  if (filters.memberId) search.set("memberId", filters.memberId);
+  const query = search.toString();
+  return apiFetch<ApiMailRequest[]>(`/api/admin/mail-requests${query ? `?${query}` : ""}`);
 }
 
 export function sendMailArrivedNotification(payload: { userId: string }): Promise<ApiNotifyResult> {

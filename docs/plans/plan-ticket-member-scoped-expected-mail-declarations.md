@@ -19,10 +19,10 @@
 - ☑ Add backend unit tests for validation, authorization boundaries, scoping, sorting, and soft-delete behavior.
 
 ## Phase 2
-- ☐ Extend frontend API typings/helpers for member/admin mail-request endpoints.
-- ☐ Add member dashboard “Expected Mail” section with create/list/cancel UX and mailbox-scoped selection.
-- ☐ Add admin read-only active-request table view with optional member/mailbox filtering.
-- ☐ Add focused frontend unit tests for form validation and API wiring on member/admin mail-request UI flows.
+- ☑ Extend frontend API typings/helpers for member/admin mail-request endpoints.
+- ☑ Add member dashboard “Expected Mail” section with create/list/cancel UX and mailbox-scoped selection.
+- ☑ Add admin read-only active-request table view with optional member/mailbox filtering.
+- ☑ Add focused frontend unit tests for form validation and API wiring on member/admin mail-request UI flows.
 
 ## Phase 3
 - ☐ Update architecture data model docs with `MAIL_REQUEST` entity, fields, and lifecycle state semantics.

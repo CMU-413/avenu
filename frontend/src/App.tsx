@@ -8,6 +8,7 @@ import Login from "./pages/Login";
 import AdminHome from "./pages/admin/AdminHome";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminNotifications from "./pages/admin/AdminNotifications";
+import AdminMailRequests from "./pages/admin/AdminMailRequests";
 import SearchMailbox from "./pages/admin/SearchMailbox";
 import RecordEntry from "./pages/admin/RecordEntry";
 import MemberDashboard from "./pages/member/MemberDashboard";
@@ -88,6 +89,10 @@ const AppRoutes = () => {
       <Route
         path="/admin/notifications"
         element={isAdmin ? <AdminNotifications /> : <Navigate to={isMember ? "/member" : "/"} replace />}
+      />
+      <Route
+        path="/admin/mail-requests"
+        element={isAdmin ? <AdminMailRequests /> : <Navigate to={isMember ? "/member" : "/"} replace />}
       />
       <Route
         path="/admin/mailboxes"

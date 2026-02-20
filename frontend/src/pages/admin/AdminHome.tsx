@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { ClipboardList, Bell } from "lucide-react";
+import { ClipboardList, Bell, MailOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAppStore } from "@/lib/store";
 import { sessionLogout } from "@/lib/api";
@@ -37,6 +37,11 @@ const AdminHome = () => {
         <Button onClick={() => navigate("/admin/notifications")} className="w-full h-14 justify-start gap-3 text-base" variant="secondary">
           <Bell className="h-5 w-5" />
           Send Mail Arrived Notification
+        </Button>
+
+        <Button onClick={() => navigate("/admin/mail-requests")} className="w-full h-14 justify-start gap-3 text-base" variant="secondary">
+          <MailOpen className="h-5 w-5" />
+          View Expected Mail Requests
         </Button>
       </div>
     </div>

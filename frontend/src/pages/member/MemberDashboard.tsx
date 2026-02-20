@@ -1,8 +1,17 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAppStore } from "@/lib/store";
 import { Settings, LogOut, Mail, Package } from "lucide-react";
-import { ApiError, ApiMemberMailSummary, getMemberMail, sessionLogout } from "@/lib/api";
+import {
+  ApiError,
+  ApiMailRequest,
+  ApiMemberMailSummary,
+  cancelMailRequest,
+  createMailRequest,
+  getMemberMail,
+  listMemberMailRequests,
+  sessionLogout,
+} from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -50,8 +59,41 @@ const MemberDashboard = () => {
   const [weeksAgo, setWeeksAgo] = useState(0);
   const [mailSummary, setMailSummary] = useState<ApiMemberMailSummary | null>(null);
   const [loading, setLoading] = useState(true);
+  const [mailRequests, setMailRequests] = useState<ApiMailRequest[]>([]);
+  const [mailRequestsLoading, setMailRequestsLoading] = useState(true);
+  const [mailboxId, setMailboxId] = useState("");
+  const [expectedSender, setExpectedSender] = useState("");
+  const [description, setDescription] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [submittingRequest, setSubmittingRequest] = useState(false);
+  const [cancellingRequestId, setCancellingRequestId] = useState<string | null>(null);
 
   const week = useMemo(() => getWeekRange(weeksAgo), [weeksAgo]);
+  const mailboxMap = useMemo(() => {
+    const map = new Map<string, { name: string; type: "personal" | "company" }>();
+    for (const mailbox of mailSummary?.mailboxes || []) {
+      map.set(mailbox.mailboxId, { name: mailbox.name, type: mailbox.type });
+    }
+    return map;
+  }, [mailSummary]);
+
+  const loadMailRequests = useCallback(async () => {
+    setMailRequestsLoading(true);
+    try {
+      const requests = await listMemberMailRequests();
+      setMailRequests(requests);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to load expected mail";
+      toast({ title: message, variant: "destructive" });
+      if (err instanceof ApiError && err.status === 401) {
+        logout();
+        navigate("/");
+      }
+    } finally {
+      setMailRequestsLoading(false);
+    }
+  }, [logout, navigate, toast]);
 
   useEffect(() => {
     let alive = true;
@@ -78,6 +120,73 @@ const MemberDashboard = () => {
       alive = false;
     };
   }, [logout, navigate, toast, week.start, week.end]);
+
+  useEffect(() => {
+    void loadMailRequests();
+  }, [loadMailRequests]);
+
+  useEffect(() => {
+    if (mailboxId) return;
+    const firstMailbox = mailSummary?.mailboxes[0];
+    if (firstMailbox) {
+      setMailboxId(firstMailbox.mailboxId);
+    }
+  }, [mailSummary, mailboxId]);
+
+  const handleCreateRequest = async () => {
+    if (!mailboxId) {
+      toast({ title: "Select a mailbox", variant: "destructive" });
+      return;
+    }
+    if (!expectedSender.trim() && !description.trim()) {
+      toast({ title: "Enter a sender or description", variant: "destructive" });
+      return;
+    }
+
+    setSubmittingRequest(true);
+    try {
+      await createMailRequest({
+        mailboxId,
+        expectedSender: expectedSender.trim() || undefined,
+        description: description.trim() || undefined,
+        startDate: startDate || undefined,
+        endDate: endDate || undefined,
+      });
+      setExpectedSender("");
+      setDescription("");
+      setStartDate("");
+      setEndDate("");
+      toast({ title: "Expected mail request created" });
+      await loadMailRequests();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to create request";
+      toast({ title: message, variant: "destructive" });
+      if (err instanceof ApiError && err.status === 401) {
+        logout();
+        navigate("/");
+      }
+    } finally {
+      setSubmittingRequest(false);
+    }
+  };
+
+  const handleCancelRequest = async (requestId: string) => {
+    setCancellingRequestId(requestId);
+    try {
+      await cancelMailRequest(requestId);
+      toast({ title: "Expected mail request cancelled" });
+      await loadMailRequests();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to cancel request";
+      toast({ title: message, variant: "destructive" });
+      if (err instanceof ApiError && err.status === 401) {
+        logout();
+        navigate("/");
+      }
+    } finally {
+      setCancellingRequestId(null);
+    }
+  };
 
   const handleLogout = async () => {
     try {
@@ -177,6 +286,97 @@ const MemberDashboard = () => {
             );
           })
         )}
+
+        <div className="space-y-3 pt-2">
+          <h2 className="text-sm font-semibold text-primary uppercase tracking-wider px-1">Expected Mail</h2>
+          <div className="rounded-xl border bg-card p-3 space-y-2">
+            <select
+              aria-label="Expected Mailbox"
+              value={mailboxId}
+              onChange={(e) => setMailboxId(e.target.value)}
+              className="w-full h-10 rounded-lg border border-input bg-background px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            >
+              <option value="">Select mailbox</option>
+              {(mailSummary?.mailboxes || []).map((mb) => (
+                <option key={mb.mailboxId} value={mb.mailboxId}>
+                  {mb.name}
+                </option>
+              ))}
+            </select>
+            <input
+              aria-label="Expected Sender"
+              value={expectedSender}
+              onChange={(e) => setExpectedSender(e.target.value)}
+              placeholder="Expected sender (optional)"
+              className="w-full h-10 rounded-lg border border-input bg-background px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+            <textarea
+              aria-label="Expected Description"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Description (optional)"
+              className="w-full min-h-20 rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+            <div className="grid grid-cols-2 gap-2">
+              <input
+                aria-label="Expected Start Date"
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="w-full h-10 rounded-lg border border-input bg-background px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+              />
+              <input
+                aria-label="Expected End Date"
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="w-full h-10 rounded-lg border border-input bg-background px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+              />
+            </div>
+            <button
+              onClick={handleCreateRequest}
+              disabled={submittingRequest}
+              className="w-full h-10 rounded-lg bg-primary text-primary-foreground text-sm font-medium disabled:opacity-50"
+            >
+              {submittingRequest ? "Creating..." : "Create Request"}
+            </button>
+          </div>
+
+          {mailRequestsLoading ? (
+            <div className="py-4 text-center text-sm text-muted-foreground">Loading requests...</div>
+          ) : mailRequests.length === 0 ? (
+            <div className="py-4 text-center text-sm text-muted-foreground">No active requests</div>
+          ) : (
+            <div className="rounded-xl border bg-card divide-y divide-border">
+              {mailRequests.map((req) => {
+                const mailbox = mailboxMap.get(req.mailboxId);
+                const detail = req.expectedSender || req.description || "—";
+                const dateWindow = req.startDate || req.endDate ? `${req.startDate || "?"} to ${req.endDate || "?"}` : "No date window";
+                const createdLabel = new Date(req.createdAt).toLocaleString();
+
+                return (
+                  <div key={req.id} className="p-3 space-y-1.5">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-medium text-card-foreground">{mailbox?.name || "Mailbox"}</p>
+                        <p className="text-xs text-muted-foreground">{detail}</p>
+                        <p className="text-xs text-muted-foreground">{dateWindow}</p>
+                        <p className="text-xs text-muted-foreground">Created {createdLabel}</p>
+                      </div>
+                      <button
+                        onClick={() => handleCancelRequest(req.id)}
+                        disabled={cancellingRequestId === req.id}
+                        className="text-xs text-destructive hover:underline disabled:opacity-50"
+                      >
+                        {cancellingRequestId === req.id ? "Cancelling..." : "Cancel"}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
