@@ -22,10 +22,10 @@ None.
 - ☑ Extend unit tests for weekly summary and mail request flows to validate repository-driven orchestration.
 
 ## Phase 3
-- ☐ Refactor Optix identity sync into layered flow with repository-owned upsert/data access.
-- ☐ Remove remaining cross-layer shortcuts and delete superseded module wiring.
-- ☐ Update architecture documentation to state layered backend architecture, dependency direction, and sequence diagram.
-- ☐ Confirm docs explicitly preserve existing deployment topology and QA-M1 modifiability constraint.
+- ☑ Refactor Optix identity sync into layered flow with repository-owned upsert/data access.
+- ☑ Remove remaining cross-layer shortcuts and delete superseded module wiring.
+- ☑ Update architecture documentation to state layered backend architecture, dependency direction, and sequence diagram.
+- ☑ Confirm docs explicitly preserve existing deployment topology and QA-M1 modifiability constraint.
 
 ## Phase 1: Layer Skeleton + Core Route Slice Migration
 Affected files and changes

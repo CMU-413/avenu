@@ -1,5 +1,6 @@
 from flask import Flask
 
+from .identity_controller import identity_bp
 from .internal_jobs_controller import internal_jobs_bp
 from .mail_controller import mail_bp
 from .mail_requests_controller import mail_requests_bp
@@ -21,6 +22,7 @@ def register_blueprints(app: Flask) -> None:
     app.register_blueprint(mail_requests_bp)
     app.register_blueprint(notifications_bp)
     app.register_blueprint(internal_jobs_bp)
+    app.register_blueprint(identity_bp)
 
 
 register_phase1_blueprints = register_blueprints

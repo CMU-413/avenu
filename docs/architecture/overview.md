@@ -2,44 +2,29 @@
 
 ## 1. Architectural Style
 
-Avenu uses a modular backend with a four-container deployment topology:
+Avenu backend follows a layered architecture (not MVC) inside the backend container.
 
-- Frontend container (React SPA)
-- Backend container (Flask API)
-- Scheduler container (time-based job runner)
-- Database container (MongoDB)
+Layer order and dependency direction:
 
-This architecture keeps service responsibilities separate while preserving a single backend business-logic boundary.
+1. `app.py` (composition root)
+2. `controllers/` (HTTP boundary)
+3. `services/` (use-case orchestration)
+4. `repositories/` (persistence boundary)
+5. `models/` (domain entities/builders)
 
-## 2. Deployment Topology
+Allowed direction is one-way only: `app.py -> controllers -> services -> repositories -> models`.
+No cross-layer shortcuts are permitted.
 
-### 2.1 Frontend (`frontend`)
+## 2. Deployment Topology (Unchanged)
 
-- Serves static React SPA assets.
-- Used by members and admins.
-- Calls Backend HTTP API only.
-- Does not access MongoDB or external providers directly.
+Runtime topology remains unchanged:
 
-### 2.2 Backend (`backend`)
+- Frontend container (`frontend`)
+- Backend container (`backend`)
+- Scheduler container (`scheduler`)
+- Database container (`database`)
 
-- Hosts all API routes and business logic.
-- Owns persistence and data access to MongoDB.
-- Owns all external integrations (Optix, Email Provider, OCR Provider).
-- Exposes HTTP API on port `8000`.
-
-### 2.3 Scheduler (`scheduler`)
-
-- Runs independent schedule loop via `SCHEDULER_CRON` and `SCHEDULER_TIMEZONE`.
-- Triggers weekly-summary job through backend internal endpoint:
-  - `POST /api/internal/jobs/weekly-summary`
-- Uses shared secret header (`X-Scheduler-Token`) and idempotency key.
-- Does not access MongoDB directly.
-
-### 2.4 Database (`database`)
-
-- MongoDB with persistent volume.
-- Stores users, teams, mailboxes, mail entries, and notification preferences.
-- Accessible only to Backend in application architecture.
+Backend layering is internal to the backend container only and does not alter Docker topology.
 
 ## 3. Communication Boundaries
 
@@ -59,7 +44,44 @@ Disallowed paths:
 - Frontend -> External providers
 - Scheduler -> External providers
 
-## 4. Internal Docker DNS Model
+## 4. Internal Layer Interaction Sequence
+
+Canonical sequence diagram source:
+
+- `docs/architecture/diagrams/internal-layer-interaction-sequence.mmd`
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Frontend
+    participant Controller as Controller Layer
+    participant Service as Service Layer
+    participant Repository as Repository Layer
+    participant DB as MongoDB
+
+    Frontend->>Controller: HTTP request
+    Controller->>Service: validated input DTO
+    Service->>Repository: use-case persistence calls
+    Repository->>DB: Mongo queries/updates
+    DB-->>Repository: documents
+    Repository-->>Service: domain data
+    Service-->>Controller: use-case result
+    Controller-->>Frontend: HTTP JSON response
+
+    actor Scheduler
+    participant InternalController as Internal Jobs Controller
+    participant Notification as Notification Abstraction
+
+    Scheduler->>InternalController: POST /api/internal/jobs/weekly-summary
+    InternalController->>Service: trigger weekly summary use-case
+    Service->>Repository: read opted-in users + write logs
+    Service->>Notification: dispatch notifications
+    Notification-->>Service: channel results
+    Service-->>InternalController: job result
+    InternalController-->>Scheduler: HTTP JSON response
+```
+
+## 5. Internal Docker DNS Model
 
 Within the compose network, service DNS names are:
 
@@ -70,22 +92,9 @@ Within the compose network, service DNS names are:
 
 Scheduler reaches backend at `http://backend:8000`.
 
-## 5. Logical vs Deployment Architecture
+## 6. Quality Constraint Alignment
 
-Logical architecture:
-
-- Backend modules for identity, mailbox management, mail logging, aggregation, and notifications.
-
-Deployment architecture:
-
-- Those backend modules all run in the single Backend container.
-- Frontend and Scheduler run as separate containers that consume backend APIs.
-
-## 6. Scheduling Model
-
-- Weekly summary execution is initiated by Scheduler container.
-- Backend executes the job and handles notification dispatch.
-- API-level idempotency prevents duplicate execution on retries/restarts.
+QA-M1 remains satisfied: provider swaps (for example OCR) stay isolated to provider abstractions and service wiring, without requiring changes to repository persistence flows or domain entities.
 
 ## 7. Design Constraints
 
@@ -93,22 +102,3 @@ Deployment architecture:
 - No internal reverse-proxy routing inside application containers.
 - Inter-service app communication uses explicit HTTP boundaries.
 - Secrets/configuration come from environment variables, not image-embedded values.
-
-## 8. Frontend API Layering
-
-Frontend API access is organized as a layered route architecture:
-
-- `frontend/src/lib/http/client.ts`:
-  - Transport boundary only (`API_BASE_URL`, `buildUrl`, `apiFetch`).
-  - Owns fetch defaults and HTTP error parsing.
-- `frontend/src/lib/http/errors.ts`:
-  - Shared `ApiError` type for HTTP failures.
-- `frontend/src/lib/api/contracts/types.ts`:
-  - API transport contracts (`Api*` request/response types and unions).
-  - No executable request logic.
-- `frontend/src/lib/api/routes/*`:
-  - Route wrapper layer grouped by backend route prefixes (session, mail, users, teams, member, admin mail requests, notifications, optix).
-  - Thin wrappers that call `apiFetch` and return typed responses.
-- `frontend/src/lib/api/index.ts`:
-  - UI consumption boundary.
-  - Re-exports contracts and route wrappers as the public frontend API surface.

@@ -4,9 +4,11 @@ from datetime import datetime, timezone
 from typing import Any
 
 from bson import ObjectId
+from pymongo.errors import DuplicateKeyError
 
 from config import users_collection
 from errors import APIError
+from models import build_mailbox_doc, build_user_create, build_user_patch
 
 from .common import run_in_transaction
 from .mail_repository import delete_by_mailbox
@@ -133,3 +135,47 @@ def delete_user_cascade(user_id: ObjectId) -> None:
         delete_user(user_id, session=session)
 
     run_in_transaction(work)
+
+
+def upsert_user_from_external_identity(
+    *,
+    optix_id: int,
+    fullname: str,
+    email: str,
+    is_admin: bool,
+    team_ids: list[ObjectId],
+    notif_prefs: list[str],
+) -> tuple[dict[str, Any], bool]:
+    existing = find_user_by_optix_id(optix_id)
+    if existing is None:
+        user_doc = build_user_create(
+            {
+                "optixId": optix_id,
+                "fullname": fullname,
+                "email": email,
+                "isAdmin": is_admin,
+                "teamIds": team_ids,
+                "notifPrefs": notif_prefs,
+            }
+        )
+        mailbox_doc = build_mailbox_doc(owner_type="user", ref_id=ObjectId(), display_name=user_doc["fullname"])
+        try:
+            created = create_user_with_mailbox(user_doc=user_doc, mailbox_doc=mailbox_doc)
+            return created, True
+        except DuplicateKeyError as exc:
+            raise APIError(409, "user with same optixId or email already exists") from exc
+
+    patch = build_user_patch(
+        {
+            "fullname": fullname,
+            "email": email,
+            "isAdmin": is_admin,
+            "teamIds": team_ids,
+            "notifPrefs": notif_prefs,
+        }
+    )
+    try:
+        updated = update_user_with_mailbox_sync(user_id=existing["_id"], patch=patch)
+        return updated, False
+    except DuplicateKeyError as exc:
+        raise APIError(409, "user with same optixId or email already exists") from exc

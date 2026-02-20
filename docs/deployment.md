@@ -1,5 +1,17 @@
 # Deployment Guide
 
+## Topology Confirmation
+
+Deployment topology is unchanged by backend layering refactors.
+Production still runs the same four-container stack:
+
+- `frontend`
+- `backend`
+- `scheduler`
+- `database`
+
+The layered architecture (`app.py -> controllers -> services -> repositories -> models`) is an internal backend code-organization change only.
+
 ## After Finishing a Commit
 
 This project deploys via:
@@ -47,13 +59,6 @@ Important:
 
 * Do not put `VITE_*` variables in Dockge `.env`
 * They will not affect already-built bundles
-
-Frontend code boundary for API calls:
-
-* Transport: `frontend/src/lib/http/*`
-* API contracts: `frontend/src/lib/api/contracts/types.ts`
-* Route wrappers: `frontend/src/lib/api/routes/*`
-* UI imports from: `frontend/src/lib/api`
 
 If you change anything in `.env.production`, you must rebuild the frontend image.
 

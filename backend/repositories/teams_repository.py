@@ -4,9 +4,11 @@ from datetime import datetime, timezone
 from typing import Any
 
 from bson import ObjectId
+from pymongo.errors import DuplicateKeyError
 
 from config import teams_collection, users_collection
 from errors import APIError
+from models import build_mailbox_doc, build_team_create
 
 from .common import run_in_transaction
 from .mail_repository import delete_by_mailbox
@@ -96,3 +98,19 @@ def delete_team_cascade(*, team_id: ObjectId, prune_users: bool) -> None:
         delete_team(team_id, session=session)
 
     run_in_transaction(work)
+
+
+def ensure_team_from_external_identity(*, optix_id: int, name: str) -> dict[str, Any]:
+    existing = find_team_by_optix_id(optix_id)
+    if existing is not None:
+        return existing
+
+    team_doc = build_team_create({"optixId": optix_id, "name": name})
+    mailbox_doc = build_mailbox_doc(owner_type="team", ref_id=ObjectId(), display_name=team_doc["name"])
+    try:
+        return create_team_with_mailbox(team_doc=team_doc, mailbox_doc=mailbox_doc)
+    except DuplicateKeyError:
+        reloaded = find_team_by_optix_id(optix_id)
+        if reloaded is not None:
+            return reloaded
+        raise APIError(500, "failed to ensure team for external identity")
