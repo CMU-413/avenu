@@ -72,6 +72,7 @@ Collection: `mail_requests`
 Lifecycle states:
 - `ACTIVE`
 - `CANCELLED`
+- `RESOLVED`
 
 Fields:
 - `_id: ObjectId`
@@ -81,7 +82,11 @@ Fields:
 - `description: string | null`
 - `startDate: string | null` (`YYYY-MM-DD`)
 - `endDate: string | null` (`YYYY-MM-DD`)
-- `status: "ACTIVE" | "CANCELLED"`
+- `status: "ACTIVE" | "CANCELLED" | "RESOLVED"`
+- `resolvedAt: datetime | null`
+- `resolvedBy: ObjectId | null` (references admin `users._id`)
+- `lastNotificationStatus: "SENT" | "FAILED" | null`
+- `lastNotificationAt: datetime | null`
 - `createdAt: datetime`
 - `updatedAt: datetime`
 
@@ -90,6 +95,10 @@ Rules:
 - At least one of `expectedSender` or `description` must be present.
 - If both `startDate` and `endDate` are present, `endDate >= startDate`.
 - Cancel is a soft delete implemented by status transition: `ACTIVE -> CANCELLED`.
+- Resolve is an operational transition implemented as `ACTIVE -> RESOLVED`.
+- `CANCELLED` and `RESOLVED` are terminal lifecycle states.
+- `resolvedAt` and `resolvedBy` must be set when `status == "RESOLVED"`.
+- `lastNotificationStatus`/`lastNotificationAt` capture send outcome metadata for resolve/retry attempts and do not affect lifecycle transitions.
 - No linkage to `mail` records; this is declaration-only.
 
 Indexes:

@@ -17,9 +17,9 @@
 - ☑ Update frontend unit tests for resolve/retry flows and member resolved filtering behavior.
 
 ## Phase 3
-- ☐ Update architecture data model docs for `RESOLVED`, resolve metadata, notification metadata, and lifecycle transitions.
-- ☐ Update member/admin API docs for resolve + retry endpoints, status query behavior, and `404`/`422` semantics.
-- ☐ Update notification architecture/docs to state mail-arrived notifications are triggered exclusively by resolve/retry workflows.
+- ☑ Update architecture data model docs for `RESOLVED`, resolve metadata, notification metadata, and lifecycle transitions.
+- ☑ Update member/admin API docs for resolve + retry endpoints, status query behavior, and `404`/`422` semantics.
+- ☑ Update notification architecture/docs to state mail-arrived notifications are triggered exclusively by resolve/retry workflows.
 
 ## Phase 1: Backend Lifecycle + Resolve/Retry Notification API
 Affected files and changes

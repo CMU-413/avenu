@@ -183,6 +183,10 @@ Rules:
   "startDate": "2026-02-20",
   "endDate": "2026-02-25",
   "status": "ACTIVE",
+  "resolvedAt": null,
+  "resolvedBy": null,
+  "lastNotificationStatus": null,
+  "lastNotificationAt": null,
   "createdAt": "2026-02-20T10:00:00+00:00",
   "updatedAt": "2026-02-20T10:00:00+00:00"
 }
@@ -196,16 +200,27 @@ Rules:
 
 ---
 
-## 5. GET `/api/mail-requests`
+## 5. GET `/api/mail-requests?status=ACTIVE|RESOLVED|ALL`
 
 ### Purpose
 
-List active expected-mail declarations for the authenticated member.
+List expected-mail declarations for the authenticated member by lifecycle status.
 
 ### Auth
 
 * Requires valid member session
-* Returns only records where `memberId == session user _id` and `status == ACTIVE`
+* Returns only records where `memberId == session user _id`
+
+### Query Parameters
+
+* `status` (optional): `ACTIVE`, `RESOLVED`, `ALL`
+* Default: `ACTIVE`
+
+Behavior:
+* `ACTIVE` -> `status == ACTIVE`
+* `RESOLVED` -> `status == RESOLVED`
+* `ALL` -> `status in [ACTIVE, RESOLVED]`
+* Invalid value -> `422`
 
 ### Response Shape (`200`)
 
@@ -220,6 +235,10 @@ List active expected-mail declarations for the authenticated member.
     "startDate": null,
     "endDate": null,
     "status": "ACTIVE",
+    "resolvedAt": null,
+    "resolvedBy": null,
+    "lastNotificationStatus": null,
+    "lastNotificationAt": null,
     "createdAt": "2026-02-20T10:00:00+00:00",
     "updatedAt": "2026-02-20T10:00:00+00:00"
   }
@@ -253,5 +272,5 @@ Cancel an active expected-mail declaration owned by the authenticated member.
 
 ### Error Responses
 
-* `404` when request does not exist, is not owned by member, or is already `CANCELLED`
+* `404` when request does not exist, is not owned by member, or is not `ACTIVE` (already `CANCELLED` or `RESOLVED`)
 * `400` invalid route id format

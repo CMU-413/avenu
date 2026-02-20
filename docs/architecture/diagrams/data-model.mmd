@@ -40,7 +40,11 @@ erDiagram
         string description
         string startDate
         string endDate
-        enum status "ACTIVE | CANCELLED"
+        enum status "ACTIVE | CANCELLED | RESOLVED"
+        datetime resolvedAt
+        ObjectId resolvedBy FK
+        enum lastNotificationStatus "SENT | FAILED"
+        datetime lastNotificationAt
     }
 
     %% Relationships
