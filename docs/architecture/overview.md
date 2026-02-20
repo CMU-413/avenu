@@ -93,3 +93,22 @@ Deployment architecture:
 - No internal reverse-proxy routing inside application containers.
 - Inter-service app communication uses explicit HTTP boundaries.
 - Secrets/configuration come from environment variables, not image-embedded values.
+
+## 8. Frontend API Layering
+
+Frontend API access is organized as a layered route architecture:
+
+- `frontend/src/lib/http/client.ts`:
+  - Transport boundary only (`API_BASE_URL`, `buildUrl`, `apiFetch`).
+  - Owns fetch defaults and HTTP error parsing.
+- `frontend/src/lib/http/errors.ts`:
+  - Shared `ApiError` type for HTTP failures.
+- `frontend/src/lib/api/contracts/types.ts`:
+  - API transport contracts (`Api*` request/response types and unions).
+  - No executable request logic.
+- `frontend/src/lib/api/routes/*`:
+  - Route wrapper layer grouped by backend route prefixes (session, mail, users, teams, member, admin mail requests, notifications, optix).
+  - Thin wrappers that call `apiFetch` and return typed responses.
+- `frontend/src/lib/api/index.ts`:
+  - UI consumption boundary.
+  - Re-exports contracts and route wrappers as the public frontend API surface.
