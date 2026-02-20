@@ -33,10 +33,21 @@ class WeeklySummaryNotificationPayload(TypedDict):
     summary: WeeklySummaryData
 
 
+class SpecialCaseMailRequestContext(TypedDict, total=False):
+    requestId: str
+    mailboxId: str
+    expectedSender: str | None
+    description: str | None
+    startDate: str | None
+    endDate: str | None
+    resolvedAt: str | None
+
+
 class SpecialCaseNotificationPayload(TypedDict):
     user: WeeklySummaryUser
     triggeredBy: NotifyTrigger
     templateType: Literal["mail-arrived"]
+    mailRequest: SpecialCaseMailRequestContext | None
 
 
 class ChannelResult(TypedDict, total=False):

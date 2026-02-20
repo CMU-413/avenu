@@ -59,7 +59,7 @@ class WeeklySummarySchedulerEndpointTests(unittest.TestCase):
         self.client = app.test_client()
 
     def test_scheduler_endpoint_requires_scheduler_token(self):
-        with patch("app.SCHEDULER_INTERNAL_TOKEN", "scheduler-secret"):
+        with patch("controllers.internal_jobs_controller.SCHEDULER_INTERNAL_TOKEN", "scheduler-secret"):
             response = self.client.post(
                 "/api/internal/jobs/weekly-summary",
                 headers={"Idempotency-Key": "weekly-summary:2026-02-09"},
@@ -71,16 +71,16 @@ class WeeklySummarySchedulerEndpointTests(unittest.TestCase):
         idempotency_collection = FakeIdempotencyCollection()
         notifier = object()
 
-        with patch("app.SCHEDULER_INTERNAL_TOKEN", "scheduler-secret"), patch(
-            "app.idempotency_keys_collection", idempotency_collection
+        with patch("controllers.internal_jobs_controller.SCHEDULER_INTERNAL_TOKEN", "scheduler-secret"), patch(
+            "repositories.idempotency_repository.idempotency_keys_collection", idempotency_collection
         ), patch(
-            "app.build_email_provider",
+            "controllers.internal_jobs_controller.build_email_provider",
             return_value=object(),
         ), patch(
-            "app.WeeklySummaryNotifier",
+            "controllers.internal_jobs_controller.WeeklySummaryNotifier",
             return_value=notifier,
         ), patch(
-            "app.run_weekly_summary_cron_job",
+            "controllers.internal_jobs_controller.run_weekly_summary_cron_job",
             return_value={
                 "weekStart": date(2026, 2, 9),
                 "weekEnd": date(2026, 2, 15),
@@ -123,16 +123,16 @@ class WeeklySummarySchedulerEndpointTests(unittest.TestCase):
         idempotency_collection = FakeIdempotencyCollection()
         notifier = object()
 
-        with patch("app.SCHEDULER_INTERNAL_TOKEN", "scheduler-secret"), patch(
-            "app.idempotency_keys_collection", idempotency_collection
+        with patch("controllers.internal_jobs_controller.SCHEDULER_INTERNAL_TOKEN", "scheduler-secret"), patch(
+            "repositories.idempotency_repository.idempotency_keys_collection", idempotency_collection
         ), patch(
-            "app.build_email_provider",
+            "controllers.internal_jobs_controller.build_email_provider",
             return_value=object(),
         ), patch(
-            "app.WeeklySummaryNotifier",
+            "controllers.internal_jobs_controller.WeeklySummaryNotifier",
             return_value=notifier,
         ), patch(
-            "app.run_weekly_summary_cron_job",
+            "controllers.internal_jobs_controller.run_weekly_summary_cron_job",
             return_value={
                 "weekStart": date(2026, 2, 9),
                 "weekEnd": date(2026, 2, 15),

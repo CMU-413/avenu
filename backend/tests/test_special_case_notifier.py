@@ -80,10 +80,22 @@ class SpecialCaseNotifierTests(unittest.TestCase):
             notificationLogs=logs,
         )
 
-        result = notifier.notifySpecialCase(userId=user_id, triggeredBy="admin")
+        result = notifier.notifySpecialCase(
+            userId=user_id,
+            triggeredBy="admin",
+            mailRequest={
+                "requestId": str(ObjectId()),
+                "mailboxId": str(ObjectId()),
+                "expectedSender": "Sender Inc",
+                "description": "Inbound package",
+                "startDate": "2026-02-19",
+                "endDate": "2026-02-21",
+            },
+        )
 
         self.assertEqual(result["status"], "sent")
         self.assertEqual(channel.last_payload["templateType"], "mail-arrived")
+        self.assertEqual(channel.last_payload["mailRequest"]["expectedSender"], "Sender Inc")
         self.assertEqual(len(logs.docs), 1)
         self.assertEqual(logs.docs[0]["status"], "sent")
         self.assertIsNone(logs.docs[0]["mailboxId"])

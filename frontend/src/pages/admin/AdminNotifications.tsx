@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useConfirmDialog } from "@/hooks/use-confirm-dialog";
 import { useAppStore } from "@/lib/store";
-import { ApiError, listUsers, sendMailArrivedNotification, sendWeeklySummaryNotification } from "@/lib/api";
+import { ApiError, listUsers, sendWeeklySummaryNotification } from "@/lib/api";
 
 function computePreviousWeekRange(reference: Date): { weekStart: string; weekEnd: string } {
   const date = new Date(reference);
@@ -35,7 +35,6 @@ const AdminNotifications = () => {
   const [users, setUsers] = useState<{ id: string; fullname: string }[]>([]);
   const [selectedUserId, setSelectedUserId] = useState("");
   const [sendingWeekly, setSendingWeekly] = useState(false);
-  const [sendingSpecial, setSendingSpecial] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -106,43 +105,6 @@ const AdminNotifications = () => {
     }
   };
 
-  const handleSendSpecial = async () => {
-    if (!selectedUserId) {
-      toast({ title: "Select a recipient", variant: "destructive" });
-      return;
-    }
-    const confirmed = await confirm({
-      title: "Send Mail Arrived Notification",
-      message: "Send Mail Arrived Notification?",
-      confirmLabel: "Send",
-      cancelLabel: "Cancel",
-    });
-    if (!confirmed) {
-      return;
-    }
-
-    setSendingSpecial(true);
-    try {
-      const result = await sendMailArrivedNotification({
-        userId: selectedUserId,
-      });
-      if (result.status === "sent") {
-        toast({ title: "Notification sent" });
-      } else {
-        toast({ title: `Notification ${result.status}`, description: result.reason || undefined });
-      }
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to send notification";
-      toast({ title: message, variant: "destructive" });
-      if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
-        logout();
-        navigate("/");
-      }
-    } finally {
-      setSendingSpecial(false);
-    }
-  };
-
   return (
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-10 border-b bg-background/95 backdrop-blur">
@@ -171,12 +133,8 @@ const AdminNotifications = () => {
           ))}
         </select>
 
-        <Button onClick={handleSendWeekly} disabled={sendingWeekly || sendingSpecial} className="w-full h-11 text-sm">
+        <Button onClick={handleSendWeekly} disabled={sendingWeekly} className="w-full h-11 text-sm">
           {sendingWeekly ? "Sending..." : "Send Weekly Mail Notification"}
-        </Button>
-
-        <Button onClick={handleSendSpecial} disabled={sendingWeekly || sendingSpecial} className="w-full h-11 text-sm">
-          {sendingSpecial ? "Sending..." : "Send Mail Arrived Notification"}
         </Button>
       </div>
     </div>

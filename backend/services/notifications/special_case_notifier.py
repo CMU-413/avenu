@@ -4,7 +4,8 @@ from datetime import datetime, timezone
 
 from bson import ObjectId
 
-from config import notification_log_collection, users_collection
+from repositories.notification_logs_repository import insert_special_case_log
+from repositories.users_repository import find_basic_profile
 from services.notifications.interfaces import NotificationChannel
 from services.notifications.log_repository import insert_special_case_notification_log
 from services.notifications.types import (
@@ -13,6 +14,7 @@ from services.notifications.types import (
     NotifyReason,
     NotifyResult,
     NotifyTrigger,
+    SpecialCaseMailRequestContext,
     SpecialCaseNotificationPayload,
 )
 
@@ -22,8 +24,8 @@ class SpecialCaseNotifier:
         self,
         *,
         channels: list[NotificationChannel],
-        users=users_collection,
-        notificationLogs=notification_log_collection,
+        users=None,
+        notificationLogs=None,
     ) -> None:
         self._channels = list(channels)
         self._users = users
@@ -38,6 +40,17 @@ class SpecialCaseNotifier:
         triggered_by: NotifyTrigger,
         error_message: str | None = None,
     ) -> None:
+        sent_at = datetime.now(tz=timezone.utc) if status == "sent" else None
+        if self._notification_logs is None:
+            insert_special_case_log(
+                user_id=user_id,
+                status=status,
+                reason=reason,
+                triggered_by=triggered_by,
+                error_message=error_message,
+                sent_at=sent_at,
+            )
+            return
         insert_special_case_notification_log(
             self._notification_logs,
             user_id=user_id,
@@ -45,7 +58,7 @@ class SpecialCaseNotifier:
             reason=reason,
             triggered_by=triggered_by,
             error_message=error_message,
-            sent_at=datetime.now(tz=timezone.utc) if status == "sent" else None,
+            sent_at=sent_at,
         )
 
     def notifySpecialCase(
@@ -53,8 +66,12 @@ class SpecialCaseNotifier:
         *,
         userId: ObjectId,
         triggeredBy: NotifyTrigger,
+        mailRequest: SpecialCaseMailRequestContext | None = None,
     ) -> NotifyResult:
-        user = self._users.find_one({"_id": userId}, {"email": 1, "fullname": 1})
+        if self._users is None:
+            user = find_basic_profile(userId)
+        else:
+            user = self._users.find_one({"_id": userId}, {"email": 1, "fullname": 1})
         if user is None:
             self._log_attempt(
                 user_id=userId,
@@ -72,6 +89,7 @@ class SpecialCaseNotifier:
             },
             "triggeredBy": triggeredBy,
             "templateType": "mail-arrived",
+            "mailRequest": mailRequest,
         }
 
         results: list[ChannelResult] = []

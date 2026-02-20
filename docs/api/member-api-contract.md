@@ -139,3 +139,138 @@ This endpoint updates notification preferences for the authenticated user only.
 
 * This endpoint abstracts internal preference storage.
 * Frontend should treat this as the canonical source after update.
+
+---
+
+## 4. POST `/api/mail-requests`
+
+### Purpose
+
+Create an expected-mail declaration for the authenticated member.
+
+### Auth
+
+* Requires valid member session
+* `memberId` is derived server-side from session user (`users._id`)
+
+### Request Body
+
+```json
+{
+  "mailboxId": "<ObjectId>",
+  "expectedSender": "Sender Name",
+  "description": "Expected package",
+  "startDate": "2026-02-20",
+  "endDate": "2026-02-25"
+}
+```
+
+Rules:
+* `mailboxId` must be a valid ObjectId string.
+* At least one of `expectedSender` or `description` is required.
+* If both `startDate` and `endDate` are present, `endDate >= startDate`.
+* Member must be authorized for `mailboxId`.
+
+### Success Response (`201`)
+
+```json
+{
+  "id": "<mailRequestId>",
+  "memberId": "<userObjectId>",
+  "mailboxId": "<mailboxObjectId>",
+  "expectedSender": "Sender Name",
+  "description": "Expected package",
+  "startDate": "2026-02-20",
+  "endDate": "2026-02-25",
+  "status": "ACTIVE",
+  "resolvedAt": null,
+  "resolvedBy": null,
+  "lastNotificationStatus": null,
+  "lastNotificationAt": null,
+  "createdAt": "2026-02-20T10:00:00+00:00",
+  "updatedAt": "2026-02-20T10:00:00+00:00"
+}
+```
+
+### Error Responses
+
+* `400` missing sender+description, or invalid date window
+* `403` mailbox access forbidden
+* `422` invalid ObjectId/date formats
+
+---
+
+## 5. GET `/api/mail-requests?status=ACTIVE|RESOLVED|ALL`
+
+### Purpose
+
+List expected-mail declarations for the authenticated member by lifecycle status.
+
+### Auth
+
+* Requires valid member session
+* Returns only records where `memberId == session user _id`
+
+### Query Parameters
+
+* `status` (optional): `ACTIVE`, `RESOLVED`, `ALL`
+* Default: `ACTIVE`
+
+Behavior:
+* `ACTIVE` -> `status == ACTIVE`
+* `RESOLVED` -> `status == RESOLVED`
+* `ALL` -> `status in [ACTIVE, RESOLVED]`
+* Invalid value -> `422`
+
+### Response Shape (`200`)
+
+```json
+[
+  {
+    "id": "<mailRequestId>",
+    "memberId": "<userObjectId>",
+    "mailboxId": "<mailboxObjectId>",
+    "expectedSender": "Sender Name",
+    "description": null,
+    "startDate": null,
+    "endDate": null,
+    "status": "ACTIVE",
+    "resolvedAt": null,
+    "resolvedBy": null,
+    "lastNotificationStatus": null,
+    "lastNotificationAt": null,
+    "createdAt": "2026-02-20T10:00:00+00:00",
+    "updatedAt": "2026-02-20T10:00:00+00:00"
+  }
+]
+```
+
+Sort order:
+* `createdAt DESC`
+
+---
+
+## 6. DELETE `/api/mail-requests/{id}`
+
+### Purpose
+
+Cancel an active expected-mail declaration owned by the authenticated member.
+
+### Auth
+
+* Requires valid member session
+* Cancellation is scoped by `{ _id, memberId, status: "ACTIVE" }`
+
+### Behavior
+
+* Soft delete only (`status` transitions to `CANCELLED`)
+* Implemented with single atomic update and active-status guard
+
+### Success Response
+
+* `204 No Content`
+
+### Error Responses
+
+* `404` when request does not exist, is not owned by member, or is not `ACTIVE` (already `CANCELLED` or `RESOLVED`)
+* `400` invalid route id format

@@ -10,6 +10,7 @@ from validators import (
     normalize_email,
     optional_bool,
     optional_phone,
+    optional_string,
     parse_distinct_object_ids,
     parse_enum_set,
     parse_iso_datetime,
@@ -20,10 +21,25 @@ from validators import (
 NOTIF_PREFS = {"email", "text"}
 MAILBOX_TYPES = {"user", "team"}
 MAIL_TYPES = {"letter", "package"}
+MAIL_REQUEST_STATUSES = {"ACTIVE", "CANCELLED", "RESOLVED"}
+MAIL_REQUEST_NOTIFICATION_STATUSES = {"SENT", "FAILED"}
 
 
 def _utcnow() -> datetime:
     return datetime.now(tz=timezone.utc)
+
+
+def _parse_optional_iso_day(payload: dict[str, Any], key: str) -> str | None:
+    raw = payload.get(key)
+    if raw is None:
+        return None
+    if not isinstance(raw, str):
+        raise APIError(422, f"{key} must be YYYY-MM-DD")
+    try:
+        parsed = datetime.strptime(raw, "%Y-%m-%d").date()
+    except ValueError as exc:
+        raise APIError(422, f"{key} must be YYYY-MM-DD") from exc
+    return parsed.isoformat()
 
 
 def build_user_create(payload: dict[str, Any]) -> dict[str, Any]:
@@ -157,6 +173,39 @@ def build_mailbox_doc(*, owner_type: str, ref_id: ObjectId, display_name: str) -
         "type": owner_type,
         "refId": ref_id,
         "displayName": display_name,
+        "createdAt": now,
+        "updatedAt": now,
+    }
+
+
+def build_mail_request_create(payload: dict[str, Any], *, member_id: ObjectId) -> dict[str, Any]:
+    now = _utcnow()
+    mailbox_id = payload.get("mailboxId")
+    if not isinstance(mailbox_id, str) or not ObjectId.is_valid(mailbox_id):
+        raise APIError(422, "mailboxId must be a valid ObjectId string")
+
+    expected_sender = optional_string(payload, "expectedSender")
+    description = optional_string(payload, "description", max_len=1000)
+    if expected_sender is None and description is None:
+        raise APIError(400, "expectedSender or description is required")
+
+    start_date = _parse_optional_iso_day(payload, "startDate")
+    end_date = _parse_optional_iso_day(payload, "endDate")
+    if start_date is not None and end_date is not None and end_date < start_date:
+        raise APIError(400, "endDate must be on or after startDate")
+
+    return {
+        "mailboxId": ObjectId(mailbox_id),
+        "memberId": member_id,
+        "expectedSender": expected_sender,
+        "description": description,
+        "startDate": start_date,
+        "endDate": end_date,
+        "status": "ACTIVE",
+        "resolvedAt": None,
+        "resolvedBy": None,
+        "lastNotificationStatus": None,
+        "lastNotificationAt": None,
         "createdAt": now,
         "updatedAt": now,
     }

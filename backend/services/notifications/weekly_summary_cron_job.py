@@ -5,7 +5,7 @@ from datetime import date, datetime, timedelta, timezone
 from time import perf_counter
 from typing import Any
 
-from config import users_collection
+from repositories.users_repository import list_opted_in_user_ids
 from services.notifications.interfaces import Notifier
 from services.notifications.types import WeeklyCronJobResult
 
@@ -27,7 +27,7 @@ def compute_previous_week_range(now: datetime) -> tuple[date, date]:
 def run_weekly_summary_cron_job(
     *,
     notifier: Notifier,
-    users=users_collection,
+    users=None,
     now: datetime | None = None,
     week_start: date | None = None,
     week_end: date | None = None,
@@ -45,8 +45,11 @@ def run_weekly_summary_cron_job(
     log = logger or logging.getLogger(__name__)
     started_at = perf_counter()
 
-    opted_in_users: list[dict[str, Any]] = list(users.find({"notifPrefs": {"$in": ["email"]}}, {"_id": 1}))
-    candidate_count = len(opted_in_users)
+    if users is None:
+        opted_in_user_ids = list_opted_in_user_ids(preference="email")
+    else:
+        opted_in_user_ids = [doc["_id"] for doc in users.find({"notifPrefs": {"$in": ["email"]}}, {"_id": 1})]
+    candidate_count = len(opted_in_user_ids)
 
     counters: WeeklyCronJobResult = {
         "weekStart": resolved_week_start,
@@ -65,9 +68,8 @@ def run_weekly_summary_cron_job(
         candidate_count,
     )
 
-    for user in opted_in_users:
+    for user_id in opted_in_user_ids:
         counters["processed"] += 1
-        user_id = user.get("_id")
         try:
             result = notifier.notifyWeeklySummary(
                 userId=user_id,

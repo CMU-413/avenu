@@ -3,7 +3,25 @@
   <body style="font-family: Arial, sans-serif; line-height: 1.4; color: #1f2937;">
     <h1 style="font-size: 20px; margin-bottom: 12px;">Mail has arrived</h1>
     <p style="margin: 0 0 8px;">Hi {{ user.fullname or "there" }},</p>
-    <p style="margin: 0 0 16px;">New mail has been recorded for your account.</p>
+    <p style="margin: 0 0 12px;">We recorded incoming mail related to your expected mail request.</p>
+
+    {% if mail_request %}
+      <div style="margin: 0 0 16px; padding: 12px; border: 1px solid #e5e7eb; border-radius: 8px; background: #f9fafb;">
+        {% if mail_request.expectedSender %}
+          <p style="margin: 0 0 6px;"><strong>Expected sender:</strong> {{ mail_request.expectedSender }}</p>
+        {% endif %}
+        {% if mail_request.description %}
+          <p style="margin: 0 0 6px;"><strong>Description:</strong> {{ mail_request.description }}</p>
+        {% endif %}
+        {% if mail_request.startDate or mail_request.endDate %}
+          <p style="margin: 0 0 6px;"><strong>Date window:</strong> {{ mail_request.startDate or "?" }} to {{ mail_request.endDate or "?" }}</p>
+        {% endif %}
+        {% if mail_request.resolvedAt %}
+          <p style="margin: 0;"><strong>Marked received:</strong> {{ mail_request.resolvedAt }}</p>
+        {% endif %}
+      </div>
+    {% endif %}
+
     <p style="margin: 0;">Please check in with staff for pickup details.</p>
   </body>
 </html>

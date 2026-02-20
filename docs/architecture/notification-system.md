@@ -2,42 +2,39 @@
 
 ## Overview
 
-The notification system supports weekly summary and special-case notifications with clear separation between:
+The notification system supports two admin/scheduled intents with shared notifier abstractions:
 
-- Intent (`WeeklySummaryNotifier`, `SpecialCaseNotifier`)
-- Channel (`EmailChannel`)
-- Provider (`EmailProvider` implementations)
+- Weekly summaries via `WeeklySummaryNotifier`
+- Mail-arrived notifications via `SpecialCaseNotifier`
+
+Separation of concerns:
+
+- Intent: notifier classes determine *what* to send
+- Channel: `EmailChannel` handles rendering + channel-level send semantics
+- Provider: email providers handle transport-only concerns
 
 ## Deployment Context
 
-- Scheduler runs in its own container and triggers notifications by calling Backend HTTP.
-- Backend executes notification business logic and all provider integrations.
-- Scheduler does not access the database.
+- Scheduler runs in its own container and calls backend HTTP endpoints.
+- Backend executes all notification business logic and provider integration.
+- Scheduler does not access database collections directly.
 
 ## Trigger Paths
 
 ### Scheduler-triggered weekly summary
 
-1. Scheduler container calls:
-   - `POST /api/internal/jobs/weekly-summary`
-2. Backend validates internal scheduler token and idempotency key.
-3. Backend runs weekly job orchestration and delegates to `WeeklySummaryNotifier`.
+1. Scheduler calls `POST /api/internal/jobs/weekly-summary`.
+2. Backend validates scheduler token and idempotency key.
+3. Backend runs weekly summary orchestration and dispatches through `WeeklySummaryNotifier`.
 
-### Admin-triggered notifications
+### Admin-triggered mail-arrived notifications
 
-- Admin routes in backend trigger the same notifier abstractions for admin workflows.
+Mail-arrived notifications are triggered exclusively by expected-mail request workflow endpoints:
 
-## Core Design Principles
+- `POST /api/admin/mail-requests/{id}/resolve`
+- `POST /api/admin/mail-requests/{id}/retry-notification`
 
-1. Intent over transport:
-   - Business code expresses notification intent, not provider-specific sends.
-2. Channel/provider isolation:
-   - Channel handles template/render and provider invocation.
-   - Provider handles API transport only.
-3. Shared notifier path:
-   - Scheduler and admin flows reuse notifier semantics.
-4. Idempotency:
-   - Weekly summary delivery is guarded against duplicate sends.
+No standalone admin special notification endpoint is used for mail-arrived sends.
 
 ## Weekly Summary Flow
 
@@ -45,80 +42,25 @@ The notification system supports weekly summary and special-case notifications w
 2. Select opted-in users.
 3. Build summary via `MailSummaryService`.
 4. Dispatch across configured channels.
-5. Record outcome in notification logs.
+5. Record attempt outcome in `NOTIFICATION_LOG`.
+
+## Mail-Arrived Flow (Resolve/Retry)
+
+1. Resolve flow transitions request lifecycle to `RESOLVED` when request is currently `ACTIVE`.
+2. Backend invokes `SpecialCaseNotifier.notifySpecialCase(userId, triggeredBy="admin")`.
+3. Notification outcome is persisted on `MAIL_REQUEST`:
+   - `lastNotificationStatus = "SENT" | "FAILED"`
+   - `lastNotificationAt = datetime`
+4. Retry flow re-invokes notifier without lifecycle mutation.
 
 Failure policy:
 
-- Per-user/provider failure is logged and does not stop processing remaining users.
-
-## Internal Endpoint Scope
-
-- `POST /api/internal/jobs/weekly-summary` is an internal deployment endpoint used by Scheduler container.
-- It is intentionally excluded from public member/admin API contract documentation.
+- Notification failures do not roll back mail-request resolution.
+- Notifier failures are explicitly logged in `NOTIFICATION_LOG` (`type="special-case"`, `templateType="mail-arrived"`).
 
 ## Public API Scope
 
-Public API docs cover user/admin-facing endpoints only. Internal scheduler endpoint behavior is documented in architecture/deployment docs, not public API contracts.
+Public API docs cover member/admin endpoints only.
 
-  * userId
-* Calls `SpecialCaseNotifier.notifySpecialCase(...)`.
-* Uses a single fixed template type in this phase: `mail-arrived`.
-* Uses user-level dispatch (not mailbox-level) and does not dispatch channels when user validation fails.
-* Logs every attempt in `NOTIFICATION_LOG` with:
-  * `type="special-case"`
-  * `templateType="mail-arrived"`
-  * `triggeredBy="admin"`
-
----
-
-# Decisions Made
-
-| Decision                      | Rationale                             |
-| ----------------------------- | ------------------------------------- |
-| Channel-agnostic architecture | Enables SMS later without refactor    |
-| Provider adapter pattern      | Allows vendor swapping                |
-| Single notifier entrypoint    | Prevents logic duplication            |
-| Skip zero-mail weeks          | Reduces unnecessary emails            |
-| Deterministic week boundaries | Avoids ambiguity                      |
-| Explicit notification log     | Enables idempotency and observability |
-
----
-
-# Out of Scope (Current Phase)
-
-* SMS implementation
-* Urgent item notifications
-* OCR-triggered notifications
-* Multi-channel user preference matrix
-
----
-
-# Future Expansion Path
-
-To add SMS:
-
-1. Implement `SmsChannel implements NotificationChannel`
-2. Inject into WeeklySummaryNotifier
-3. Add user channel preference logic
-
-No changes required to:
-
-* Cron
-* Admin endpoint
-* Aggregation service
-
----
-
-# Summary
-
-The notification system is:
-
-* Intent-driven
-* Channel-agnostic
-* Provider-isolated
-* Cron-compatible
-* Admin-trigger-compatible
-* Idempotent
-* Extensible
-
-This foundation supports weekly mail summaries today and multi-channel notifications tomorrow without structural refactor.
+- Internal endpoint `POST /api/internal/jobs/weekly-summary` remains deployment-facing.
+- Member/admin endpoint contracts are documented in `docs/api/*`.
