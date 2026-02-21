@@ -10,14 +10,52 @@ The notification system supports two admin/scheduled intents with shared notifie
 Separation of concerns:
 
 - Intent: notifier classes determine *what* to send
-- Channel: `EmailChannel` handles rendering + channel-level send semantics
-- Provider: email providers handle transport-only concerns
+- Channel: `EmailChannel` and `SMSChannel` handle rendering/formatting and channel-level semantics
+- Provider: transport integrations (`MSGraphEmailProvider`, `TwilioSMSProvider`) handle delivery concerns only
+
+## Channel Composition
+
+Backend notifier wiring always includes both channels:
+
+- `email`
+- `sms`
+
+Dispatch is user preference-aware:
+
+- `email` channel attempts only when `"email"` is present in `user.notifPrefs`
+- `sms` channel attempts only when `"text"` is present in `user.notifPrefs`
+
+No channel preference implies another channel.
+
+## Status Semantics
+
+After channel dispatch:
+
+- top-level `sent` when any channel result is `sent`
+- top-level `failed` when no channel sends and at least one channel fails
+- top-level `skipped` when all attempted channels are `skipped`
+
+Failure isolation:
+
+- per-channel/provider failures do not halt other channel attempts
+- notifier returns structured `channelResults` for each attempted channel
+
+## Logging Semantics
+
+`NOTIFICATION_LOG` remains one row per notifier invocation (not per channel).
+
+- weekly summary sends log `type="weekly-summary"`
+- mail-arrived sends log `type="special-case"`, `templateType="mail-arrived"`
+- failed attempts may aggregate channel/provider errors into `errorMessage`
 
 ## Deployment Context
 
 - Scheduler runs in its own container and calls backend HTTP endpoints.
 - Backend executes all notification business logic and provider integration.
 - Scheduler does not access database collections directly.
+- Backend uses external providers for notifications:
+  - Microsoft Graph for email
+  - Twilio for SMS
 
 ## Trigger Paths
 
@@ -39,10 +77,10 @@ No standalone admin special notification endpoint is used for mail-arrived sends
 ## Weekly Summary Flow
 
 1. Resolve target week bounds.
-2. Select opted-in users.
+2. Select weekly-summary candidate users from channel-relevant preferences.
 3. Build summary via `MailSummaryService`.
-4. Dispatch across configured channels.
-5. Record attempt outcome in `NOTIFICATION_LOG`.
+4. Filter channels by user `notifPrefs` and dispatch across preferred channels.
+5. Record one attempt outcome in `NOTIFICATION_LOG`.
 
 ## Mail-Arrived Flow (Resolve/Retry)
 

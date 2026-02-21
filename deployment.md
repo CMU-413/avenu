@@ -131,6 +131,8 @@ Examples:
 * SESSION_COOKIE_SECURE
 * FRONTEND_ORIGINS
 
+SMS notifications are always wired in backend notifier composition, so Twilio variables are mandatory in non-testing deployments.
+
 Never bake secrets into Docker images.
 
 Frontend does not read Dockge `.env`.

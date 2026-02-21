@@ -33,8 +33,8 @@ None.
 - ☑ Add notifier-level tests proving SMS failures do not halt job/intent execution and partial success still logs `sent`.
 
 ## Phase 4
-- ☐ Update architecture and notification documentation to reflect SMS channel/provider additions and preference-aware multi-channel dispatch.
-- ☐ Update runtime/deployment docs with SMS env contract and enablement behavior (no Docker topology changes).
+- ☑ Update architecture and notification documentation to reflect SMS channel/provider additions and preference-aware multi-channel dispatch.
+- ☑ Update runtime/deployment docs with SMS env contract and enablement behavior (no Docker topology changes).
 
 ## Phase 1: SMS Provider + Channel Primitives
 Affected files and changes

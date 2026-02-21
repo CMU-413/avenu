@@ -35,6 +35,7 @@ Allowed communication paths:
 - Backend -> Database
 - Backend -> Optix
 - Backend -> Email Provider
+- Backend -> SMS Provider
 - Backend -> OCR Provider
 
 Disallowed paths:
@@ -70,13 +71,19 @@ sequenceDiagram
 
     actor Scheduler
     participant InternalController as Internal Jobs Controller
-    participant Notification as Notification Abstraction
+    participant Notifier as Notification Notifier
+    participant Channel as Notification Channels
+    participant Provider as Notification Providers
 
     Scheduler->>InternalController: POST /api/internal/jobs/weekly-summary
     InternalController->>Service: trigger weekly summary use-case
-    Service->>Repository: read opted-in users + write logs
-    Service->>Notification: dispatch notifications
-    Notification-->>Service: channel results
+    Service->>Repository: read candidate users + write logs
+    Service->>Notifier: notifyWeeklySummary(...)
+    Notifier->>Channel: dispatch preferred channels (email/sms)
+    Channel->>Provider: send via Graph/Twilio
+    Provider-->>Channel: provider result/error
+    Channel-->>Notifier: channel results
+    Notifier-->>Service: aggregated notify result
     Service-->>InternalController: job result
     InternalController-->>Scheduler: HTTP JSON response
 ```
@@ -94,7 +101,7 @@ Scheduler reaches backend at `http://backend:8000`.
 
 ## 6. Quality Constraint Alignment
 
-QA-M1 remains satisfied: provider swaps (for example OCR) stay isolated to provider abstractions and service wiring, without requiring changes to repository persistence flows or domain entities.
+QA-M1 remains satisfied: provider swaps (for example OCR/email/sms) stay isolated to provider abstractions and service wiring, without requiring changes to repository persistence flows or domain entities.
 
 ## 7. Design Constraints
 

@@ -1,28 +1,18 @@
-flowchart LR
-    User["User"]
-    Optix["Optix Canvas"]
-    SMTP["SMTP Server"]
+flowchart TD
+    Scheduler["Scheduler"] --> InternalJob["POST /api/internal/jobs/weekly-summary"]
+    InternalJob --> WeeklyJob["WeeklySummaryCronJob"]
+    WeeklyJob --> Candidates["Load candidate users where notifPrefs intersects [email, text]"]
+    Candidates --> Loop{"For each candidate user"}
 
-    subgraph System["Mail Notification System"]
-        Auth["Auth Service"]
-        MailboxSvc["Mailbox Service"]
-        PrefsSvc["User Preferences Service"]
-        NotifSvc["Notification Orchestrator"]
-        UserStore[("UserPrefs Collection")]
-        MailStore[("Mail Collection")]
-    end
+    Loop --> BuildSummary["Build weekly summary"]
+    BuildSummary --> Filter["Filter channels by user notifPrefs\nemail->EmailChannel\ntext->SMSChannel"]
+    Filter --> Dispatch{"Attempt preferred channels"}
 
-    %% Authentication
-    User -->|"launches app"| Optix
-    Optix -->|"canvas auth context"| Auth
-    Auth -->|"authenticated user identity"| MailboxSvc
+    Dispatch --> EmailAttempt["EmailChannel -> MS Graph"]
+    Dispatch --> SMSAttempt["SMSChannel -> Twilio"]
 
-    %% Preference update (inside system, post-auth)
-    MailboxSvc -->|"authorized user context"| PrefsSvc
-    PrefsSvc -->|"persist prefs"| UserStore
+    EmailAttempt --> ChannelResults["Collect channel results\n(sent/failed/skipped)"]
+    SMSAttempt --> ChannelResults
 
-    %% Notification path (later)
-    MailStore -->|"mailbox context"| NotifSvc
-    PrefsSvc -->|"notification settings"| NotifSvc
-
-    NotifSvc -->|"send email"| SMTP
+    ChannelResults --> FinalStatus["Derive top-level status\n sent if any sent\n failed if none sent and any failed\n skipped if all skipped"]
+    FinalStatus --> Log["Insert one NOTIFICATION_LOG row for invocation"]
