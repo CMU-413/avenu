@@ -137,6 +137,7 @@ class AdminSessionAuthTests(unittest.TestCase):
                 "isAdmin": False,
                 "teamIds": [ObjectId(team_id)],
                 "notifPrefs": ["email"],
+                "phone": "+15550001111",
             },
         ):
             response = self.client.get("/api/session/me")
@@ -151,6 +152,8 @@ class AdminSessionAuthTests(unittest.TestCase):
                 "isAdmin": False,
                 "teamIds": [team_id],
                 "emailNotifications": True,
+                "smsNotifications": False,
+                "hasPhone": True,
             },
         )
 
@@ -186,19 +189,21 @@ class AdminSessionAuthTests(unittest.TestCase):
 
     def test_member_preferences_patches_boolean_toggle(self):
         user_id = str(ObjectId())
-        user_doc = {"_id": ObjectId(user_id), "isAdmin": False, "notifPrefs": []}
+        user_doc = {"_id": ObjectId(user_id), "isAdmin": False, "notifPrefs": [], "phone": "+15550001111"}
         with self.client.session_transaction() as sess:
             sess["user_id"] = user_id
 
-        expected = {"id": user_id, "emailNotifications": True}
+        expected = {"id": user_id, "emailNotifications": True, "smsNotifications": False, "hasPhone": True}
         with patch("controllers.auth_guard.find_user", return_value=user_doc), patch(
-            "controllers.member_controller.update_member_email_notifications", return_value=expected
+            "controllers.member_controller.update_member_notification_preferences", return_value=expected
         ) as prefs_mock:
             response = self.client.patch("/api/member/preferences", json={"emailNotifications": True})
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json, expected)
-        prefs_mock.assert_called_once_with(user=user_doc, enabled=True)
+        prefs_mock.assert_called_once()
+        self.assertEqual(prefs_mock.call_args.kwargs["user"], user_doc)
+        self.assertEqual(prefs_mock.call_args.kwargs["email_notifications"], True)
 
     def test_member_preferences_rejects_non_boolean(self):
         user_id = str(ObjectId())
@@ -209,6 +214,42 @@ class AdminSessionAuthTests(unittest.TestCase):
             response = self.client.patch("/api/member/preferences", json={"emailNotifications": "yes"})
 
         self.assertEqual(response.status_code, 422)
+
+    def test_member_preferences_accepts_partial_sms_patch(self):
+        user_id = str(ObjectId())
+        user_doc = {"_id": ObjectId(user_id), "isAdmin": False, "notifPrefs": ["email"], "phone": "+15550001111"}
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = user_id
+
+        expected = {"id": user_id, "emailNotifications": True, "smsNotifications": True, "hasPhone": True}
+        with patch("controllers.auth_guard.find_user", return_value=user_doc), patch(
+            "controllers.member_controller.update_member_notification_preferences", return_value=expected
+        ) as prefs_mock:
+            response = self.client.patch("/api/member/preferences", json={"smsNotifications": True})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json, expected)
+        self.assertEqual(prefs_mock.call_args.kwargs["sms_notifications"], True)
+
+    def test_member_preferences_rejects_non_boolean_sms(self):
+        user_id = str(ObjectId())
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = user_id
+
+        with patch("controllers.auth_guard.find_user", return_value={"_id": ObjectId(user_id), "isAdmin": False}):
+            response = self.client.patch("/api/member/preferences", json={"smsNotifications": "yes"})
+
+        self.assertEqual(response.status_code, 422)
+
+    def test_member_preferences_rejects_empty_patch(self):
+        user_id = str(ObjectId())
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = user_id
+
+        with patch("controllers.auth_guard.find_user", return_value={"_id": ObjectId(user_id), "isAdmin": False}):
+            response = self.client.patch("/api/member/preferences", json={})
+
+        self.assertEqual(response.status_code, 400)
 
     def test_member_mail_requests_create_unauthorized_mailbox_returns_403(self):
         user_id = str(ObjectId())
