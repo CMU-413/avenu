@@ -5,7 +5,6 @@ from typing import Any, Literal
 
 from bson import ObjectId
 
-from config import ENABLE_SMS_CHANNEL
 from errors import APIError
 from models import build_mail_request_create
 from repositories.mail_requests_repository import (
@@ -70,7 +69,7 @@ def list_admin_active_mail_requests(
 
 
 def _default_special_case_notifier() -> SpecialCaseNotifier:
-    return SpecialCaseNotifier(channels=build_notification_channels(testing=False, enable_sms_channel=ENABLE_SMS_CHANNEL))
+    return SpecialCaseNotifier(channels=build_notification_channels(testing=False))
 
 
 def _log_special_case_exception(*, user_id: ObjectId, exc: Exception) -> None:

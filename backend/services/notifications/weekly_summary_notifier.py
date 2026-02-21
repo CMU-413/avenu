@@ -23,11 +23,49 @@ from services.notifications.types import (
 )
 
 
-def _email_opted_in(user: dict[str, Any]) -> bool:
+CHANNEL_PREFS: dict[str, str] = {
+    "email": "email",
+    "sms": "text",
+}
+
+
+def _notif_prefs(user: dict[str, Any]) -> set[str]:
     prefs = user.get("notifPrefs")
     if not isinstance(prefs, list):
-        return False
-    return "email" in prefs
+        return set()
+    return {item for item in prefs if isinstance(item, str)}
+
+
+def _preferred_channels(channels: list[NotificationChannel], user: dict[str, Any]) -> list[NotificationChannel]:
+    prefs = _notif_prefs(user)
+    if not prefs:
+        return []
+    filtered: list[NotificationChannel] = []
+    for channel in channels:
+        channel_name = str(getattr(channel, "channel", "")).strip().lower()
+        mapped_pref = CHANNEL_PREFS.get(channel_name)
+        if mapped_pref is None or mapped_pref in prefs:
+            filtered.append(channel)
+    return filtered
+
+
+def _normalize_channel_result(channel: NotificationChannel, result: ChannelResult) -> ChannelResult:
+    status_value = result.get("status")
+    if status_value == "sent":
+        normalized_status = "sent"
+    elif status_value == "skipped":
+        normalized_status = "skipped"
+    else:
+        normalized_status = "failed"
+    normalized: ChannelResult = {
+        "channel": str(result.get("channel", getattr(channel, "channel", "unknown"))),
+        "status": normalized_status,
+    }
+    if isinstance(result.get("messageId"), str) and result.get("messageId"):
+        normalized["messageId"] = result["messageId"]
+    if isinstance(result.get("error"), str) and result.get("error"):
+        normalized["error"] = result["error"]
+    return normalized
 
 
 def _normalize_week_start(value: date) -> date:
@@ -127,7 +165,7 @@ class WeeklySummaryNotifier:
         if self._users is None:
             user = find_for_notification(userId)
         else:
-            user = self._users.find_one({"_id": userId}, {"email": 1, "fullname": 1, "notifPrefs": 1})
+            user = self._users.find_one({"_id": userId}, {"email": 1, "fullname": 1, "phone": 1, "notifPrefs": 1})
         if user is None:
             self._log_attempt(
                 user_id=userId,
@@ -138,7 +176,8 @@ class WeeklySummaryNotifier:
             )
             return {"status": "failed", "reason": "user_not_found", "channelResults": []}
 
-        if not _email_opted_in(user):
+        preferred_channels = _preferred_channels(self._channels, user)
+        if not preferred_channels:
             self._log_attempt(
                 user_id=userId,
                 week_start=normalized_week_start,
@@ -164,28 +203,20 @@ class WeeklySummaryNotifier:
                 "id": str(userId),
                 "email": str(user.get("email", "")),
                 "fullname": str(user.get("fullname", "")),
+                "phone": str(user.get("phone", "")),
             },
             "triggeredBy": triggeredBy,
             "summary": summary,
         }
 
         results: list[ChannelResult] = []
-        for channel in self._channels:
+        for channel in preferred_channels:
             try:
                 channel_result = channel.send(payload)
             except Exception as exc:
                 results.append({"channel": getattr(channel, "channel", "unknown"), "status": "failed", "error": str(exc)})
                 continue
-
-            normalized: ChannelResult = {
-                "channel": str(channel_result.get("channel", getattr(channel, "channel", "unknown"))),
-                "status": "sent" if channel_result.get("status") == "sent" else "failed",
-            }
-            if isinstance(channel_result.get("messageId"), str) and channel_result.get("messageId"):
-                normalized["messageId"] = channel_result["messageId"]
-            if isinstance(channel_result.get("error"), str) and channel_result.get("error"):
-                normalized["error"] = channel_result["error"]
-            results.append(normalized)
+            results.append(_normalize_channel_result(channel, channel_result))
 
         if any(item["status"] == "sent" for item in results):
             self._log_attempt(
@@ -196,12 +227,22 @@ class WeeklySummaryNotifier:
                 triggered_by=triggeredBy,
             )
             return {"status": "sent", "channelResults": results}
+        if any(item["status"] == "failed" for item in results):
+            self._log_attempt(
+                user_id=userId,
+                week_start=normalized_week_start,
+                status="failed",
+                reason="all_channels_failed",
+                triggered_by=triggeredBy,
+                error_message=_error_message_from_channel_results(results),
+            )
+            return {"status": "failed", "reason": "all_channels_failed", "channelResults": results}
+
         self._log_attempt(
             user_id=userId,
             week_start=normalized_week_start,
-            status="failed",
-            reason="all_channels_failed",
+            status="skipped",
+            reason=None,
             triggered_by=triggeredBy,
-            error_message=_error_message_from_channel_results(results),
         )
-        return {"status": "failed", "reason": "all_channels_failed", "channelResults": results}
+        return {"status": "skipped", "channelResults": results}

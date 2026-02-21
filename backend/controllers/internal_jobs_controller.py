@@ -4,7 +4,7 @@ import hmac
 
 from flask import Blueprint, current_app, jsonify, request
 
-from config import ENABLE_SMS_CHANNEL, SCHEDULER_INTERNAL_TOKEN
+from config import SCHEDULER_INTERNAL_TOKEN
 from controllers.common import parse_iso_date
 from errors import APIError
 from services.idempotency_service import begin_request, commit_response, rollback_reservation
@@ -71,10 +71,7 @@ def internal_weekly_summary_job_route():
 
     try:
         notifier = WeeklySummaryNotifier(
-            channels=build_notification_channels(
-                testing=current_app.config["TESTING"],
-                enable_sms_channel=ENABLE_SMS_CHANNEL,
-            )
+            channels=build_notification_channels(testing=current_app.config["TESTING"])
         )
         result = run_weekly_summary_cron_job(
             notifier=notifier,

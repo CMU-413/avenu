@@ -57,11 +57,22 @@ class CapturingChannel:
         return {"channel": self.channel, "status": "sent"}
 
 
+class CapturingSMSChannel(CapturingChannel):
+    channel = "sms"
+
+
 class ReturningFailedChannel:
     channel = "email"
 
     def send(self, _payload):
         return {"channel": self.channel, "status": "failed", "error": "provider rejected"}
+
+
+class ReturningSkippedChannel:
+    channel = "sms"
+
+    def send(self, _payload):
+        return {"channel": self.channel, "status": "skipped", "error": "missing phone"}
 
 
 class RaisingChannel:
@@ -146,6 +157,33 @@ class WeeklySummaryNotifierTests(unittest.TestCase):
         self.assertEqual(logs.docs[0]["status"], "skipped")
         self.assertEqual(logs.docs[0]["reason"], "empty_summary")
 
+    def test_notify_weekly_summary_uses_only_user_preferred_channels(self):
+        user_id = ObjectId()
+        email_channel = CapturingChannel()
+        sms_channel = CapturingSMSChannel()
+        logs = FakeNotificationLogCollection()
+        notifier = WeeklySummaryNotifier(
+            channels=[sms_channel, email_channel],
+            users=FakeUsersCollection(
+                {"_id": user_id, "email": "member@example.com", "fullname": "Member User", "notifPrefs": ["email"]}
+            ),
+            summaryService=FakeSummaryService(self._summary(total_letters=1, total_packages=1)),
+            notificationLogs=logs,
+        )
+
+        result = notifier.notifyWeeklySummary(
+            userId=user_id,
+            weekStart=date(2026, 2, 15),
+            weekEnd=date(2026, 2, 21),
+            triggeredBy="admin",
+        )
+
+        self.assertEqual(result["status"], "sent")
+        self.assertEqual(email_channel.calls, 1)
+        self.assertEqual(sms_channel.calls, 0)
+        self.assertEqual(len(result["channelResults"]), 1)
+        self.assertEqual(result["channelResults"][0]["channel"], "email")
+
     def test_notify_weekly_summary_logs_sent_when_at_least_one_channel_succeeds(self):
         user_id = ObjectId()
         sent_channel = CapturingChannel()
@@ -205,6 +243,66 @@ class WeeklySummaryNotifierTests(unittest.TestCase):
         self.assertEqual(logs.docs[0]["status"], "failed")
         self.assertEqual(logs.docs[0]["reason"], "all_channels_failed")
         self.assertIn("smtp offline", logs.docs[0]["errorMessage"])
+
+    def test_notify_weekly_summary_returns_sent_when_email_sent_and_sms_skipped(self):
+        user_id = ObjectId()
+        logs = FakeNotificationLogCollection()
+        notifier = WeeklySummaryNotifier(
+            channels=[ReturningSkippedChannel(), CapturingChannel()],
+            users=FakeUsersCollection(
+                {
+                    "_id": user_id,
+                    "email": "member@example.com",
+                    "fullname": "Member User",
+                    "phone": "",
+                    "notifPrefs": ["email", "text"],
+                }
+            ),
+            summaryService=FakeSummaryService(self._summary(total_letters=2, total_packages=1)),
+            notificationLogs=logs,
+        )
+
+        result = notifier.notifyWeeklySummary(
+            userId=user_id,
+            weekStart=date(2026, 2, 15),
+            weekEnd=date(2026, 2, 21),
+            triggeredBy="cron",
+        )
+
+        self.assertEqual(result["status"], "sent")
+        self.assertEqual([item["status"] for item in result["channelResults"]], ["skipped", "sent"])
+        self.assertEqual(logs.docs[-1]["status"], "sent")
+
+    def test_notify_weekly_summary_returns_skipped_when_all_channels_skip(self):
+        user_id = ObjectId()
+        logs = FakeNotificationLogCollection()
+        notifier = WeeklySummaryNotifier(
+            channels=[ReturningSkippedChannel()],
+            users=FakeUsersCollection(
+                {
+                    "_id": user_id,
+                    "email": "member@example.com",
+                    "fullname": "Member User",
+                    "phone": "",
+                    "notifPrefs": ["text"],
+                }
+            ),
+            summaryService=FakeSummaryService(self._summary(total_letters=1, total_packages=0)),
+            notificationLogs=logs,
+        )
+
+        result = notifier.notifyWeeklySummary(
+            userId=user_id,
+            weekStart=date(2026, 2, 15),
+            weekEnd=date(2026, 2, 21),
+            triggeredBy="cron",
+        )
+
+        self.assertEqual(result["status"], "skipped")
+        self.assertEqual(result["channelResults"][0]["status"], "skipped")
+        self.assertNotIn("reason", result)
+        self.assertEqual(logs.docs[-1]["status"], "skipped")
+        self.assertIsNone(logs.docs[-1]["reason"])
 
     def test_notify_weekly_summary_duplicate_week_is_skipped_for_cron(self):
         user_id = ObjectId()

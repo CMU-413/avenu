@@ -5,7 +5,7 @@ None.
 - Scope is backend-only; no frontend/UI/preference API changes.
 - Keep existing notification status semantics (`sent`/`skipped`/`failed`) and channel result shape.
 - Keep failure isolation behavior: one channel/provider failure must not stop other channel attempts or cron/user loop progression.
-- Gate SMS dispatch wiring with `ENABLE_SMS_CHANNEL`; Twilio env vars are required only when SMS channel is enabled.
+- SMS channel wiring is mandatory in backend notifier construction; Twilio env vars are required for non-testing runtime.
 - Weekly-summary eligibility is intent-level and decoupled from any single channel. For each intent-eligible user, dispatch is attempted only on channels enabled in that user’s `notifPrefs`.
 - Channel preference mapping is explicit (`"email"` -> EmailChannel, `"text"` -> SMSChannel); no channel preference implies eligibility for any other channel.
 - Top-level notifier status derivation for attempted dispatch:
@@ -22,15 +22,15 @@ None.
 - ☑ Add unit tests for provider/channel success, skip, and failure branches.
 
 ## Phase 2
-- ☑ Add reusable channel-composition wiring that conditionally appends `SMSChannel` when `ENABLE_SMS_CHANNEL=true`.
+- ☑ Add reusable channel-composition wiring that always includes `EmailChannel` and `SMSChannel`.
 - ☑ Replace duplicated notifier construction in weekly-summary and special-case entrypoints with the shared channel builder.
-- ☑ Ensure Twilio config is validated only when SMS channel is enabled.
-- ☑ Add wiring tests for enabled/disabled SMS channel composition.
+- ☑ Ensure Twilio config is required in non-testing runtime and not required in testing runtime.
+- ☑ Add wiring tests for mandatory SMS channel composition.
 
 ## Phase 3
-- ☐ Preserve `NOTIFICATION_LOG` semantics while including SMS channel outcomes in notifier results/error aggregation.
-- ☐ Make notifier dispatch preference-aware so each user is attempted only on channels present in their `notifPrefs`.
-- ☐ Add notifier-level tests proving SMS failures do not halt job/intent execution and partial success still logs `sent`.
+- ☑ Preserve `NOTIFICATION_LOG` semantics while including SMS channel outcomes in notifier results/error aggregation.
+- ☑ Make notifier dispatch preference-aware so each user is attempted only on channels present in their `notifPrefs`.
+- ☑ Add notifier-level tests proving SMS failures do not halt job/intent execution and partial success still logs `sent`.
 
 ## Phase 4
 - ☐ Update architecture and notification documentation to reflect SMS channel/provider additions and preference-aware multi-channel dispatch.
@@ -72,9 +72,8 @@ Unit tests (phase-local)
 
 ## Phase 2: Channel Wiring + Config Gate
 Affected files and changes
-- `backend/services/notifications/channels/factory.py` (new): add `build_notification_channels(*, testing: bool) -> list[NotificationChannel]` that always includes `EmailChannel` and conditionally includes `SMSChannel`.
+- `backend/services/notifications/channels/factory.py` (new): add `build_notification_channels(*, testing: bool) -> list[NotificationChannel]` that always includes `EmailChannel` and `SMSChannel`.
 - `backend/services/notifications/providers/factory.py`: add `build_sms_provider(*, testing: bool) -> SMSProvider` and env-loading helper for Twilio keys.
-- `backend/config.py`: expose parsed `ENABLE_SMS_CHANNEL` flag via existing `_env_bool` helper.
 - `backend/services/notifications/weekly_summary_cron_job.py`: update eligible-user selection to be decoupled from a hardcoded email preference and aligned to enabled channels.
 - `backend/repositories/users_repository.py`: add repository helper for weekly-summary candidate IDs based on channel preference set (instead of single fixed preference).
 - `backend/controllers/notifications_controller.py`: use shared channel factory for weekly-summary notifier creation.
@@ -84,8 +83,9 @@ Affected files and changes
 - `backend/scripts/run_weekly_summary_cron.py`: use shared channel factory in default notifier builder.
 
 Implementation details
-- `ENABLE_SMS_CHANNEL=false` (default): behavior remains email-only and does not require `TWILIO_*` env vars.
-- `ENABLE_SMS_CHANNEL=true`: `build_notification_channels` appends `SMSChannel(build_sms_provider(...))`; missing Twilio env raises provider/config error at notifier construction time.
+- `build_notification_channels` always includes SMS and email channels.
+- Missing `TWILIO_*` env raises provider/config error in non-testing runtime.
+- Testing runtime uses console SMS provider and does not require `TWILIO_*` env.
 - Weekly-summary candidate lookup should accept the currently enabled channel preference set (for example `["email"]` or `["email", "text"]`) and select users with any intersection.
 - Testing mode behavior:
   - keep email provider as console provider (existing behavior).
@@ -96,9 +96,9 @@ Unit tests (phase-local)
 - `backend/tests/test_provider_factory.py`:
   - add `test_build_sms_provider_returns_twilio_provider_when_env_present`
   - add `test_build_sms_provider_raises_when_twilio_env_missing`
-  - add `test_build_sms_provider_not_required_when_sms_disabled`
+  - add `test_build_sms_provider_returns_console_provider_in_testing_mode`
 - `backend/tests/test_weekly_summary_cron_command.py`:
-  - assert default notifier channels come from shared builder and respect `ENABLE_SMS_CHANNEL` toggle.
+  - assert default notifier channels come from shared builder.
 - `backend/tests/test_weekly_summary_cron_job.py`:
   - assert candidate-user query uses enabled channel preference set (not hardcoded `"email"` only).
 - `backend/tests/test_weekly_summary_scheduler_endpoint.py` and `backend/tests/test_admin_session_auth.py`:
@@ -111,7 +111,7 @@ Affected files and changes
 - `backend/repositories/users_repository.py`: include `phone` and `notifPrefs` in notification profile lookups used by notifiers.
 - `backend/tests/test_weekly_summary_notifier.py`: add multi-channel cases including SMS skipped/failure + email success.
 - `backend/tests/test_special_case_notifier.py`: add multi-channel cases including SMS skipped/failure + email success.
-- `docker-compose.yml`: add `ENABLE_SMS_CHANNEL` and Twilio env passthrough under `backend.environment` only.
+- `docker-compose.yml`: add Twilio env passthrough under `backend.environment`.
 
 Implementation details
 - Continue single attempt log per notifier invocation in `NOTIFICATION_LOG`; do not add per-channel log rows.
@@ -139,8 +139,8 @@ Unit tests (phase-local)
 
 ## Phase 4: Documentation + Architecture Artifacts
 Affected files and changes
-- `README.md`: document `ENABLE_SMS_CHANNEL`, `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_PHONE_NUMBER`, and the preference-aware multi-channel dispatch behavior.
-- `deployment.md`: add Twilio runtime env requirements for backend service and enable/disable semantics for `ENABLE_SMS_CHANNEL`.
+- `README.md`: document `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_PHONE_NUMBER`, and the preference-aware multi-channel dispatch behavior.
+- `deployment.md`: add Twilio runtime env requirements for backend service.
 - `docs/architecture/notification-system.md`: update intent/channel/provider sections to include SMS channel and Twilio provider wiring.
 - `docs/architecture/overview.md`: update communication boundary examples to include backend-to-SMS-provider integration.
 - `docs/architecture/diagrams/user-notification-flow.mmd`: include per-user channel filtering by `notifPrefs` and parallel/independent channel attempts.

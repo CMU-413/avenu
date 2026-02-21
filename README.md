@@ -33,8 +33,8 @@ Copy `.env.sample` into `.env` and fill out the required values.
 
 Notes:
 - `SECRET_KEY` is required outside tests.
-- In testing mode (`FLASK_TESTING=true`), notifications use `ConsoleEmailProvider`.
-- Outside testing mode, notifications use Microsoft Graph and require all `MS_GRAPH_*` values above.
+- In testing mode (`FLASK_TESTING=true`), notifications use console providers for email and SMS.
+- Outside testing mode, notifications use Microsoft Graph for email and Twilio for SMS and require all `MS_GRAPH_*` and `TWILIO_*` values.
 - For iframe/Canvas embedding, set:
   - `SESSION_COOKIE_SAMESITE=None`
   - `SESSION_COOKIE_SECURE=true`

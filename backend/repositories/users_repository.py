@@ -79,11 +79,11 @@ def update_notif_prefs(user_id: ObjectId, prefs: list[str], *, updated_at: datet
 
 
 def find_for_notification(user_id: ObjectId) -> dict[str, Any] | None:
-    return users_collection.find_one({"_id": user_id}, {"email": 1, "fullname": 1, "notifPrefs": 1})
+    return users_collection.find_one({"_id": user_id}, {"email": 1, "fullname": 1, "phone": 1, "notifPrefs": 1})
 
 
 def find_basic_profile(user_id: ObjectId) -> dict[str, Any] | None:
-    return users_collection.find_one({"_id": user_id}, {"email": 1, "fullname": 1})
+    return users_collection.find_one({"_id": user_id}, {"email": 1, "fullname": 1, "phone": 1, "notifPrefs": 1})
 
 
 def create_user_with_mailbox(*, user_doc: dict[str, Any], mailbox_doc: dict[str, Any]) -> dict[str, Any]:

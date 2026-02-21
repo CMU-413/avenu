@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from flask import Blueprint, current_app, jsonify
 
-from config import ENABLE_SMS_CHANNEL
 from controllers.auth_guard import require_admin_session
 from controllers.common import json_payload, parse_iso_date, parse_required_object_id
 from errors import APIError
@@ -25,10 +24,7 @@ def admin_weekly_summary_route():
         raise APIError(422, "weekEnd must be on or after weekStart")
 
     notifier = WeeklySummaryNotifier(
-        channels=build_notification_channels(
-            testing=current_app.config.get("TESTING", False),
-            enable_sms_channel=ENABLE_SMS_CHANNEL,
-        )
+        channels=build_notification_channels(testing=current_app.config.get("TESTING", False))
     )
     result = notifier.notifyWeeklySummary(
         userId=user_id,

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-import os
 from datetime import date, datetime, timedelta, timezone
 from time import perf_counter
 
@@ -11,11 +10,7 @@ from services.notifications.types import WeeklyCronJobResult
 
 
 def _enabled_weekly_channel_preferences() -> list[str]:
-    enabled = ["email"]
-    raw_sms = os.getenv("ENABLE_SMS_CHANNEL", "")
-    if raw_sms.strip().lower() in {"1", "true", "yes", "on"}:
-        enabled.append("text")
-    return enabled
+    return ["email", "text"]
 
 
 def compute_previous_week_range(now: datetime) -> tuple[date, date]:

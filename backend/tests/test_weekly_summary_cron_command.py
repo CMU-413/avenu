@@ -54,7 +54,7 @@ class WeeklySummaryCronCommandTests(unittest.TestCase):
         ) as channels_builder_mock:
             notifier = build_default_notifier(testing=False)
 
-        channels_builder_mock.assert_called_once_with(testing=False, enable_sms_channel=False)
+        channels_builder_mock.assert_called_once_with(testing=False)
         self.assertEqual(notifier._channels, [sentinel_channel])
 
     def test_manual_command_uses_same_notifier_entrypoint(self):

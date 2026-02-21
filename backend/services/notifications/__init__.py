@@ -10,6 +10,7 @@ from services.notifications.log_repository import (
     insert_notification_log,
     insert_special_case_notification_log,
 )
+from services.notifications.providers.console_sms_provider import ConsoleSMSProvider
 from services.notifications.providers.console_provider import ConsoleEmailProvider
 from services.notifications.providers.email_provider import EmailProvider, MailProviderError
 from services.notifications.providers.factory import build_email_provider, build_sms_provider
@@ -38,6 +39,7 @@ __all__ = [
     "build_email_provider",
     "build_sms_provider",
     "build_notification_channels",
+    "ConsoleSMSProvider",
     "ConsoleEmailProvider",
     "EmailChannel",
     "SMSChannel",

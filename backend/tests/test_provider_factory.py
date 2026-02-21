@@ -11,6 +11,7 @@ from services.notifications.providers.ms_graph_provider import MSGraphEmailProvi
 from services.notifications.providers.sms_provider import SMSProviderError
 from services.notifications.providers.twilio_sms_provider import TwilioSMSProvider
 from services.notifications.channels.factory import build_notification_channels
+from services.notifications.providers.console_sms_provider import ConsoleSMSProvider
 
 
 class ProviderFactoryTests(unittest.TestCase):
@@ -74,7 +75,21 @@ class ProviderFactoryTests(unittest.TestCase):
             with self.assertRaises(SMSProviderError):
                 build_sms_provider(testing=False)
 
-    def test_build_sms_provider_not_required_when_sms_disabled(self):
+    def test_build_sms_provider_returns_console_provider_in_testing_mode(self):
+        with patch.dict(
+            os.environ,
+            {
+                "TWILIO_ACCOUNT_SID": "",
+                "TWILIO_AUTH_TOKEN": "",
+                "TWILIO_PHONE_NUMBER": "",
+            },
+            clear=False,
+        ):
+            provider = build_sms_provider(testing=True)
+
+        self.assertIsInstance(provider, ConsoleSMSProvider)
+
+    def test_build_notification_channels_requires_twilio_when_not_testing(self):
         with patch.dict(
             os.environ,
             {
@@ -88,10 +103,8 @@ class ProviderFactoryTests(unittest.TestCase):
             },
             clear=False,
         ):
-            channels = build_notification_channels(testing=False, enable_sms_channel=False)
-
-        self.assertEqual(len(channels), 1)
-        self.assertEqual(channels[0].channel, "email")
+            with self.assertRaises(SMSProviderError):
+                build_notification_channels(testing=False)
 
 
 if __name__ == "__main__":

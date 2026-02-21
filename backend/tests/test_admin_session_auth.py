@@ -530,7 +530,7 @@ class AdminSessionAuthTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json, notify_result)
-        channels_factory_mock.assert_called_once_with(testing=True, enable_sms_channel=False)
+        channels_factory_mock.assert_called_once_with(testing=True)
         self.assertEqual(notifier_ctor_mock.call_args.kwargs["channels"], channels)
         notifier.notifyWeeklySummary.assert_called_once_with(
             userId=ObjectId(target_user_id),

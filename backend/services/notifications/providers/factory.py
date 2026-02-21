@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 
+from services.notifications.providers.console_sms_provider import ConsoleSMSProvider
 from services.notifications.providers.console_provider import ConsoleEmailProvider
 from services.notifications.providers.email_provider import EmailProvider, MailProviderError
 from services.notifications.providers.ms_graph_provider import MSGraphEmailProvider
@@ -21,7 +22,8 @@ def build_email_provider(*, testing: bool) -> EmailProvider:
 
 
 def build_sms_provider(*, testing: bool) -> SMSProvider:
-    _ = testing
+    if testing:
+        return ConsoleSMSProvider()
     return TwilioSMSProvider(
         account_sid=_required_env("TWILIO_ACCOUNT_SID", exc_type=SMSProviderError),
         auth_token=_required_env("TWILIO_AUTH_TOKEN", exc_type=SMSProviderError),

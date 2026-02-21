@@ -118,7 +118,7 @@ class WeeklySummarySchedulerEndpointTests(unittest.TestCase):
             week_start=date(2026, 2, 9),
             week_end=date(2026, 2, 15),
         )
-        channels_builder_mock.assert_called_once_with(testing=True, enable_sms_channel=False)
+        channels_builder_mock.assert_called_once_with(testing=True)
 
     def test_scheduler_endpoint_replays_response_when_idempotency_key_reused(self):
         idempotency_collection = FakeIdempotencyCollection()
