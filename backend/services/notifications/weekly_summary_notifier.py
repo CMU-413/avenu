@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from datetime import date, datetime, timezone
 from typing import Any
 
@@ -27,6 +28,7 @@ CHANNEL_PREFS: dict[str, str] = {
     "email": "email",
     "sms": "text",
 }
+logger = logging.getLogger(__name__)
 
 
 def _notif_prefs(user: dict[str, Any]) -> set[str]:
@@ -83,6 +85,18 @@ def _error_message_from_channel_results(results: list[ChannelResult]) -> str | N
     if not errors:
         return None
     return "; ".join(errors)
+
+
+def _log_channel_result(*, user_id: ObjectId, triggered_by: NotifyTrigger, result: ChannelResult) -> None:
+    logger.info(
+        "notification_channel_result userId=%s triggeredBy=%s channel=%s status=%s messageId=%s error=%s",
+        str(user_id),
+        triggered_by,
+        result.get("channel", "unknown"),
+        result.get("status", "failed"),
+        result.get("messageId"),
+        result.get("error"),
+    )
 
 
 class WeeklySummaryNotifier:
@@ -214,9 +228,17 @@ class WeeklySummaryNotifier:
             try:
                 channel_result = channel.send(payload)
             except Exception as exc:
-                results.append({"channel": getattr(channel, "channel", "unknown"), "status": "failed", "error": str(exc)})
+                normalized_failed_result: ChannelResult = {
+                    "channel": getattr(channel, "channel", "unknown"),
+                    "status": "failed",
+                    "error": str(exc),
+                }
+                results.append(normalized_failed_result)
+                _log_channel_result(user_id=userId, triggered_by=triggeredBy, result=normalized_failed_result)
                 continue
-            results.append(_normalize_channel_result(channel, channel_result))
+            normalized_result = _normalize_channel_result(channel, channel_result)
+            results.append(normalized_result)
+            _log_channel_result(user_id=userId, triggered_by=triggeredBy, result=normalized_result)
 
         if any(item["status"] == "sent" for item in results):
             self._log_attempt(

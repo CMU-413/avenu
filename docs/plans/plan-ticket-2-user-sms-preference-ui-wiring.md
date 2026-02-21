@@ -26,9 +26,9 @@
 - ☑ Add focused frontend unit tests for payload normalization logic.
 
 ## Phase 3
-- ☐ Ensure notifier dispatch explicitly attempts SMS only when SMS preference is enabled.
-- ☐ Add channel-level structured logging so SMS attempts emit `channel="sms"` entries.
-- ☐ Add/extend notifier unit tests for SMS preference filtering and sms-channel log emission.
+- ☑ Ensure notifier dispatch explicitly attempts SMS only when SMS preference is enabled.
+- ☑ Add channel-level structured logging so SMS attempts emit `channel="sms"` entries.
+- ☑ Add/extend notifier unit tests for SMS preference filtering and sms-channel log emission.
 
 ## Phase 1: Backend Preference Validation + API Contract
 Affected files and changes

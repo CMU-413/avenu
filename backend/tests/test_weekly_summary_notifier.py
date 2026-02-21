@@ -82,6 +82,20 @@ class RaisingChannel:
         raise RuntimeError("smtp offline")
 
 
+class ReturningSentSMSChannel:
+    channel = "sms"
+
+    def send(self, _payload):
+        return {"channel": self.channel, "status": "sent", "messageId": "SM123"}
+
+
+class ReturningFailedSMSChannel:
+    channel = "sms"
+
+    def send(self, _payload):
+        return {"channel": self.channel, "status": "failed", "error": "provider rejected"}
+
+
 class WeeklySummaryNotifierTests(unittest.TestCase):
     def test_notify_weekly_summary_logs_skipped_for_opted_out(self):
         user_id = ObjectId()
@@ -183,6 +197,65 @@ class WeeklySummaryNotifierTests(unittest.TestCase):
         self.assertEqual(sms_channel.calls, 0)
         self.assertEqual(len(result["channelResults"]), 1)
         self.assertEqual(result["channelResults"][0]["channel"], "email")
+
+    def test_notify_weekly_summary_attempts_sms_only_when_sms_pref_enabled(self):
+        user_id = ObjectId()
+        email_channel = CapturingChannel()
+        sms_channel = CapturingSMSChannel()
+        logs = FakeNotificationLogCollection()
+        notifier = WeeklySummaryNotifier(
+            channels=[email_channel, sms_channel],
+            users=FakeUsersCollection(
+                {"_id": user_id, "email": "member@example.com", "fullname": "Member User", "notifPrefs": ["text"]}
+            ),
+            summaryService=FakeSummaryService(self._summary(total_letters=1, total_packages=0)),
+            notificationLogs=logs,
+        )
+
+        result = notifier.notifyWeeklySummary(
+            userId=user_id,
+            weekStart=date(2026, 2, 15),
+            weekEnd=date(2026, 2, 21),
+            triggeredBy="cron",
+        )
+
+        self.assertEqual(result["status"], "sent")
+        self.assertEqual(email_channel.calls, 0)
+        self.assertEqual(sms_channel.calls, 1)
+
+    def test_notify_weekly_summary_logs_channel_sms_for_sent_failed_and_skipped(self):
+        user_id = ObjectId()
+        for channel, expected_status in [
+            (ReturningSentSMSChannel(), "sent"),
+            (ReturningFailedSMSChannel(), "failed"),
+            (ReturningSkippedChannel(), "skipped"),
+        ]:
+            logs = FakeNotificationLogCollection()
+            notifier = WeeklySummaryNotifier(
+                channels=[channel],
+                users=FakeUsersCollection(
+                    {
+                        "_id": user_id,
+                        "email": "member@example.com",
+                        "fullname": "Member User",
+                        "phone": "+15550001111",
+                        "notifPrefs": ["text"],
+                    }
+                ),
+                summaryService=FakeSummaryService(self._summary(total_letters=1, total_packages=0)),
+                notificationLogs=logs,
+            )
+            with self.assertLogs("services.notifications.weekly_summary_notifier", level="INFO") as captured:
+                notifier.notifyWeeklySummary(
+                    userId=user_id,
+                    weekStart=date(2026, 2, 15),
+                    weekEnd=date(2026, 2, 21),
+                    triggeredBy="cron",
+                )
+
+            joined = "\n".join(captured.output)
+            self.assertIn("channel=sms", joined)
+            self.assertIn(f"status={expected_status}", joined)
 
     def test_notify_weekly_summary_logs_sent_when_at_least_one_channel_succeeds(self):
         user_id = ObjectId()

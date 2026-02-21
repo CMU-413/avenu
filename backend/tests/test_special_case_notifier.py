@@ -63,6 +63,20 @@ class ReturningSkippedChannel:
         return {"channel": self.channel, "status": "skipped", "error": "missing phone"}
 
 
+class ReturningSentSMSChannel:
+    channel = "sms"
+
+    def send(self, _payload):
+        return {"channel": self.channel, "status": "sent", "messageId": "SM123"}
+
+
+class ReturningFailedSMSChannel:
+    channel = "sms"
+
+    def send(self, _payload):
+        return {"channel": self.channel, "status": "failed", "error": "provider rejected"}
+
+
 class SpecialCaseNotifierTests(unittest.TestCase):
     def test_notify_special_case_fails_and_logs_when_user_missing(self):
         logs = FakeNotificationLogCollection()
@@ -157,6 +171,53 @@ class SpecialCaseNotifierTests(unittest.TestCase):
         self.assertEqual(email_channel.calls, 1)
         self.assertEqual(len(result["channelResults"]), 1)
         self.assertEqual(result["channelResults"][0]["channel"], "email")
+
+    def test_notify_special_case_attempts_sms_only_when_sms_pref_enabled(self):
+        user_id = ObjectId()
+        email_channel = CapturingChannel()
+        sms_channel = CapturingSMSChannel()
+        logs = FakeNotificationLogCollection()
+        notifier = SpecialCaseNotifier(
+            channels=[email_channel, sms_channel],
+            users=FakeUsersCollection(
+                {"_id": user_id, "email": "member@example.com", "fullname": "Member User", "notifPrefs": ["text"]}
+            ),
+            notificationLogs=logs,
+        )
+
+        result = notifier.notifySpecialCase(userId=user_id, triggeredBy="admin")
+
+        self.assertEqual(result["status"], "sent")
+        self.assertEqual(email_channel.calls, 0)
+        self.assertEqual(sms_channel.calls, 1)
+
+    def test_notify_special_case_logs_channel_sms_for_sent_failed_and_skipped(self):
+        user_id = ObjectId()
+        for channel, expected_status in [
+            (ReturningSentSMSChannel(), "sent"),
+            (ReturningFailedSMSChannel(), "failed"),
+            (ReturningSkippedChannel(), "skipped"),
+        ]:
+            logs = FakeNotificationLogCollection()
+            notifier = SpecialCaseNotifier(
+                channels=[channel],
+                users=FakeUsersCollection(
+                    {
+                        "_id": user_id,
+                        "email": "member@example.com",
+                        "fullname": "Member User",
+                        "phone": "+15550001111",
+                        "notifPrefs": ["text"],
+                    }
+                ),
+                notificationLogs=logs,
+            )
+            with self.assertLogs("services.notifications.special_case_notifier", level="INFO") as captured:
+                notifier.notifySpecialCase(userId=user_id, triggeredBy="admin")
+
+            joined = "\n".join(captured.output)
+            self.assertIn("channel=sms", joined)
+            self.assertIn(f"status={expected_status}", joined)
 
     def test_notify_special_case_returns_sent_when_email_sent_and_sms_skipped(self):
         user_id = ObjectId()
