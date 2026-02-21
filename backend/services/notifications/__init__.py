@@ -1,4 +1,5 @@
 from services.notifications.channels.email_channel import EmailChannel
+from services.notifications.channels.sms_channel import SMSChannel
 from services.notifications.interfaces import NotificationChannel, Notifier
 from services.notifications.log_repository import (
     MAIL_ARRIVED_TEMPLATE_TYPE,
@@ -12,6 +13,8 @@ from services.notifications.providers.console_provider import ConsoleEmailProvid
 from services.notifications.providers.email_provider import EmailProvider, MailProviderError
 from services.notifications.providers.factory import build_email_provider
 from services.notifications.providers.ms_graph_provider import MSGraphEmailProvider
+from services.notifications.providers.sms_provider import SMSProvider, SMSProviderError, SMSProviderResult
+from services.notifications.providers.twilio_sms_provider import TwilioSMSProvider
 from services.notifications.special_case_notifier import SpecialCaseNotifier
 from services.notifications.types import (
     ChannelResult,
@@ -34,9 +37,14 @@ __all__ = [
     "build_email_provider",
     "ConsoleEmailProvider",
     "EmailChannel",
+    "SMSChannel",
     "EmailProvider",
     "MailProviderError",
     "MSGraphEmailProvider",
+    "SMSProvider",
+    "SMSProviderError",
+    "SMSProviderResult",
+    "TwilioSMSProvider",
     "NotificationChannel",
     "NotificationLogEntry",
     "NotificationLogStatus",
