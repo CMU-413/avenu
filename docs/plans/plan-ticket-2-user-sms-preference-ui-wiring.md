@@ -20,10 +20,10 @@
 - ☑ Add backend unit tests for reject/auto-remove behavior and response contracts.
 
 ## Phase 2
-- ☐ Wire member UI state and API client to support both email and SMS preferences.
-- ☐ Add SMS toggle with disabled state and inline guidance when phone is missing.
-- ☐ Ensure outgoing preference payload auto-clears SMS when phone is absent.
-- ☐ Add focused frontend unit tests for payload normalization logic.
+- ☑ Wire member UI state and API client to support both email and SMS preferences.
+- ☑ Add SMS toggle with disabled state and inline guidance when phone is missing.
+- ☑ Ensure outgoing preference payload auto-clears SMS when phone is absent.
+- ☑ Add focused frontend unit tests for payload normalization logic.
 
 ## Phase 3
 - ☐ Ensure notifier dispatch explicitly attempts SMS only when SMS preference is enabled.
