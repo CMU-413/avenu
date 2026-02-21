@@ -38,6 +38,7 @@ def _env_samesite(name: str, default: str) -> str:
 SESSION_COOKIE_SECURE = _env_bool("SESSION_COOKIE_SECURE", False)
 SESSION_COOKIE_PARTITIONED = _env_bool("SESSION_COOKIE_PARTITIONED", False)
 SESSION_COOKIE_SAMESITE = _env_samesite("SESSION_COOKIE_SAMESITE", "Lax")
+ENABLE_SMS_CHANNEL = _env_bool("ENABLE_SMS_CHANNEL", False)
 
 SCHEDULER_INTERNAL_TOKEN = os.getenv("SCHEDULER_INTERNAL_TOKEN", "").strip()
 

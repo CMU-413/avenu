@@ -8,12 +8,12 @@ from unittest.mock import patch
 from bson import ObjectId
 
 os.environ.setdefault("MONGO_URI", "mongodb://localhost:27017")
+os.environ.setdefault("FLASK_TESTING", "1")
 
 from app import create_app
 from scripts.run_weekly_summary_cron import build_default_notifier, run_weekly_summary_cron_command
 from services.notifications.channels.email_channel import EmailChannel
 from services.notifications.providers.console_provider import ConsoleEmailProvider
-from services.notifications.providers.email_provider import EmailProvider
 from services.notifications.weekly_summary_notifier import WeeklySummaryNotifier
 
 
@@ -46,18 +46,16 @@ class FakeNotificationLogCollection:
 
 
 class WeeklySummaryCronCommandTests(unittest.TestCase):
-    def test_build_default_notifier_uses_factory_selected_provider(self):
-        class SentinelProvider(EmailProvider):
-            def send(self, *, to: str, subject: str, html: str) -> str:
-                _ = to, subject, html
-                return "sentinel-id"
-
-        sentinel_provider = SentinelProvider()
-        with patch("scripts.run_weekly_summary_cron.build_email_provider", return_value=sentinel_provider) as factory_mock:
+    def test_build_default_notifier_uses_shared_channel_builder(self):
+        sentinel_channel = object()
+        with patch(
+            "scripts.run_weekly_summary_cron.build_notification_channels",
+            return_value=[sentinel_channel],
+        ) as channels_builder_mock:
             notifier = build_default_notifier(testing=False)
 
-        factory_mock.assert_called_once_with(testing=False)
-        self.assertIs(notifier._channels[0].provider, sentinel_provider)
+        channels_builder_mock.assert_called_once_with(testing=False, enable_sms_channel=False)
+        self.assertEqual(notifier._channels, [sentinel_channel])
 
     def test_manual_command_uses_same_notifier_entrypoint(self):
         captured = {}

@@ -22,10 +22,10 @@ None.
 - ☑ Add unit tests for provider/channel success, skip, and failure branches.
 
 ## Phase 2
-- ☐ Add reusable channel-composition wiring that conditionally appends `SMSChannel` when `ENABLE_SMS_CHANNEL=true`.
-- ☐ Replace duplicated notifier construction in weekly-summary and special-case entrypoints with the shared channel builder.
-- ☐ Ensure Twilio config is validated only when SMS channel is enabled.
-- ☐ Add wiring tests for enabled/disabled SMS channel composition.
+- ☑ Add reusable channel-composition wiring that conditionally appends `SMSChannel` when `ENABLE_SMS_CHANNEL=true`.
+- ☑ Replace duplicated notifier construction in weekly-summary and special-case entrypoints with the shared channel builder.
+- ☑ Ensure Twilio config is validated only when SMS channel is enabled.
+- ☑ Add wiring tests for enabled/disabled SMS channel composition.
 
 ## Phase 3
 - ☐ Preserve `NOTIFICATION_LOG` semantics while including SMS channel outcomes in notifier results/error aggregation.

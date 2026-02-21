@@ -12,9 +12,9 @@ if str(BACKEND_ROOT) not in sys.path:
     sys.path.insert(0, str(BACKEND_ROOT))
 
 from app import create_app
-from services.notifications.channels.email_channel import EmailChannel
+from config import ENABLE_SMS_CHANNEL
+from services.notifications.channels.factory import build_notification_channels
 from services.notifications.interfaces import Notifier
-from services.notifications.providers.factory import build_email_provider
 from services.notifications.types import WeeklyCronJobResult
 from services.notifications.weekly_summary_cron_job import run_weekly_summary_cron_job
 from services.notifications.weekly_summary_notifier import WeeklySummaryNotifier
@@ -27,8 +27,11 @@ def _is_testing_mode() -> bool:
 
 def build_default_notifier(*, testing: bool | None = None) -> Notifier:
     resolved_testing = _is_testing_mode() if testing is None else testing
-    provider = build_email_provider(testing=resolved_testing)
-    return WeeklySummaryNotifier(channels=[EmailChannel(provider)])
+    channels = build_notification_channels(
+        testing=resolved_testing,
+        enable_sms_channel=ENABLE_SMS_CHANNEL,
+    )
+    return WeeklySummaryNotifier(channels=channels)
 
 
 def run_weekly_summary_cron_command(

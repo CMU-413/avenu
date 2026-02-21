@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from flask import Blueprint, current_app, jsonify, request
 
+from config import ENABLE_SMS_CHANNEL
 from controllers.auth_guard import ensure_member_session, ensure_session_user, require_admin_session
 from controllers.common import json_payload, parse_optional_object_id_filter, parse_required_object_id
 from errors import APIError
@@ -14,8 +15,7 @@ from services.mail_request_service import (
     resolve_mail_request_and_notify,
     retry_mail_request_notification,
 )
-from services.notifications.channels.email_channel import EmailChannel
-from services.notifications.providers.factory import build_email_provider
+from services.notifications.channels.factory import build_notification_channels
 from services.notifications.special_case_notifier import SpecialCaseNotifier
 
 mail_requests_bp = Blueprint("mail_requests", __name__)
@@ -61,7 +61,10 @@ def admin_mail_requests_resolve_route(request_id: str):
     admin_user = ensure_session_user()
     oid = parse_required_object_id(request_id, "mail request id")
     notifier = SpecialCaseNotifier(
-        channels=[EmailChannel(build_email_provider(testing=current_app.config.get("TESTING", False)))]
+        channels=build_notification_channels(
+            testing=current_app.config.get("TESTING", False),
+            enable_sms_channel=ENABLE_SMS_CHANNEL,
+        )
     )
     updated = resolve_mail_request_and_notify(request_id=oid, admin_user=admin_user, notifier=notifier)
     return jsonify(to_api_doc(updated)), 200
@@ -73,7 +76,10 @@ def admin_mail_requests_retry_notification_route(request_id: str):
     admin_user = ensure_session_user()
     oid = parse_required_object_id(request_id, "mail request id")
     notifier = SpecialCaseNotifier(
-        channels=[EmailChannel(build_email_provider(testing=current_app.config.get("TESTING", False)))]
+        channels=build_notification_channels(
+            testing=current_app.config.get("TESTING", False),
+            enable_sms_channel=ENABLE_SMS_CHANNEL,
+        )
     )
     updated = retry_mail_request_notification(request_id=oid, admin_user=admin_user, notifier=notifier)
     return jsonify(to_api_doc(updated)), 200

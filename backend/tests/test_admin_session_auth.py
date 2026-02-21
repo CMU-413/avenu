@@ -514,12 +514,12 @@ class AdminSessionAuthTests(unittest.TestCase):
         notify_result = {"status": "sent", "channelResults": [{"channel": "email", "status": "sent"}]}
         notifier = Mock()
         notifier.notifyWeeklySummary.return_value = notify_result
-        provider = object()
+        channels = [object()]
 
         with patch("controllers.auth_guard.find_user", return_value={"_id": ObjectId(session_user_id), "isAdmin": True}), patch(
-            "controllers.notifications_controller.build_email_provider",
-            return_value=provider,
-        ) as provider_factory_mock, patch(
+            "controllers.notifications_controller.build_notification_channels",
+            return_value=channels,
+        ) as channels_factory_mock, patch(
             "controllers.notifications_controller.WeeklySummaryNotifier",
             return_value=notifier,
         ) as notifier_ctor_mock:
@@ -530,10 +530,8 @@ class AdminSessionAuthTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json, notify_result)
-        provider_factory_mock.assert_called_once_with(testing=True)
-        channels = notifier_ctor_mock.call_args.kwargs["channels"]
-        self.assertEqual(len(channels), 1)
-        self.assertIs(channels[0].provider, provider)
+        channels_factory_mock.assert_called_once_with(testing=True, enable_sms_channel=False)
+        self.assertEqual(notifier_ctor_mock.call_args.kwargs["channels"], channels)
         notifier.notifyWeeklySummary.assert_called_once_with(
             userId=ObjectId(target_user_id),
             weekStart=date(2026, 2, 15),
