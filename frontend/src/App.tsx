@@ -8,6 +8,7 @@ import Login from "./pages/Login";
 import AdminHome from "./pages/admin/AdminHome";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminNotifications from "./pages/admin/AdminNotifications";
+import AdminMailRequests from "./pages/admin/AdminMailRequests";
 import SearchMailbox from "./pages/admin/SearchMailbox";
 import RecordEntry from "./pages/admin/RecordEntry";
 import MemberDashboard from "./pages/member/MemberDashboard";
@@ -15,6 +16,7 @@ import NotificationSettings from "./pages/member/NotificationSettings";
 import NotFound from "./pages/NotFound";
 import { ApiError, ApiSessionMe, bootstrapOptixSession, sessionMe } from "./lib/api";
 import { SessionUser, useAppStore } from "./lib/store";
+import { ConfirmDialogProvider } from "./components/ConfirmDialogProvider";
 
 const queryClient = new QueryClient();
 
@@ -26,6 +28,8 @@ function toSessionUser(session: ApiSessionMe): SessionUser {
     isAdmin: session.isAdmin,
     teamIds: session.teamIds,
     emailNotifications: session.emailNotifications,
+    smsNotifications: session.smsNotifications,
+    hasPhone: session.hasPhone,
   };
 }
 
@@ -89,6 +93,10 @@ const AppRoutes = () => {
         element={isAdmin ? <AdminNotifications /> : <Navigate to={isMember ? "/member" : "/"} replace />}
       />
       <Route
+        path="/admin/mail-requests"
+        element={isAdmin ? <AdminMailRequests /> : <Navigate to={isMember ? "/member" : "/"} replace />}
+      />
+      <Route
         path="/admin/mailboxes"
         element={isAdmin ? <SearchMailbox /> : <Navigate to={isMember ? "/member" : "/"} replace />}
       />
@@ -139,9 +147,11 @@ const App = () => {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <AppRoutes />
+        <ConfirmDialogProvider>
+          <Toaster />
+          <Sonner />
+          <AppRoutes />
+        </ConfirmDialogProvider>
       </TooltipProvider>
     </QueryClientProvider>
   );

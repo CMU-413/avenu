@@ -33,8 +33,16 @@ Copy `.env.sample` into `.env` and fill out the required values.
 
 Notes:
 - `SECRET_KEY` is required outside tests.
-- In testing mode (`FLASK_TESTING=true`), notifications use `ConsoleEmailProvider`.
-- Outside testing mode, notifications use Microsoft Graph and require all `MS_GRAPH_*` values above.
+- In testing mode (`FLASK_TESTING=true`), notifications use console providers for email and SMS.
+- Outside testing mode, notifications use Microsoft Graph for email and Twilio for SMS and require all `MS_GRAPH_*` and `TWILIO_*` values.
+- Required backend notification vars outside testing:
+  - `MS_GRAPH_TENANT_ID`
+  - `MS_GRAPH_CLIENT_ID`
+  - `MS_GRAPH_CLIENT_SECRET`
+  - `MS_GRAPH_SENDER_EMAIL`
+  - `TWILIO_ACCOUNT_SID`
+  - `TWILIO_AUTH_TOKEN`
+  - `TWILIO_PHONE_NUMBER`
 - For iframe/Canvas embedding, set:
   - `SESSION_COOKIE_SAMESITE=None`
   - `SESSION_COOKIE_SECURE=true`
@@ -46,13 +54,14 @@ Notes:
 - `SCHEDULER_INTERNAL_TOKEN` (shared secret for internal scheduler endpoint)
 
 ### Frontend
-- `VITE_API_BASE_URL` (default in compose: `http://localhost:8000`)
+- `VITE_BASE_PATH` (default in compose: `/mail/`)
+- `VITE_API_BASE_URL` (default in compose: `/mail/api`)
 
 ### Scheduler
 - `BACKEND_API_URL` (must point to backend service DNS, default `http://backend:8000`)
 - `SCHEDULER_INTERNAL_TOKEN` (must match backend)
-- `SCHEDULER_CRON` (default `0 8 * * 1`)
-- `SCHEDULER_TIMEZONE` (default `UTC`)
+- `SCHEDULER_CRON` (default `0 8 * * 1`, i.e. 8 AM on Monday)
+- `SCHEDULER_TIMEZONE` (default `America/New_York`)
 - `SCHEDULER_TICK_SECONDS` (default `20`)
 
 ---
@@ -66,15 +75,14 @@ docker compose up --build
 ```
 
 This starts four services:
-- `frontend` on `http://localhost:8080`
-- `backend` on `http://localhost:8000`
+- `frontend` on `http://localhost:8080/mail`
+- `backend` (internal Docker network only)
 - `scheduler` (internal job runner container)
 - `database` (MongoDB with persistent volume)
 
 ### Access
 
-- Frontend: http://localhost:8080
-- Backend health check: http://localhost:8000/health
+- Frontend: http://localhost:8080/mail
 
 ---
 

@@ -1,34 +1,52 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAppStore } from "@/lib/store";
 import { ArrowLeft } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { ApiError, updateMemberPreferences } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
+import { buildPreferencePatch, deriveSettingsState, type NotificationPreferenceState } from "@/lib/member-preferences";
 
 const NotificationSettings = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { sessionUser, logout, setSessionEmailNotifications } = useAppStore();
+  const { sessionUser, logout, setSessionNotificationPreferences } = useAppStore();
   const [pending, setPending] = useState(false);
-  const [optimisticValue, setOptimisticValue] = useState<boolean | null>(null);
-  const emailNotifications =
-    optimisticValue !== null ? optimisticValue : sessionUser?.emailNotifications ?? false;
+  const [optimisticPrefs, setOptimisticPrefs] = useState<NotificationPreferenceState | null>(null);
 
   if (!sessionUser) return null;
 
-  const handleToggle = async (nextValue: boolean) => {
-    if (pending) return;
-    const prev = sessionUser.emailNotifications;
+  const basePrefs: NotificationPreferenceState = useMemo(
+    () => ({
+      emailNotifications: sessionUser.emailNotifications,
+      smsNotifications: sessionUser.smsNotifications,
+      hasPhone: sessionUser.hasPhone,
+    }),
+    [sessionUser.emailNotifications, sessionUser.smsNotifications, sessionUser.hasPhone],
+  );
+  const activePrefs = optimisticPrefs ?? basePrefs;
+  const settings = deriveSettingsState(activePrefs);
+
+  const persistPreferences = async (
+    patch: { emailNotifications?: boolean; smsNotifications?: boolean },
+    optimisticNext: NotificationPreferenceState,
+    fallback: NotificationPreferenceState,
+  ) => {
+    if (!("emailNotifications" in patch) && !("smsNotifications" in patch)) return;
     setPending(true);
-    setOptimisticValue(nextValue);
+    setOptimisticPrefs(optimisticNext);
     try {
-      const updated = await updateMemberPreferences(nextValue);
-      setSessionEmailNotifications(updated.emailNotifications);
-      setOptimisticValue(updated.emailNotifications);
+      const updated = await updateMemberPreferences(patch);
+      const next = {
+        emailNotifications: updated.emailNotifications,
+        smsNotifications: updated.smsNotifications,
+        hasPhone: updated.hasPhone,
+      };
+      setSessionNotificationPreferences(next);
+      setOptimisticPrefs(next);
     } catch (err) {
-      setSessionEmailNotifications(prev);
-      setOptimisticValue(prev);
+      setSessionNotificationPreferences(fallback);
+      setOptimisticPrefs(fallback);
       const message = err instanceof Error ? err.message : "Failed to update notification settings";
       toast({ title: message, variant: "destructive" });
       if (err instanceof ApiError && err.status === 401) {
@@ -38,6 +56,38 @@ const NotificationSettings = () => {
     } finally {
       setPending(false);
     }
+  };
+
+  useEffect(() => {
+    if (pending) return;
+    if (!activePrefs.hasPhone && activePrefs.smsNotifications) {
+      const patch = buildPreferencePatch(basePrefs, { smsNotifications: false });
+      const optimisticNext = {
+        ...basePrefs,
+        smsNotifications: false,
+      };
+      void persistPreferences(patch, optimisticNext, basePrefs);
+    }
+  }, [pending, activePrefs.hasPhone, activePrefs.smsNotifications, basePrefs]);
+
+  const handleEmailToggle = async (nextValue: boolean) => {
+    if (pending) return;
+    const patch = buildPreferencePatch(basePrefs, { emailNotifications: nextValue });
+    const optimisticNext = {
+      ...basePrefs,
+      emailNotifications: nextValue,
+    };
+    await persistPreferences(patch, optimisticNext, basePrefs);
+  };
+
+  const handleSmsToggle = async (nextValue: boolean) => {
+    if (pending || settings.smsDisabled) return;
+    const patch = buildPreferencePatch(basePrefs, { smsNotifications: nextValue });
+    const optimisticNext = {
+      ...basePrefs,
+      smsNotifications: nextValue,
+    };
+    await persistPreferences(patch, optimisticNext, basePrefs);
   };
 
   return (
@@ -58,10 +108,26 @@ const NotificationSettings = () => {
             <p className="text-xs text-muted-foreground">Receive weekly mail summaries</p>
           </div>
           <Switch
-            checked={emailNotifications}
-            onCheckedChange={handleToggle}
+            checked={settings.emailNotifications}
+            onCheckedChange={handleEmailToggle}
             disabled={pending}
           />
+        </div>
+        <div className="mt-3 rounded-xl border bg-card p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-card-foreground">SMS Notifications</p>
+              <p className="text-xs text-muted-foreground">Receive weekly summaries by text message</p>
+            </div>
+            <Switch
+              checked={settings.smsNotifications}
+              onCheckedChange={handleSmsToggle}
+              disabled={pending || settings.smsDisabled}
+            />
+          </div>
+          {settings.smsInlineMessage ? (
+            <p className="mt-2 text-xs text-muted-foreground">{settings.smsInlineMessage}</p>
+          ) : null}
         </div>
       </div>
     </div>

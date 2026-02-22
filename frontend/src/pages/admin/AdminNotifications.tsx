@@ -3,8 +3,9 @@ import { useNavigate } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import { useConfirmDialog } from "@/hooks/use-confirm-dialog";
 import { useAppStore } from "@/lib/store";
-import { ApiError, listUsers, sendMailArrivedNotification, sendWeeklySummaryNotification } from "@/lib/api";
+import { ApiError, listUsers, sendWeeklySummaryNotification } from "@/lib/api";
 
 function computePreviousWeekRange(reference: Date): { weekStart: string; weekEnd: string } {
   const date = new Date(reference);
@@ -29,11 +30,11 @@ const AdminNotifications = () => {
   const navigate = useNavigate();
   const logout = useAppStore((s) => s.logout);
   const { toast } = useToast();
+  const confirm = useConfirmDialog();
 
   const [users, setUsers] = useState<{ id: string; fullname: string }[]>([]);
   const [selectedUserId, setSelectedUserId] = useState("");
   const [sendingWeekly, setSendingWeekly] = useState(false);
-  const [sendingSpecial, setSendingSpecial] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -70,7 +71,13 @@ const AdminNotifications = () => {
     }
 
     const { weekStart, weekEnd } = computePreviousWeekRange(new Date());
-    if (!window.confirm(`Send Weekly Mail Notification for ${weekStart} to ${weekEnd}?`)) {
+    const confirmed = await confirm({
+      title: "Send Weekly Mail Notification",
+      message: `Send Weekly Mail Notification for ${weekStart} to ${weekEnd}?`,
+      confirmLabel: "Send",
+      cancelLabel: "Cancel",
+    });
+    if (!confirmed) {
       return;
     }
 
@@ -95,37 +102,6 @@ const AdminNotifications = () => {
       }
     } finally {
       setSendingWeekly(false);
-    }
-  };
-
-  const handleSendSpecial = async () => {
-    if (!selectedUserId) {
-      toast({ title: "Select a recipient", variant: "destructive" });
-      return;
-    }
-    if (!window.confirm("Send Mail Arrived Notification?")) {
-      return;
-    }
-
-    setSendingSpecial(true);
-    try {
-      const result = await sendMailArrivedNotification({
-        userId: selectedUserId,
-      });
-      if (result.status === "sent") {
-        toast({ title: "Notification sent" });
-      } else {
-        toast({ title: `Notification ${result.status}`, description: result.reason || undefined });
-      }
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to send notification";
-      toast({ title: message, variant: "destructive" });
-      if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
-        logout();
-        navigate("/");
-      }
-    } finally {
-      setSendingSpecial(false);
     }
   };
 
@@ -157,12 +133,8 @@ const AdminNotifications = () => {
           ))}
         </select>
 
-        <Button onClick={handleSendWeekly} disabled={sendingWeekly || sendingSpecial} className="w-full h-11 text-sm">
+        <Button onClick={handleSendWeekly} disabled={sendingWeekly} className="w-full h-11 text-sm">
           {sendingWeekly ? "Sending..." : "Send Weekly Mail Notification"}
-        </Button>
-
-        <Button onClick={handleSendSpecial} disabled={sendingWeekly || sendingSpecial} className="w-full h-11 text-sm">
-          {sendingSpecial ? "Sending..." : "Send Mail Arrived Notification"}
         </Button>
       </div>
     </div>

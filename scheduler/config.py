@@ -5,6 +5,10 @@ from dataclasses import dataclass
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
+from dotenv import load_dotenv
+from pathlib import Path
+
+load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 
 @dataclass(frozen=True)
 class CronField:

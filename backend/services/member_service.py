@@ -3,8 +3,9 @@ from __future__ import annotations
 from datetime import date, datetime, timezone
 from typing import Any
 
-from config import users_collection
+from repositories.users_repository import update_notif_prefs
 from services.mail_summary_service import MailSummaryService
+from services.user_preferences import UNSET, normalize_effective_notification_state
 
 
 def list_member_mail_summary(*, user: dict[str, Any], start_day: date, end_day: date) -> dict[str, Any]:
@@ -25,18 +26,23 @@ def list_member_mail_summary(*, user: dict[str, Any], start_day: date, end_day: 
     }
 
 
-def update_member_email_notifications(*, user: dict[str, Any], enabled: bool) -> dict[str, Any]:
-    notif_prefs = user.get("notifPrefs") if isinstance(user.get("notifPrefs"), list) else []
-    next_prefs = [pref for pref in notif_prefs if pref != "email"]
-    if enabled:
-        next_prefs.append("email")
-
-    users_collection.update_one(
-        {"_id": user["_id"]},
-        {"$set": {"notifPrefs": next_prefs, "updatedAt": datetime.now(tz=timezone.utc)}},
+def update_member_notification_preferences(
+    *,
+    user: dict[str, Any],
+    email_notifications: bool | object = UNSET,
+    sms_notifications: bool | object = UNSET,
+) -> dict[str, Any]:
+    normalized = normalize_effective_notification_state(
+        current_user=user,
+        email_notifications_patch=email_notifications,
+        sms_notifications_patch=sms_notifications,
     )
+
+    update_notif_prefs(user["_id"], normalized["notifPrefs"], updated_at=datetime.now(tz=timezone.utc))
 
     return {
         "id": str(user["_id"]),
-        "emailNotifications": enabled,
+        "emailNotifications": normalized["emailNotifications"],
+        "smsNotifications": normalized["smsNotifications"],
+        "hasPhone": normalized["hasPhone"],
     }

@@ -1,0 +1,50 @@
+import os
+import unittest
+from unittest.mock import patch
+
+from bson import ObjectId
+
+os.environ.setdefault("MONGO_URI", "mongodb://localhost:27017")
+
+from errors import APIError
+from services.user_service import update_user
+
+
+class UserServiceTests(unittest.TestCase):
+    def test_update_user_rejects_text_pref_when_effective_phone_missing(self):
+        user_id = ObjectId()
+
+        with patch(
+            "services.user_service.find_user",
+            return_value={"_id": user_id, "notifPrefs": [], "phone": None},
+        ), patch(
+            "services.user_service.build_user_patch",
+            return_value={"notifPrefs": ["text"]},
+        ):
+            with self.assertRaises(APIError) as ctx:
+                update_user(user_id, payload={"notifPrefs": ["text"]})
+
+        self.assertEqual(ctx.exception.status_code, 400)
+        self.assertEqual(ctx.exception.message, "SMS notifications require a valid phone number")
+
+    def test_update_user_auto_removes_text_pref_when_phone_cleared(self):
+        user_id = ObjectId()
+        current = {"_id": user_id, "notifPrefs": ["email", "text"], "phone": "+15550001111"}
+        persisted = {"_id": user_id, "notifPrefs": ["email"], "phone": None}
+
+        with patch("services.user_service.find_user", return_value=current), patch(
+            "services.user_service.build_user_patch",
+            return_value={"phone": None},
+        ), patch(
+            "services.user_service.update_user_with_mailbox_sync",
+            return_value=persisted,
+        ) as update_mock:
+            response = update_user(user_id, payload={"phone": ""})
+
+        self.assertEqual(response, persisted)
+        self.assertEqual(update_mock.call_args.kwargs["patch"]["phone"], None)
+        self.assertEqual(update_mock.call_args.kwargs["patch"]["notifPrefs"], ["email"])
+
+
+if __name__ == "__main__":
+    unittest.main()

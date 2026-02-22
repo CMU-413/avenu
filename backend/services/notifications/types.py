@@ -5,7 +5,7 @@ from typing import Any, Literal, TypedDict
 
 from bson import ObjectId
 
-ChannelStatus = Literal["sent", "failed"]
+ChannelStatus = Literal["sent", "failed", "skipped"]
 NotifyStatus = Literal["sent", "skipped", "failed"]
 NotifyReason = Literal["already_sent", "opted_out", "empty_summary", "user_not_found", "all_channels_failed"]
 NotifyTrigger = Literal["cron", "admin"]
@@ -13,10 +13,14 @@ NotificationType = Literal["weekly-summary", "special-case"]
 NotificationLogStatus = Literal["sent", "skipped", "failed"]
 
 
-class WeeklySummaryUser(TypedDict):
+class NotificationUser(TypedDict):
     id: str
     email: str
     fullname: str
+
+
+class WeeklySummaryUser(NotificationUser, total=False):
+    phone: str
 
 
 class WeeklySummaryData(TypedDict):
@@ -33,10 +37,21 @@ class WeeklySummaryNotificationPayload(TypedDict):
     summary: WeeklySummaryData
 
 
+class SpecialCaseMailRequestContext(TypedDict, total=False):
+    requestId: str
+    mailboxId: str
+    expectedSender: str | None
+    description: str | None
+    startDate: str | None
+    endDate: str | None
+    resolvedAt: str | None
+
+
 class SpecialCaseNotificationPayload(TypedDict):
     user: WeeklySummaryUser
     triggeredBy: NotifyTrigger
     templateType: Literal["mail-arrived"]
+    mailRequest: SpecialCaseMailRequestContext | None
 
 
 class ChannelResult(TypedDict, total=False):

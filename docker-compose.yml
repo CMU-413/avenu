@@ -5,12 +5,13 @@ services:
     build:
       context: ./frontend
       args:
-        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://backend:8000}
+        VITE_BASE_PATH: ${VITE_BASE_PATH:-/mail/}
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/mail/api}
     depends_on:
       backend:
         condition: service_healthy
-    expose:
-      - "80"
+    ports:
+      - "8080:80"
     networks:
       - avenu-internal
 
@@ -31,9 +32,9 @@ services:
       MS_GRAPH_CLIENT_ID: ${MS_GRAPH_CLIENT_ID}
       MS_GRAPH_CLIENT_SECRET: ${MS_GRAPH_CLIENT_SECRET}
       MS_GRAPH_SENDER_EMAIL: ${MS_GRAPH_SENDER_EMAIL}
-    depends_on:
-      database:
-        condition: service_healthy
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN}
+      TWILIO_PHONE_NUMBER: ${TWILIO_PHONE_NUMBER}
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=5)"]
       interval: 10s
@@ -60,22 +61,6 @@ services:
         condition: service_healthy
     networks:
       - avenu-internal
-
-  database:
-    image: mongo
-    volumes:
-      - mongo-data:/data/db
-    healthcheck:
-      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
-    networks:
-      - avenu-internal
-
-volumes:
-  mongo-data:
 
 networks:
   avenu-internal:

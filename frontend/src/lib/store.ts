@@ -7,6 +7,8 @@ export interface SessionUser {
   isAdmin: boolean;
   teamIds: string[];
   emailNotifications: boolean;
+  smsNotifications: boolean;
+  hasPhone: boolean;
 }
 
 interface AppState {
@@ -14,7 +16,11 @@ interface AppState {
   isHydratingSession: boolean;
   setSessionUser: (user: SessionUser | null) => void;
   setSessionHydrating: (isHydrating: boolean) => void;
-  setSessionEmailNotifications: (emailNotifications: boolean) => void;
+  setSessionNotificationPreferences: (prefs: {
+    emailNotifications: boolean;
+    smsNotifications: boolean;
+    hasPhone: boolean;
+  }) => void;
   logout: () => void;
 }
 
@@ -23,9 +29,9 @@ export const useAppStore = create<AppState>((set) => ({
   isHydratingSession: true,
   setSessionUser: (user) => set({ sessionUser: user }),
   setSessionHydrating: (isHydrating) => set({ isHydratingSession: isHydrating }),
-  setSessionEmailNotifications: (emailNotifications) =>
+  setSessionNotificationPreferences: (prefs) =>
     set((state) => ({
-      sessionUser: state.sessionUser ? { ...state.sessionUser, emailNotifications } : null,
+      sessionUser: state.sessionUser ? { ...state.sessionUser, ...prefs } : null,
     })),
   logout: () => set({ sessionUser: null, isHydratingSession: false }),
 }));

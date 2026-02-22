@@ -104,9 +104,11 @@ class EmailChannelTests(unittest.TestCase):
             result = channel.send(self._special_payload())
 
         self.assertEqual(result, {"channel": "email", "status": "sent", "messageId": "fake-message-id"})
-        self.assertEqual(provider.calls[0]["subject"], "Mail has arrived")
+        self.assertEqual(provider.calls[0]["subject"], "Mail has arrived: Acme Sender")
         self.assertIn("Mail has arrived", provider.calls[0]["html"])
-        self.assertIn("recorded for your account", provider.calls[0]["html"])
+        self.assertIn("Expected sender:", provider.calls[0]["html"])
+        self.assertIn("Acme Sender", provider.calls[0]["html"])
+        self.assertIn("Date window:", provider.calls[0]["html"])
 
     def test_send_special_mail_arrived_returns_failed_when_provider_raises(self):
         channel = EmailChannel(RaisingEmailProvider())
@@ -189,6 +191,15 @@ class EmailChannelTests(unittest.TestCase):
             },
             "triggeredBy": "admin",
             "templateType": "mail-arrived",
+            "mailRequest": {
+                "requestId": str(ObjectId()),
+                "mailboxId": str(ObjectId()),
+                "expectedSender": "Acme Sender",
+                "description": "Package at reception",
+                "startDate": "2026-02-18",
+                "endDate": "2026-02-21",
+                "resolvedAt": "2026-02-20T12:00:00+00:00",
+            },
         }
 
 

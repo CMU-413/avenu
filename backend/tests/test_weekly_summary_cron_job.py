@@ -18,10 +18,11 @@ class FakeUsersCollection:
     def find(self, query, projection=None):
         self.last_query = query
         self.last_projection = projection
+        preference_values = query.get("notifPrefs", {}).get("$in", [])
         filtered = []
         for doc in self._docs:
             prefs = doc.get("notifPrefs") or []
-            if "email" in prefs:
+            if any(pref in prefs for pref in preference_values):
                 filtered.append({"_id": doc["_id"]})
         return filtered
 
@@ -93,11 +94,10 @@ class WeeklySummaryCronJobTests(unittest.TestCase):
             logger=FakeLogger(),
         )
 
-        self.assertEqual(users.last_query, {"notifPrefs": {"$in": ["email"]}})
+        self.assertEqual(users.last_query, {"notifPrefs": {"$in": ["email", "text"]}})
         self.assertEqual(users.last_projection, {"_id": 1})
-        self.assertEqual(len(notifier.calls), 1)
-        self.assertEqual(notifier.calls[0]["userId"], user_email)
-        self.assertEqual(result["processed"], 1)
+        self.assertEqual(len(notifier.calls), 2)
+        self.assertEqual(result["processed"], 2)
 
     def test_run_weekly_summary_cron_job_passes_cron_trigger_and_week_bounds(self):
         user_id = ObjectId()

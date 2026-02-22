@@ -60,6 +60,7 @@ users_collection = db["users"]
 teams_collection = db["teams"]
 mailboxes_collection = db["mailboxes"]
 mail_collection = db["mail"]
+mail_requests_collection = db["mail_requests"]
 idempotency_keys_collection = db["idempotency_keys"]
 notification_log_collection = db["notification_log"]
 
@@ -80,6 +81,18 @@ def ensure_indexes() -> None:
     mailboxes_collection.create_index([("refId", ASCENDING)], name="mailboxes_refid_idx")
 
     mail_collection.create_index([("mailboxId", ASCENDING), ("date", DESCENDING)], name="mail_mailbox_date_idx")
+    mail_requests_collection.create_index(
+        [("memberId", ASCENDING), ("status", ASCENDING)],
+        name="mail_requests_member_status_idx",
+    )
+    mail_requests_collection.create_index(
+        [("mailboxId", ASCENDING), ("status", ASCENDING)],
+        name="mail_requests_mailbox_status_idx",
+    )
+    mail_requests_collection.create_index(
+        [("status", ASCENDING)],
+        name="mail_requests_status_idx",
+    )
 
     idempotency_keys_collection.create_index(
         [("key", ASCENDING), ("route", ASCENDING), ("method", ASCENDING)],

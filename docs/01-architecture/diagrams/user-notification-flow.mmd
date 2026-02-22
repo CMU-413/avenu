@@ -1,0 +1,18 @@
+flowchart TD
+    Scheduler["Scheduler"] --> InternalJob["POST /api/internal/jobs/weekly-summary"]
+    InternalJob --> WeeklyJob["WeeklySummaryCronJob"]
+    WeeklyJob --> Candidates["Load candidate users where notifPrefs intersects [email, text]"]
+    Candidates --> Loop{"For each candidate user"}
+
+    Loop --> BuildSummary["Build weekly summary"]
+    BuildSummary --> Filter["Filter channels by user notifPrefs\nemail->EmailChannel\ntext->SMSChannel"]
+    Filter --> Dispatch{"Attempt preferred channels"}
+
+    Dispatch --> EmailAttempt["EmailChannel -> MS Graph"]
+    Dispatch --> SMSAttempt["SMSChannel -> Twilio"]
+
+    EmailAttempt --> ChannelResults["Collect channel results\n(sent/failed/skipped)"]
+    SMSAttempt --> ChannelResults
+
+    ChannelResults --> FinalStatus["Derive top-level status\n sent if any sent\n failed if none sent and any failed\n skipped if all skipped"]
+    FinalStatus --> Log["Insert one NOTIFICATION_LOG row for invocation"]

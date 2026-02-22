@@ -1,0 +1,58 @@
+erDiagram
+
+    USER {
+        ObjectId id PK
+        int optixId
+        boolean isAdmin
+        string fullname
+        string email
+        string phone
+        ObjectId[] teamIds FK
+        enum[] notifPrefs "email | text"
+    }
+
+    TEAM {
+        ObjectId id PK
+        int optixId
+        string name
+    }
+
+    MAILBOX {
+        ObjectId id PK
+        enum type "user | team"
+        ObjectId refId FK
+        string displayName
+    }
+
+    MAIL {
+        ObjectId id PK
+        ObjectId mailboxId FK
+        datetime date
+        enum type "letter | package"
+        int count
+    }
+
+    MAIL_REQUEST {
+        ObjectId id PK
+        ObjectId memberId FK
+        ObjectId mailboxId FK
+        string expectedSender
+        string description
+        string startDate
+        string endDate
+        enum status "ACTIVE | CANCELLED | RESOLVED"
+        datetime resolvedAt
+        ObjectId resolvedBy FK
+        enum lastNotificationStatus "SENT | FAILED"
+        datetime lastNotificationAt
+    }
+
+    %% Relationships
+    USER }|--o{ TEAM : belongs_to
+
+    USER ||--|| MAILBOX : owns
+    TEAM ||--|| MAILBOX : owns
+
+    MAILBOX ||--o{ MAIL : contains
+    USER ||--o{ MAIL_REQUEST : declares
+    MAILBOX ||--o{ MAIL_REQUEST : scoped_to
