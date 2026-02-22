@@ -1,15 +1,33 @@
 # Avenu
 
-Full-stack web application with a React frontend, Flask backend API, dedicated Scheduler container, and MongoDB database.
+Full-stack web application composed of:
+
+* React SPA (frontend)
+* Flask API (backend)
+* Dedicated Scheduler container (job runner)
+* MongoDB database
+
+Docker is the source of truth for local, CI, and production environments.
+
+---
+
+## System Overview
+
+* Frontend is a pure API client.
+* Backend owns all business logic and all database access.
+* Scheduler is an internal backend client that triggers scheduled jobs.
+* Scheduler never connects directly to MongoDB.
+* All inter-service traffic runs inside the Docker network.
+* External traffic only reaches the frontend (and backend if exposed).
 
 ---
 
 ## Repo Structure
 
 ```
-├── frontend/        # React SPA build/runtime container
-├── backend/         # Flask API + business logic + external integrations
-├── scheduler/       # Scheduled job runner (HTTP client of backend)
+├── frontend/        # React SPA
+├── backend/         # Flask API + business logic
+├── scheduler/       # Scheduled job runner (backend client)
 ├── docs/            # Architecture and API docs
 ├── docker-compose.yml
 └── README.md
@@ -19,70 +37,91 @@ Full-stack web application with a React frontend, Flask backend API, dedicated S
 
 ## Prerequisites
 
-You need the following installed locally:
+Required:
 
-- Docker (with Docker Compose v2)
-- Node.js (only if running frontend outside Docker)
-- Python 3.11+ (only if running backend/scheduler outside Docker)
+* Docker (with Docker Compose v2)
+
+Optional (for running outside Docker):
+
+* Node.js
+* Python 3.11+
 
 ---
 
-## Environment Variables
+## Environment Configuration
 
-Copy `.env.sample` into `.env` and fill out the required values.
+Copy:
 
-Notes:
-- `SECRET_KEY` is required outside tests.
-- In testing mode (`FLASK_TESTING=true`), notifications use console providers for email and SMS.
-- Outside testing mode, notifications use Microsoft Graph for email and Twilio for SMS and require all `MS_GRAPH_*` and `TWILIO_*` values.
-- Required backend notification vars outside testing:
-  - `MS_GRAPH_TENANT_ID`
-  - `MS_GRAPH_CLIENT_ID`
-  - `MS_GRAPH_CLIENT_SECRET`
-  - `MS_GRAPH_SENDER_EMAIL`
-  - `TWILIO_ACCOUNT_SID`
-  - `TWILIO_AUTH_TOKEN`
-  - `TWILIO_PHONE_NUMBER`
-- For iframe/Canvas embedding, set:
-  - `SESSION_COOKIE_SAMESITE=None`
-  - `SESSION_COOKIE_SECURE=true`
-  - optional: `SESSION_COOKIE_PARTITIONED=true`
-- User sessions are created via `POST /api/session/login` with a user email.
-- `POST /api/session/logout` clears the session.
-- Admin routes authorize by loading `session["user_id"]` from DB and requiring `user.isAdmin == true`.
-- `FRONTEND_ORIGINS` (comma-separated origin allowlist for CORS)
-- `SCHEDULER_INTERNAL_TOKEN` (shared secret for internal scheduler endpoint)
+```
+.env.sample → .env
+```
 
-### Frontend
-- `VITE_BASE_PATH` (default in compose: `/mail/`)
-- `VITE_API_BASE_URL` (default in compose: `/mail/api`)
+### Backend
+
+* `SECRET_KEY` (required outside tests)
+* `FLASK_TESTING`
+* `FRONTEND_ORIGINS` (CORS allowlist)
+* `SCHEDULER_INTERNAL_TOKEN` (shared secret for scheduler endpoint)
+
+### Notification Providers (required when `FLASK_TESTING=false`)
+
+* `MS_GRAPH_TENANT_ID`
+* `MS_GRAPH_CLIENT_ID`
+* `MS_GRAPH_CLIENT_SECRET`
+* `MS_GRAPH_SENDER_EMAIL`
+* `TWILIO_ACCOUNT_SID`
+* `TWILIO_AUTH_TOKEN`
+* `TWILIO_PHONE_NUMBER`
+
+### Session / Embedding
+
+For iframe / Canvas embedding:
+
+* `SESSION_COOKIE_SAMESITE=None`
+* `SESSION_COOKIE_SECURE=true`
+* optional: `SESSION_COOKIE_PARTITIONED=true`
+
+### Frontend (Build-Time)
+
+* `VITE_BASE_PATH` (default `/mail/`)
+* `VITE_API_BASE_URL` (default `/mail/api`)
+
+These are public and embedded at build time.
 
 ### Scheduler
-- `BACKEND_API_URL` (must point to backend service DNS, default `http://backend:8000`)
-- `SCHEDULER_INTERNAL_TOKEN` (must match backend)
-- `SCHEDULER_CRON` (default `0 8 * * 1`, i.e. 8 AM on Monday)
-- `SCHEDULER_TIMEZONE` (default `America/New_York`)
-- `SCHEDULER_TICK_SECONDS` (default `20`)
+
+* `BACKEND_API_URL` (default `http://backend:8000`)
+* `SCHEDULER_INTERNAL_TOKEN`
+* `SCHEDULER_CRON` (default `0 8 * * 1`)
+* `SCHEDULER_TIMEZONE`
+* `SCHEDULER_TICK_SECONDS`
 
 ---
 
-## Running the App (Recommended: Docker)
+## Authentication Model
 
-From the repo root:
+Production usage assumes authentication is handled upstream (e.g., Optix or embedding context).
 
-```bash
+`POST /api/session/login` currently creates a session based on a provided email. This endpoint is intended to be called only from a trusted upstream system.
+
+It should not be exposed publicly without additional verification.
+
+---
+
+## Running the App (Docker)
+
+From repo root:
+
+```
 docker compose up --build
 ```
 
-This starts four services:
-- `frontend` on `http://localhost:8080/mail`
-- `backend` (internal Docker network only)
-- `scheduler` (internal job runner container)
-- `database` (MongoDB with persistent volume)
+Services:
 
-### Access
-
-- Frontend: http://localhost:8080/mail
+* frontend → [http://localhost:8080/mail](http://localhost:8080/mail)
+* backend → internal
+* scheduler → internal
+* database → MongoDB (persistent volume)
 
 ---
 
@@ -90,7 +129,7 @@ This starts four services:
 
 ### Backend
 
-```bash
+```
 cd backend
 python -m venv .venv
 source .venv/bin/activate
@@ -98,30 +137,47 @@ pip install -r requirements.txt
 PORT=8000 python app.py
 ```
 
-Runs on: http://localhost:8000
+Runs on: [http://localhost:8000](http://localhost:8000)
 
 ### Frontend
 
-```bash
+```
 cd frontend
 npm install
 npm run dev
 ```
 
-Runs on: http://localhost:5173
-
-Set `VITE_API_BASE_URL` for local dev if backend is not on the default URL.
+Runs on: [http://localhost:5173](http://localhost:5173)
 
 ### Scheduler
 
-```bash
+```
 cd scheduler
 SCHEDULER_INTERNAL_TOKEN=<token> BACKEND_API_URL=http://localhost:8000 python main.py
 ```
 
+---
+
+## CI / Docker Hub
+
+GitHub Actions builds and pushes:
+
+* `DOCKERHUB_USERNAME/avenu-frontend`
+* `DOCKERHUB_USERNAME/avenu-backend`
+* `DOCKERHUB_USERNAME/avenu-scheduler`
+
+Required repo secrets:
+
+* `DOCKERHUB_USERNAME`
+* `DOCKERHUB_TOKEN`
+
+Deployment targets must pull images from the same Docker Hub namespace.
+
+---
+
 ## Notes
 
-- Frontend environment variables are build-time and public.
-- Backend environment variables are runtime and private.
-- Scheduler is an internal backend API client and does not connect to MongoDB directly.
-- Docker is the source of truth for prod and CI.
+* Frontend environment variables are build-time and public.
+* Backend environment variables are runtime and private.
+* Scheduler is an internal API client.
+* Docker is the canonical deployment path.
