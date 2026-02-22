@@ -208,7 +208,7 @@ const RecordEntry = () => {
             >
               −
             </button>
-            <span className="text-2xl font-bold text-foreground w-12 text-center">{letters}</span>
+            <input className="text-2xl font-bold text-foreground w-12 text-center" onChange={e => setLetters(parseInt(e.target.value) || 0)} value={letters}></input>
             <button
               onClick={() => setLetters(letters + 1)}
               className="h-11 w-11 rounded-lg border border-input bg-card text-foreground text-xl font-medium flex items-center justify-center hover:bg-muted transition-colors"
@@ -228,7 +228,7 @@ const RecordEntry = () => {
             >
               −
             </button>
-            <span className="text-2xl font-bold text-foreground w-12 text-center">{packages}</span>
+            <input className="text-2xl font-bold text-foreground w-12 text-center" onChange={e => setPackages(parseInt(e.target.value) || 0)} value={packages}></input>
             <button
               onClick={() => setPackages(packages + 1)}
               className="h-11 w-11 rounded-lg border border-input bg-card text-foreground text-xl font-medium flex items-center justify-center hover:bg-muted transition-colors"
