@@ -77,6 +77,7 @@ Copy:
 
 For iframe / Canvas embedding:
 
+* `SESSION_COOKIE_NAME=avenu_session`
 * `SESSION_COOKIE_SAMESITE=None`
 * `SESSION_COOKIE_SECURE=true`
 * optional: `SESSION_COOKIE_PARTITIONED=true`
