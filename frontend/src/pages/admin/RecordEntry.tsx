@@ -307,7 +307,11 @@ const RecordEntry = () => {
               >
                 −
               </button>
-              <span className="text-2xl font-bold text-foreground w-12 text-center">{letters}</span>
+              <input
+                className="text-2xl font-bold text-foreground w-12 text-center"
+                onChange={(e) => setLetters(parseInt(e.target.value) || 0)}
+                value={letters}
+              />
               <button
                 onClick={() => setLetters(letters + 1)}
                 className="h-11 w-11 rounded-lg border border-input bg-card text-foreground text-xl font-medium flex items-center justify-center hover:bg-muted transition-colors"
@@ -327,7 +331,11 @@ const RecordEntry = () => {
               >
                 −
               </button>
-              <span className="text-2xl font-bold text-foreground w-12 text-center">{packages}</span>
+              <input
+                className="text-2xl font-bold text-foreground w-12 text-center"
+                onChange={(e) => setPackages(parseInt(e.target.value) || 0)}
+                value={packages}
+              />
               <button
                 onClick={() => setPackages(packages + 1)}
                 className="h-11 w-11 rounded-lg border border-input bg-card text-foreground text-xl font-medium flex items-center justify-center hover:bg-muted transition-colors"
@@ -335,62 +343,66 @@ const RecordEntry = () => {
                 +
               </button>
             </div>
+
+            <Button
+              onClick={handleSave}
+              className="w-full h-12 text-base"
+              disabled={saving}
+            >
+              {saving ? "Saving..." : "Save"}
+            </Button>
           </div>
 
-          <Button onClick={handleSave} className="w-full h-12 text-base" disabled={saving}>
-            {saving ? "Saving..." : "Save"}
-          </Button>
+          <aside className="rounded-xl border bg-card p-3 space-y-3 h-fit">
+            <h2 className="text-sm font-semibold text-foreground">Expected Mail Requests</h2>
+            {loadingRequests ? (
+              <p className="text-xs text-muted-foreground">Loading requests...</p>
+            ) : activeRequests.length === 0 ? (
+              <p className="text-xs text-muted-foreground">No active requests for selected date.</p>
+            ) : (
+              <div className="space-y-2">
+                {activeRequests.map((request) => (
+                  <div key={request.id} className="rounded-lg border p-2 space-y-1.5">
+                    <p className="text-xs text-card-foreground">{request.expectedSender || request.description || "No details"}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {request.startDate || request.endDate ? `${request.startDate || "?"} to ${request.endDate || "?"}` : "No date window"}
+                    </p>
+                    <Button
+                      onClick={() => handleResolve(request.id)}
+                      disabled={resolvingRequestId === request.id}
+                      className="w-full h-8 text-xs"
+                    >
+                      {resolvingRequestId === request.id ? "Resolving..." : "Resolve & Notify"}
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {resolvedRequests.length > 0 && (
+              <div className="space-y-2 border-t pt-3">
+                <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Recently Resolved</h3>
+                {resolvedRequests.map((request) => (
+                  <div key={request.id} className="rounded-lg border p-2 space-y-1.5">
+                    <p className="text-xs text-card-foreground">{request.expectedSender || request.description || "No details"}</p>
+                    <p className="text-xs text-muted-foreground">
+                      Notification: {request.lastNotificationStatus || "—"}
+                      {request.lastNotificationAt ? ` at ${new Date(request.lastNotificationAt).toLocaleString()}` : ""}
+                    </p>
+                    <Button
+                      onClick={() => handleRetry(request.id)}
+                      disabled={retryingRequestId === request.id}
+                      variant="secondary"
+                      className="w-full h-8 text-xs"
+                    >
+                      {retryingRequestId === request.id ? "Retrying..." : "Retry Notification"}
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </aside>
         </div>
-
-        <aside className="rounded-xl border bg-card p-3 space-y-3 h-fit">
-          <h2 className="text-sm font-semibold text-foreground">Expected Mail Requests</h2>
-          {loadingRequests ? (
-            <p className="text-xs text-muted-foreground">Loading requests...</p>
-          ) : activeRequests.length === 0 ? (
-            <p className="text-xs text-muted-foreground">No active requests for selected date.</p>
-          ) : (
-            <div className="space-y-2">
-              {activeRequests.map((request) => (
-                <div key={request.id} className="rounded-lg border p-2 space-y-1.5">
-                  <p className="text-xs text-card-foreground">{request.expectedSender || request.description || "No details"}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {request.startDate || request.endDate ? `${request.startDate || "?"} to ${request.endDate || "?"}` : "No date window"}
-                  </p>
-                  <Button
-                    onClick={() => handleResolve(request.id)}
-                    disabled={resolvingRequestId === request.id}
-                    className="w-full h-8 text-xs"
-                  >
-                    {resolvingRequestId === request.id ? "Resolving..." : "Resolve & Notify"}
-                  </Button>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {resolvedRequests.length > 0 && (
-            <div className="space-y-2 border-t pt-3">
-              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Recently Resolved</h3>
-              {resolvedRequests.map((request) => (
-                <div key={request.id} className="rounded-lg border p-2 space-y-1.5">
-                  <p className="text-xs text-card-foreground">{request.expectedSender || request.description || "No details"}</p>
-                  <p className="text-xs text-muted-foreground">
-                    Notification: {request.lastNotificationStatus || "—"}
-                    {request.lastNotificationAt ? ` at ${new Date(request.lastNotificationAt).toLocaleString()}` : ""}
-                  </p>
-                  <Button
-                    onClick={() => handleRetry(request.id)}
-                    disabled={retryingRequestId === request.id}
-                    variant="secondary"
-                    className="w-full h-8 text-xs"
-                  >
-                    {retryingRequestId === request.id ? "Retrying..." : "Retry Notification"}
-                  </Button>
-                </div>
-              ))}
-            </div>
-          )}
-        </aside>
       </div>
     </div>
   );
