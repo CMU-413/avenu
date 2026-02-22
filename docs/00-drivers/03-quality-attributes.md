@@ -1,55 +1,76 @@
-## 1. Performance
+# 1. Security
 
-**QA-P1 — Dashboard Load Performance**
+## QA-S1 — Mailbox Access Boundary Enforcement
 
-An authenticated member (Source) requests weekly mail totals for all authorized mailboxes (Stimulus) under normal operating conditions with up to 500 total members and low concurrency (Environment). The backend aggregation endpoint and database (Artifact) query mail entries using indexed mailboxId and date range filters and return totals (Response), ensuring a 95th percentile response time of no more than 500ms and no request exceeding 1 second under normal load (Response Measure).
+An authenticated member (Source) attempts to read or mutate mail entries, mail requests, or weekly aggregates for a mailbox they are not authorized to access (Stimulus) in production (Environment). The authorization layer within the controller/service boundary (Artifact) validates mailbox ownership before any repository call (Response), ensuring:
 
-**QA-P2 — Weekly Email Job Completion**
+* An HTTP 403 response is returned
+* No unauthorized data is exposed
+* No unauthorized state mutation occurs
+* The event is logged
 
-The Scheduler container (Source) calls Backend internal HTTP job endpoint for all opted-in members (Stimulus) in a single-instance deployment with up to 500 members (Environment). The backend aggregation and email dispatch logic (Artifact) process each opted-in member and send a summary email (Response), ensuring the entire job completes within 5 minutes while the system remains responsive to API requests during execution (Response Measure).
+(Response Measure)
 
----
-
-## 2. Reliability
-
-**QA-R1 — Email Provider Failure Isolation**
-
-An email provider (Source) returns an error during an email send attempt (Stimulus) while the weekly job is executing (Environment). The email dispatch logic (Artifact) logs the failure and continues processing remaining members (Response), ensuring that failure of one email does not halt the job, the failure is recorded within 2 seconds, and at least 99 percent of non-failing emails are still delivered (Response Measure).
-
-**QA-R2 — External Identity Source Unavailability**
-
-The Optix API (Source) becomes unavailable and a hydration attempt fails (Stimulus) in production (Environment). The identity sync component (Artifact) logs the failure and preserves the existing internal state (Response), ensuring no existing user or team records are corrupted and that retry is possible without manual database repair (Response Measure).
+This enforces the invariant defined in FR-4, FR-7, FR-29, and FR-41 .
 
 ---
 
-## 3. Security
+# 2. Reliability
 
-**QA-S1 — Unauthorized Mailbox Access Attempt**
+## QA-R1 — Notification Failure Isolation
 
-An authenticated member (Source) attempts to access a mailbox not owned by them or their company (Stimulus) in production (Environment). The authorization layer (Artifact) denies the request (Response), ensuring an HTTP 403 response is returned, no unauthorized data is exposed, and the security event is logged (Response Measure).
+During weekly summary execution or mail-request resolution (Environment), the email provider (Source) returns an error while sending a notification for a specific member (Stimulus). The notification orchestration logic (Artifact) logs the failure and continues processing remaining recipients (Response), ensuring:
 
----
+* Failure of one notification does not halt job execution
+* Mail-request resolution is not rolled back
+* All subsequent eligible members are still processed
+* The failure is persisted in `NOTIFICATION_LOG`
 
-## 4. Availability
+(Response Measure)
 
-**QA-A1 — Single-Instance Failure**
-
-A host machine failure (Source) causes service containers to stop (Stimulus) in an on-prem deployment (Environment). The system (Artifact) becomes unavailable until the host is restored and containers are relaunched (Response), ensuring MongoDB persistent volume data integrity is preserved and services restart cleanly upon recovery (Response Measure).
-
----
-
-## 5. Modifiability
-
-**QA-M1 — OCR Provider Replacement**
-
-A developer (Source) introduces a new OCR implementation to replace the existing provider (Stimulus) during development (Environment). The OCR integration layer (Artifact) is updated to support the new provider (Response), ensuring that changes are confined to the OCR abstraction layer and no modifications are required to aggregation logic, mailbox logic, mail entry logic, or the mail persistence model (Response Measure).
-
-QA-M1 remains satisfied after layered architecture refactoring because provider integration points remain in service-level abstractions while repository and model layers stay storage/domain-focused and provider-agnostic.
+This enforces FR-24 and FR-35  and aligns with the notification design .
 
 ---
 
-## 6. Observability
+## QA-R2 — External Identity Unavailability Safety
 
-**QA-O1 — Weekly Job Failure Visibility**
+The external identity provider (Optix) (Source) becomes unavailable during a user or team synchronization attempt (Stimulus) in production (Environment). The identity synchronization component (Artifact) fails safely (Response), ensuring:
 
-An unhandled exception (Source) occurs during scheduler-triggered weekly execution (Stimulus) in production (Environment). Scheduler and Backend logs (Artifact) capture the failure with sufficient diagnostic context (Response), ensuring stack trace visibility and that operators can detect failures from logs without direct database inspection (Response Measure).
+* No partial writes corrupt referential integrity
+* Existing user and mailbox associations remain valid
+* The failed attempt is logged
+* A retry can be executed without manual database repair
+
+(Response Measure)
+
+This enforces TC-3.1 and FR-42–45 .
+
+---
+
+## QA-R3 — Cross-Channel Aggregation Integrity
+
+A member views weekly totals in the dashboard and receives the weekly summary email for the same mailbox set and time window (Environment). The system (Artifact) computes totals via a single shared aggregation service used by both dashboard and email flows (Response), ensuring:
+
+* Identical totals for letters and packages
+* Identical week boundary interpretation
+* No duplicate aggregation logic across controllers or notifiers
+
+(Response Measure)
+
+This enforces FR-15, FR-16, and FR-17 .
+
+---
+
+# 3. Modifiability
+
+## QA-M1 — External Provider Replacement Isolation
+
+A developer (Source) replaces an external provider implementation (for example OCR or email transport) (Stimulus) during development (Environment). The provider abstraction and service wiring layers (Artifact) are updated (Response), ensuring:
+
+* No modifications are required to repository or domain model layers
+* No changes are required to aggregation logic
+* HTTP controller contracts remain unchanged
+
+(Response Measure)
+
+This aligns with the layered architecture and provider isolation model .
