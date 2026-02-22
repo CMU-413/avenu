@@ -48,6 +48,8 @@ export interface ApiSessionMe {
   isAdmin: boolean;
   teamIds: string[];
   emailNotifications: boolean;
+  smsNotifications: boolean;
+  hasPhone: boolean;
 }
 
 export interface ApiMemberMailboxDay {
@@ -72,6 +74,8 @@ export interface ApiMemberMailSummary {
 export interface ApiMemberPreferences {
   id: string;
   emailNotifications: boolean;
+  smsNotifications: boolean;
+  hasPhone: boolean;
 }
 
 export type ApiMailRequestStatus = "ACTIVE" | "CANCELLED" | "RESOLVED";

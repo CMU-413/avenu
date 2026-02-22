@@ -3,11 +3,14 @@ from __future__ import annotations
 import logging
 from datetime import date, datetime, timedelta, timezone
 from time import perf_counter
-from typing import Any
 
-from repositories.users_repository import list_opted_in_user_ids
+from repositories.users_repository import list_weekly_summary_candidate_user_ids
 from services.notifications.interfaces import Notifier
 from services.notifications.types import WeeklyCronJobResult
+
+
+def _enabled_weekly_channel_preferences() -> list[str]:
+    return ["email", "text"]
 
 
 def compute_previous_week_range(now: datetime) -> tuple[date, date]:
@@ -46,9 +49,10 @@ def run_weekly_summary_cron_job(
     started_at = perf_counter()
 
     if users is None:
-        opted_in_user_ids = list_opted_in_user_ids(preference="email")
+        opted_in_user_ids = list_weekly_summary_candidate_user_ids(preferences=_enabled_weekly_channel_preferences())
     else:
-        opted_in_user_ids = [doc["_id"] for doc in users.find({"notifPrefs": {"$in": ["email"]}}, {"_id": 1})]
+        preferences = _enabled_weekly_channel_preferences()
+        opted_in_user_ids = [doc["_id"] for doc in users.find({"notifPrefs": {"$in": preferences}}, {"_id": 1})]
     candidate_count = len(opted_in_user_ids)
 
     counters: WeeklyCronJobResult = {

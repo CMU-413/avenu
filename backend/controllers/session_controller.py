@@ -5,6 +5,7 @@ from flask import Blueprint, jsonify, session
 from controllers.auth_guard import ensure_session_user
 from controllers.common import json_payload
 from errors import APIError
+from services.user_preferences import normalize_effective_notification_state
 from services.user_service import find_user_by_email
 from validators import normalize_email, require_string
 
@@ -31,6 +32,7 @@ def session_logout():
 @session_bp.route("/api/session/me", methods=["GET"])
 def session_me():
     user = ensure_session_user()
+    normalized = normalize_effective_notification_state(current_user=user)
     return (
         jsonify(
             {
@@ -39,7 +41,9 @@ def session_me():
                 "fullname": user.get("fullname", ""),
                 "isAdmin": user.get("isAdmin", False),
                 "teamIds": [str(tid) for tid in user.get("teamIds", [])],
-                "emailNotifications": "email" in list(user.get("notifPrefs", [])),
+                "emailNotifications": normalized["emailNotifications"],
+                "smsNotifications": normalized["smsNotifications"],
+                "hasPhone": normalized["hasPhone"],
             }
         ),
         200,

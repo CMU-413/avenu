@@ -5,7 +5,7 @@ from typing import Any, Literal, TypedDict
 
 from bson import ObjectId
 
-ChannelStatus = Literal["sent", "failed"]
+ChannelStatus = Literal["sent", "failed", "skipped"]
 NotifyStatus = Literal["sent", "skipped", "failed"]
 NotifyReason = Literal["already_sent", "opted_out", "empty_summary", "user_not_found", "all_channels_failed"]
 NotifyTrigger = Literal["cron", "admin"]
@@ -13,10 +13,14 @@ NotificationType = Literal["weekly-summary", "special-case"]
 NotificationLogStatus = Literal["sent", "skipped", "failed"]
 
 
-class WeeklySummaryUser(TypedDict):
+class NotificationUser(TypedDict):
     id: str
     email: str
     fullname: str
+
+
+class WeeklySummaryUser(NotificationUser, total=False):
+    phone: str
 
 
 class WeeklySummaryData(TypedDict):

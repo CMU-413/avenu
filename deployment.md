@@ -124,9 +124,14 @@ Examples:
 * MONGO_URI
 * SECRET_KEY
 * MS_GRAPH_CLIENT_SECRET
+* TWILIO_ACCOUNT_SID
+* TWILIO_AUTH_TOKEN
+* TWILIO_PHONE_NUMBER
 * SCHEDULER_INTERNAL_TOKEN
 * SESSION_COOKIE_SECURE
 * FRONTEND_ORIGINS
+
+SMS notifications are always wired in backend notifier composition, so Twilio variables are mandatory in non-testing deployments.
 
 Never bake secrets into Docker images.
 

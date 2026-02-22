@@ -74,9 +74,9 @@ class WeeklySummarySchedulerEndpointTests(unittest.TestCase):
         with patch("controllers.internal_jobs_controller.SCHEDULER_INTERNAL_TOKEN", "scheduler-secret"), patch(
             "repositories.idempotency_repository.idempotency_keys_collection", idempotency_collection
         ), patch(
-            "controllers.internal_jobs_controller.build_email_provider",
-            return_value=object(),
-        ), patch(
+            "controllers.internal_jobs_controller.build_notification_channels",
+            return_value=[object()],
+        ) as channels_builder_mock, patch(
             "controllers.internal_jobs_controller.WeeklySummaryNotifier",
             return_value=notifier,
         ), patch(
@@ -118,6 +118,7 @@ class WeeklySummarySchedulerEndpointTests(unittest.TestCase):
             week_start=date(2026, 2, 9),
             week_end=date(2026, 2, 15),
         )
+        channels_builder_mock.assert_called_once_with(testing=True)
 
     def test_scheduler_endpoint_replays_response_when_idempotency_key_reused(self):
         idempotency_collection = FakeIdempotencyCollection()
@@ -126,8 +127,8 @@ class WeeklySummarySchedulerEndpointTests(unittest.TestCase):
         with patch("controllers.internal_jobs_controller.SCHEDULER_INTERNAL_TOKEN", "scheduler-secret"), patch(
             "repositories.idempotency_repository.idempotency_keys_collection", idempotency_collection
         ), patch(
-            "controllers.internal_jobs_controller.build_email_provider",
-            return_value=object(),
+            "controllers.internal_jobs_controller.build_notification_channels",
+            return_value=[object()],
         ), patch(
             "controllers.internal_jobs_controller.WeeklySummaryNotifier",
             return_value=notifier,

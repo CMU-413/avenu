@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 
 from flask import Flask, jsonify, request
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 from config import (
     FRONTEND_ORIGINS,
@@ -24,6 +25,7 @@ def create_app(
     secret_key: str | None = None,
 ) -> Flask:
     app = Flask(__name__)
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
     app.config["TESTING"] = testing
     resolved_frontend_origins = tuple(FRONTEND_ORIGINS)
 

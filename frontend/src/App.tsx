@@ -28,6 +28,8 @@ function toSessionUser(session: ApiSessionMe): SessionUser {
     isAdmin: session.isAdmin,
     teamIds: session.teamIds,
     emailNotifications: session.emailNotifications,
+    smsNotifications: session.smsNotifications,
+    hasPhone: session.hasPhone,
   };
 }
 

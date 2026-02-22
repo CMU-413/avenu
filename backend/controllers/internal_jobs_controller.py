@@ -8,8 +8,7 @@ from config import SCHEDULER_INTERNAL_TOKEN
 from controllers.common import parse_iso_date
 from errors import APIError
 from services.idempotency_service import begin_request, commit_response, rollback_reservation
-from services.notifications.channels.email_channel import EmailChannel
-from services.notifications.providers.factory import build_email_provider
+from services.notifications.channels.factory import build_notification_channels
 from services.notifications.weekly_summary_cron_job import run_weekly_summary_cron_job
 from services.notifications.weekly_summary_notifier import WeeklySummaryNotifier
 from validators import require_dict
@@ -71,7 +70,9 @@ def internal_weekly_summary_job_route():
         return jsonify(replay["body"]), replay["status"]
 
     try:
-        notifier = WeeklySummaryNotifier(channels=[EmailChannel(build_email_provider(testing=current_app.config["TESTING"]))])
+        notifier = WeeklySummaryNotifier(
+            channels=build_notification_channels(testing=current_app.config["TESTING"])
+        )
         result = run_weekly_summary_cron_job(
             notifier=notifier,
             week_start=week_start,

@@ -5,7 +5,8 @@ from flask import Blueprint, jsonify, request
 from controllers.auth_guard import ensure_member_session
 from controllers.common import json_payload, parse_iso_date
 from errors import APIError
-from services.member_service import list_member_mail_summary, update_member_email_notifications
+from services.member_service import list_member_mail_summary, update_member_notification_preferences
+from services.user_preferences import UNSET
 
 member_bp = Blueprint("member", __name__)
 
@@ -28,7 +29,29 @@ def member_mail_route():
 def member_preferences_route():
     user = ensure_member_session()
     payload = json_payload()
-    email_notifications = payload.get("emailNotifications")
-    if not isinstance(email_notifications, bool):
-        raise APIError(422, "emailNotifications must be a boolean")
-    return jsonify(update_member_email_notifications(user=user, enabled=email_notifications)), 200
+    has_email = "emailNotifications" in payload
+    has_sms = "smsNotifications" in payload
+    if not has_email and not has_sms:
+        raise APIError(400, "no update payload provided")
+
+    email_notifications: bool | object = UNSET
+    sms_notifications: bool | object = UNSET
+    if has_email:
+        email_notifications = payload.get("emailNotifications")
+        if not isinstance(email_notifications, bool):
+            raise APIError(422, "emailNotifications must be a boolean")
+    if has_sms:
+        sms_notifications = payload.get("smsNotifications")
+        if not isinstance(sms_notifications, bool):
+            raise APIError(422, "smsNotifications must be a boolean")
+
+    return (
+        jsonify(
+            update_member_notification_preferences(
+                user=user,
+                email_notifications=email_notifications,
+                sms_notifications=sms_notifications,
+            )
+        ),
+        200,
+    )

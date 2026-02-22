@@ -13,6 +13,7 @@ from repositories.users_repository import (
     update_user_with_mailbox_sync,
     delete_user_cascade,
 )
+from services.user_preferences import UNSET, normalize_effective_notification_state
 
 
 def list_users() -> list[dict[str, Any]]:
@@ -38,7 +39,20 @@ def create_user(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def update_user(user_id: ObjectId, payload: dict[str, Any]) -> dict[str, Any]:
+    current_user = find_user(user_id)
+    if current_user is None:
+        raise APIError(404, "user not found")
+
     patch = build_user_patch(payload)
+    if "notifPrefs" in patch or "phone" in patch:
+        normalized = normalize_effective_notification_state(
+            current_user=current_user,
+            phone_patch=patch.get("phone", UNSET),
+            notif_prefs_patch=patch.get("notifPrefs", UNSET),
+        )
+        patch["notifPrefs"] = normalized["notifPrefs"]
+        if "phone" in patch:
+            patch["phone"] = normalized["phone"]
 
     try:
         return update_user_with_mailbox_sync(user_id=user_id, patch=patch)

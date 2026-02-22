@@ -1,0 +1,15 @@
+flowchart TD
+    Admin["Admin"] --> Resolve["POST /api/admin/mail-requests/{id}/resolve"]
+    Resolve --> ResolveSvc["resolve_mail_request_and_notify(...)"]
+    ResolveSvc --> SpecialNotifier["SpecialCaseNotifier.notifySpecialCase(...)"]
+
+    SpecialNotifier --> Filter["Filter channels by member notifPrefs\nemail->EmailChannel\ntext->SMSChannel"]
+    Filter --> EmailAttempt["EmailChannel -> MS Graph"]
+    Filter --> SMSAttempt["SMSChannel -> Twilio"]
+
+    EmailAttempt --> ChannelResults["Collect channel results\n(sent/failed/skipped)"]
+    SMSAttempt --> ChannelResults
+
+    ChannelResults --> TopStatus["Derive top-level notify status"]
+    TopStatus --> MailRequestMeta["Update MAIL_REQUEST\nlastNotificationStatus/lastNotificationAt"]
+    TopStatus --> NotifyLog["Insert one NOTIFICATION_LOG row\ntype=special-case\ntemplateType=mail-arrived"]

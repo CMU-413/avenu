@@ -61,7 +61,14 @@ def pull_team_from_users(team_id: ObjectId, *, session: Any | None = None) -> No
 
 
 def list_opted_in_user_ids(*, preference: str = "email") -> list[ObjectId]:
-    return [doc["_id"] for doc in users_collection.find({"notifPrefs": {"$in": [preference]}}, {"_id": 1})]
+    return list_weekly_summary_candidate_user_ids(preferences=[preference])
+
+
+def list_weekly_summary_candidate_user_ids(*, preferences: list[str]) -> list[ObjectId]:
+    normalized = sorted({item.strip() for item in preferences if isinstance(item, str) and item.strip()})
+    if not normalized:
+        return []
+    return [doc["_id"] for doc in users_collection.find({"notifPrefs": {"$in": normalized}}, {"_id": 1})]
 
 
 def update_notif_prefs(user_id: ObjectId, prefs: list[str], *, updated_at: datetime) -> None:
@@ -72,11 +79,11 @@ def update_notif_prefs(user_id: ObjectId, prefs: list[str], *, updated_at: datet
 
 
 def find_for_notification(user_id: ObjectId) -> dict[str, Any] | None:
-    return users_collection.find_one({"_id": user_id}, {"email": 1, "fullname": 1, "notifPrefs": 1})
+    return users_collection.find_one({"_id": user_id}, {"email": 1, "fullname": 1, "phone": 1, "notifPrefs": 1})
 
 
 def find_basic_profile(user_id: ObjectId) -> dict[str, Any] | None:
-    return users_collection.find_one({"_id": user_id}, {"email": 1, "fullname": 1})
+    return users_collection.find_one({"_id": user_id}, {"email": 1, "fullname": 1, "phone": 1, "notifPrefs": 1})
 
 
 def create_user_with_mailbox(*, user_doc: dict[str, Any], mailbox_doc: dict[str, Any]) -> dict[str, Any]:
