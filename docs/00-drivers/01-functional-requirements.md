@@ -4,7 +4,7 @@ Avenu manages physical mail intake for a coworking space.
 
 The system enables:
 
-* Admins to log incoming mail
+* Admins to log incoming mail (letters & packages)
 * Members to view mail associated with them or their company
 * Weekly summary email notifications
 
@@ -148,28 +148,100 @@ FR-25
 Email send failures shall be logged.
 
 ---
+# 10. Expected Mail Requests
 
-## 10. Data Synchronization (Optix Integration)
+## 10.1 Request Creation
 
 FR-26
-The system shall ingest user and team data from the external source.
+A member shall be able to create an expected mail request.
 
 FR-27
-User records shall be uniquely identified by external ID.
+A mail request shall include:
+
+* Target mailbox
+* Optional description or reference note
+* Creation timestamp
 
 FR-28
-Team/company records shall be uniquely identified by external ID.
+A mail request shall be associated with the creating member.
 
 FR-29
-The system shall upsert users and teams to maintain referential integrity.
+A member shall only be able to create mail requests for mailboxes they are authorized to access.
 
 ---
 
-## 11. Non-Goals (Functional)
+## 10.2 Request State Model
 
-The system shall not:
+FR-30
+A mail request shall have a lifecycle state.
 
-* Provide real-time push notifications
-* Manage billing
-* Support multi-location tenancy
-* Guarantee guaranteed email delivery semantics
+FR-31
+The system shall support the following states:
+
+* ACTIVE
+* RESOLVED
+
+FR-32
+A newly created mail request shall default to ACTIVE.
+
+FR-33
+Only an admin shall be permitted to transition a request from ACTIVE to RESOLVED.
+
+---
+
+## 10.3 Resolution Behavior
+
+FR-34
+When an admin resolves an ACTIVE mail request, the system shall:
+
+* Persist the lifecycle transition
+* Record resolution timestamp
+* Trigger a mail-arrived notification attempt
+
+FR-35
+Resolution shall not be rolled back if notification delivery fails.
+
+FR-36
+The outcome of a notification attempt shall be persisted with:
+
+* Status (SENT or FAILED)
+* Timestamp of attempt
+
+---
+
+## 10.4 Retry Behavior
+
+FR-37
+An admin shall be able to retry a notification for a previously resolved mail request.
+
+FR-38
+Retrying a notification shall not alter the lifecycle state.
+
+FR-39
+Each retry attempt shall be logged independently.
+
+---
+
+## 10.5 Member Visibility
+
+FR-40
+Members shall be able to view the status of their mail requests.
+
+FR-41
+Members shall only be able to view mail requests associated with mailboxes they are authorized to access.
+
+---
+
+## 11. Data Synchronization (Optix Integration)
+
+FR-42
+The system shall ingest user and team data from the external source.
+
+FR-43
+User records shall be uniquely identified by external ID.
+
+FR-44
+Team/company records shall be uniquely identified by external ID.
+
+FR-45
+The system shall upsert users and teams to maintain referential integrity.

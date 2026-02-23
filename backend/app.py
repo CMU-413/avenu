@@ -9,6 +9,7 @@ from config import (
     FRONTEND_ORIGINS,
     SCHEDULER_INTERNAL_TOKEN,
     SECRET_KEY,
+    SESSION_COOKIE_NAME,
     SESSION_COOKIE_PARTITIONED,
     SESSION_COOKIE_SAMESITE,
     SESSION_COOKIE_SECURE,
@@ -39,6 +40,7 @@ def create_app(
         raise RuntimeError("SCHEDULER_INTERNAL_TOKEN must be set")
 
     app.config["SECRET_KEY"] = resolved_secret_key or "test-secret-key"
+    app.config["SESSION_COOKIE_NAME"] = SESSION_COOKIE_NAME
     app.config["SESSION_COOKIE_HTTPONLY"] = True
     app.config["SESSION_COOKIE_SAMESITE"] = SESSION_COOKIE_SAMESITE
     app.config["SESSION_COOKIE_SECURE"] = False if testing else SESSION_COOKIE_SECURE

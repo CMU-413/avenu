@@ -14,6 +14,7 @@ if not MONGO_URI:
 
 DB_NAME = os.getenv("DB_NAME", "avenu_db")
 SECRET_KEY = os.getenv("SECRET_KEY", "").strip()
+SESSION_COOKIE_NAME = os.getenv("SESSION_COOKIE_NAME", "avenu_session").strip() or "avenu_session"
 
 
 def _env_bool(name: str, default: bool) -> bool:

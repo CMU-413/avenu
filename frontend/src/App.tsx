@@ -19,6 +19,22 @@ import { SessionUser, useAppStore } from "./lib/store";
 import { ConfirmDialogProvider } from "./components/ConfirmDialogProvider";
 
 const queryClient = new QueryClient();
+const OPTIX_BOOTSTRAP_QUERY_KEYS = ["token", "org_id", "user_id"] as const;
+
+function stripOptixBootstrapParams(): void {
+  const current = new URL(window.location.href);
+  let changed = false;
+  for (const key of OPTIX_BOOTSTRAP_QUERY_KEYS) {
+    if (current.searchParams.has(key)) {
+      current.searchParams.delete(key);
+      changed = true;
+    }
+  }
+  if (!changed) return;
+  const nextSearch = current.searchParams.toString();
+  const nextUrl = `${current.pathname}${nextSearch ? `?${nextSearch}` : ""}${current.hash}`;
+  window.history.replaceState({}, "", nextUrl);
+}
 
 function toSessionUser(session: ApiSessionMe): SessionUser {
   return {
@@ -118,6 +134,7 @@ const AppRoutes = () => {
 const App = () => {
   const navigate = useNavigate();
   const { setSessionUser } = useAppStore();
+
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const tokenParam = params.get("token");
@@ -127,7 +144,8 @@ const App = () => {
 
     const hydrateFromOptix = async () => {
       try {
-        const token = decodeURIComponent(tokenParam);
+        // URLSearchParams decodes '+' into spaces; restore it for bearer tokens.
+        const token = tokenParam.trim().replace(/ /g, "+");
         const data = await bootstrapOptixSession({ token, orgId, userId });
         console.log("Backend response:", data);
 
@@ -138,6 +156,8 @@ const App = () => {
         setSessionUser(null);
         navigate("/", { replace: true });
         console.error("Error bootstrapping Optix session:", err);
+      } finally {
+        stripOptixBootstrapParams();
       }
     };
 
