@@ -42,6 +42,9 @@ SESSION_COOKIE_SAMESITE = _env_samesite("SESSION_COOKIE_SAMESITE", "Lax")
 
 SCHEDULER_INTERNAL_TOKEN = os.getenv("SCHEDULER_INTERNAL_TOKEN", "").strip()
 
+OCR_SPACE_API_KEY = os.getenv("OCR_SPACE_API_KEY", "").strip()
+OCR_MAX_FILE_BYTES = int(os.getenv("OCR_MAX_FILE_BYTES", "2097152"))  # 2MB default
+
 
 def parse_frontend_origins() -> tuple[str, ...]:
     raw = os.getenv("FRONTEND_ORIGINS", "")

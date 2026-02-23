@@ -16,6 +16,8 @@ export interface ApiMailRecord {
   date: string;
   type: MailType;
   count: number;
+  receiverAddress?: string | null;
+  senderInfo?: string | null;
   createdAt: string;
   updatedAt: string;
 }

@@ -29,6 +29,19 @@ def _utcnow() -> datetime:
     return datetime.now(tz=timezone.utc)
 
 
+def _optional_text(payload: dict[str, Any], key: str, max_len: int) -> str | None:
+    """Optional string field; allows empty. Returns None if key absent."""
+    if key not in payload or payload[key] is None:
+        return None
+    value = payload.get(key)
+    if not isinstance(value, str):
+        raise APIError(422, f"{key} must be a string")
+    stripped = value.strip()
+    if len(stripped) > max_len:
+        raise APIError(422, f"{key} exceeds max length")
+    return stripped
+
+
 def _parse_optional_iso_day(payload: dict[str, Any], key: str) -> str | None:
     raw = payload.get(key)
     if raw is None:
@@ -124,7 +137,7 @@ def build_mail_create(payload: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(count, int) or isinstance(count, bool) or count < 1:
         raise APIError(422, "count must be an integer >= 1")
 
-    return {
+    doc: dict[str, Any] = {
         "mailboxId": ObjectId(mailbox_id),
         "date": parse_iso_datetime(payload, "date"),
         "type": mail_type,
@@ -132,6 +145,13 @@ def build_mail_create(payload: dict[str, Any]) -> dict[str, Any]:
         "createdAt": now,
         "updatedAt": now,
     }
+    receiver = _optional_text(payload, "receiverAddress", 2000)
+    if receiver is not None:
+        doc["receiverAddress"] = receiver
+    sender = _optional_text(payload, "senderInfo", 500)
+    if sender is not None:
+        doc["senderInfo"] = sender
+    return doc
 
 
 def build_mail_patch(payload: dict[str, Any]) -> dict[str, Any]:
@@ -157,6 +177,11 @@ def build_mail_patch(payload: dict[str, Any]) -> dict[str, Any]:
         if not isinstance(count, int) or isinstance(count, bool) or count < 1:
             raise APIError(422, "count must be an integer >= 1")
         patch["count"] = count
+
+    if "receiverAddress" in payload:
+        patch["receiverAddress"] = _optional_text(payload, "receiverAddress", 2000)
+    if "senderInfo" in payload:
+        patch["senderInfo"] = _optional_text(payload, "senderInfo", 500)
 
     if not patch:
         raise APIError(400, "no update payload provided")
