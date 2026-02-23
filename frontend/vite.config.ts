@@ -16,6 +16,7 @@ export default defineConfig(({ mode }) => ({
       "/mail/api": {
         target: "http://localhost:8000",
         changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/mail/, ""),
       },
       "/api": {
         target: "http://localhost:8000",

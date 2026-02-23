@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useAppStore } from "@/lib/store";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, ImagePlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -12,6 +12,7 @@ import {
   listAdminMailRequests,
   listMail,
   listMailboxes,
+  ocrExtract,
   resolveAdminMailRequest,
   retryAdminMailRequestNotification,
   updateMail,
@@ -36,7 +37,7 @@ const RecordEntry = () => {
   const [loadingMailbox, setLoadingMailbox] = useState(true);
   const [loadingExisting, setLoadingExisting] = useState(true);
   const [existingRows, setExistingRows] = useState<
-    { id: string; type: "letter" | "package"; count: number }[]
+    { id: string; type: "letter" | "package"; count: number; receiverAddress?: string | null; senderInfo?: string | null }[]
   >([]);
   const [activeRequests, setActiveRequests] = useState<ApiMailRequest[]>([]);
   const [resolvedRequests, setResolvedRequests] = useState<ApiMailRequest[]>([]);
@@ -80,6 +81,9 @@ const RecordEntry = () => {
   );
   const [letters, setLetters] = useState(0);
   const [packages, setPackages] = useState(0);
+  const [receiverAddress, setReceiverAddress] = useState("");
+  const [senderInfo, setSenderInfo] = useState("");
+  const [ocrLoading, setOcrLoading] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -96,10 +100,16 @@ const RecordEntry = () => {
           id: row.id,
           type: row.type,
           count: row.count,
+          receiverAddress: row.receiverAddress ?? null,
+          senderInfo: row.senderInfo ?? null,
         }));
         setExistingRows(mapped);
         setLetters(mapped.filter((row) => row.type === "letter").reduce((sum, row) => sum + row.count, 0));
         setPackages(mapped.filter((row) => row.type === "package").reduce((sum, row) => sum + row.count, 0));
+        const letterRow = mapped.find((r) => r.type === "letter");
+        const pkgRow = mapped.find((r) => r.type === "package");
+        setReceiverAddress(letterRow?.receiverAddress || pkgRow?.receiverAddress || "");
+        setSenderInfo(letterRow?.senderInfo || pkgRow?.senderInfo || "");
       } catch (err) {
         if (!alive) return;
         const message = err instanceof Error ? err.message : "Failed to load existing record";
@@ -184,6 +194,16 @@ const RecordEntry = () => {
       const ops: Promise<unknown>[] = [];
       const dateIso = toIsoDay(date);
 
+      const receiver = receiverAddress.trim();
+      const sender = senderInfo.trim();
+      const createMeta = {
+        ...(receiver ? { receiverAddress: receiver } : {}),
+        ...(sender ? { senderInfo: sender } : {}),
+      };
+      const updateMeta = {
+        receiverAddress: receiver,
+        senderInfo: sender,
+      };
       const syncType = (type: "letter" | "package", targetCount: number) => {
         const typedRows = existingRows.filter((row) => row.type === type);
         if (targetCount <= 0) {
@@ -197,6 +217,7 @@ const RecordEntry = () => {
               date: dateIso,
               type,
               count: targetCount,
+              ...createMeta,
               idempotencyKey: makeIdempotencyKey(),
             })
           );
@@ -208,6 +229,7 @@ const RecordEntry = () => {
           updateMail(primary.id, {
             count: targetCount,
             date: dateIso,
+            ...updateMeta,
           })
         );
         ops.push(...extra.map((row) => deleteMail(row.id)));
@@ -255,6 +277,36 @@ const RecordEntry = () => {
     }
   };
 
+  const handleOcrUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const allowed = ["image/png", "image/jpeg", "image/jpg", "image/gif"];
+    if (!allowed.includes(file.type)) {
+      toast({ title: "Use PNG, JPEG, or GIF", variant: "destructive" });
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      toast({ title: "Image must be under 2MB", variant: "destructive" });
+      return;
+    }
+    setOcrLoading(true);
+    e.target.value = "";
+    try {
+      const data = await ocrExtract(file);
+      if (data.text) {
+        setReceiverAddress((prev) => (prev ? `${prev}\n\n${data.text}` : data.text));
+        toast({ title: "Extracted. Edit as needed before saving." });
+      } else {
+        toast({ title: "No text found. Add manually." });
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "OCR failed";
+      toast({ title: message, variant: "destructive" });
+    } finally {
+      setOcrLoading(false);
+    }
+  };
+
   const handleRetry = async (requestId: string) => {
     setRetryingRequestId(requestId);
     try {
@@ -297,54 +349,95 @@ const RecordEntry = () => {
             />
           </div>
 
-          {/* Letters */}
+          {/* Receiver address / OCR */}
           <div className="space-y-1.5">
-            <label className="text-sm font-medium text-foreground">Letters</label>
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => setLetters(Math.max(0, letters - 1))}
-                className="h-11 w-11 rounded-lg border border-input bg-card text-foreground text-xl font-medium flex items-center justify-center hover:bg-muted transition-colors"
-              >
-                −
-              </button>
+            <label className="text-sm font-medium text-foreground">Receiver address (optional)</label>
+            <div className="flex gap-2">
               <input
-                className="text-2xl font-bold text-foreground w-12 text-center"
-                onChange={(e) => setLetters(parseInt(e.target.value) || 0)}
-                value={letters}
+                type="file"
+                accept="image/png,image/jpeg,image/jpg,image/gif"
+                capture="environment"
+                onChange={handleOcrUpload}
+                disabled={ocrLoading}
+                className="hidden"
+                id="ocr-upload"
               />
-              <button
-                onClick={() => setLetters(letters + 1)}
-                className="h-11 w-11 rounded-lg border border-input bg-card text-foreground text-xl font-medium flex items-center justify-center hover:bg-muted transition-colors"
+              <label
+                htmlFor="ocr-upload"
+                className="inline-flex items-center gap-1.5 h-10 px-3 rounded-lg border border-input bg-card text-sm font-medium text-foreground cursor-pointer hover:bg-muted transition-colors disabled:opacity-50"
               >
-                +
-              </button>
+                <ImagePlus className="h-4 w-4" />
+                {ocrLoading ? "Extracting..." : "Scan image"}
+              </label>
+            </div>
+            <textarea
+              value={receiverAddress}
+              onChange={(e) => setReceiverAddress(e.target.value)}
+              placeholder="Address from mail image, or type manually…"
+              className="w-full min-h-24 rounded-lg border border-input bg-card px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+          </div>
+
+          {/* Sender info */}
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium text-foreground">Sender (optional)</label>
+            <input
+              type="text"
+              value={senderInfo}
+              onChange={(e) => setSenderInfo(e.target.value)}
+              placeholder="Sender name or return address…"
+              className="w-full h-11 rounded-lg border border-input bg-card px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+          </div>
+
+          {/* Quantity */}
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium text-foreground">Quantity</label>
+            <div className="flex items-center gap-6">
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">Letters</span>
+                <button
+                  onClick={() => setLetters(Math.max(0, letters - 1))}
+                  className="h-10 w-10 rounded-lg border border-input bg-card text-foreground font-medium flex items-center justify-center hover:bg-muted transition-colors"
+                >
+                  −
+                </button>
+                <input
+                  className="text-xl font-bold text-foreground w-14 text-center"
+                  onChange={(e) => setLetters(parseInt(e.target.value) || 0)}
+                  value={letters}
+                />
+                <button
+                  onClick={() => setLetters(letters + 1)}
+                  className="h-10 w-10 rounded-lg border border-input bg-card text-foreground font-medium flex items-center justify-center hover:bg-muted transition-colors"
+                >
+                  +
+                </button>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">Packages</span>
+                <button
+                  onClick={() => setPackages(Math.max(0, packages - 1))}
+                  className="h-10 w-10 rounded-lg border border-input bg-card text-foreground font-medium flex items-center justify-center hover:bg-muted transition-colors"
+                >
+                  −
+                </button>
+                <input
+                  className="text-xl font-bold text-foreground w-14 text-center"
+                  onChange={(e) => setPackages(parseInt(e.target.value) || 0)}
+                  value={packages}
+                />
+                <button
+                  onClick={() => setPackages(packages + 1)}
+                  className="h-10 w-10 rounded-lg border border-input bg-card text-foreground font-medium flex items-center justify-center hover:bg-muted transition-colors"
+                >
+                  +
+                </button>
+              </div>
             </div>
           </div>
 
-          {/* Packages */}
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium text-foreground">Packages</label>
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => setPackages(Math.max(0, packages - 1))}
-                className="h-11 w-11 rounded-lg border border-input bg-card text-foreground text-xl font-medium flex items-center justify-center hover:bg-muted transition-colors"
-              >
-                −
-              </button>
-              <input
-                className="text-2xl font-bold text-foreground w-12 text-center"
-                onChange={(e) => setPackages(parseInt(e.target.value) || 0)}
-                value={packages}
-              />
-              <button
-                onClick={() => setPackages(packages + 1)}
-                className="h-11 w-11 rounded-lg border border-input bg-card text-foreground text-xl font-medium flex items-center justify-center hover:bg-muted transition-colors"
-              >
-                +
-              </button>
-            </div>
-
-            <Button
+          <Button
               onClick={handleSave}
               className="w-full h-12 text-base"
               disabled={saving}
@@ -404,7 +497,6 @@ const RecordEntry = () => {
           </aside>
         </div>
       </div>
-    </div>
   );
 };
 
