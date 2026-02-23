@@ -1,0 +1,49 @@
+flowchart LR
+
+    %% ===== External Actors =====
+    Users["Users<br>Web Browser"]
+
+    Optix["Optix API<br>External SaaS"]
+
+    OCRAPI["OCR API<br>External SaaS"]
+
+    EmailProvider["Email Provider<br>External Service"]
+
+    SMSProvider["SMS Provider<br>External Service"]
+
+    MongoDB["MongoDB Atlas<br>Managed Cloud Database"]
+
+    %% ===== Host =====
+    subgraph Host["Production Linux Host"]
+
+        Nginx["nginx<br>Reverse Proxy<br>Host process"]
+
+        subgraph Compose["Docker Compose Stack"]
+
+            subgraph Network["Internal Docker Network"]
+
+                Frontend["frontend container<br>Static SPA<br>Port 18080"]
+
+                Backend["backend container<br>REST API<br>Port 18000"]
+
+                Scheduler["scheduler container<br>Cron job runner"]
+
+            end
+        end
+    end
+
+    %% ===== User Traffic =====
+    Users -->|"Sends requests to<br>[HTTPS]"| Nginx
+    Nginx -->|"Serves static content to<br>[HTTP]"| Frontend
+    Nginx -->|"Proxies API requests to<br>[HTTP]"| Backend
+
+    %% ===== Internal Communication =====
+    Frontend -->|"Makes API requests to<br>[JSON/HTTP]"| Backend
+    Scheduler -->|"Makes internal API requests to<br>[HTTP via Docker DNS]"| Backend
+
+    %% ===== External Integrations =====
+    Backend -->|"Reads from and writes to<br>[MongoDB/TLS]"| MongoDB
+    Backend -->|"Makes API requests to<br>[JSON/HTTPS]"| Optix
+    Backend -->|"Makes API requests to<br>[JSON/HTTPS]"| OCRAPI
+    Backend -->|"Sends emails via<br>[HTTPS]"| EmailProvider
+    Backend -->|"Sends SMS messages via<br>[HTTPS]"| SMSProvider

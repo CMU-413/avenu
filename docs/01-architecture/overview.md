@@ -1,111 +1,119 @@
+Good catch. This doc is now inconsistent with reality in two places:
+
+* Database is no longer a container.
+* Internal Docker DNS list still includes `database`.
+
+Below is the corrected and tightened `overview.md`, aligned with:
+
+* MongoDB Atlas as external managed database
+* 3-container Compose stack
+* Updated communication boundaries
+* Accurate internal DNS model
+
+---
+
 # Architecture Overview
 
 ## 1. Architectural Style
 
-Avenu backend follows a layered architecture (not MVC) inside the backend container.
+The Avenu backend follows a layered architecture inside the backend container.
 
 Layer order and dependency direction:
 
-1. `app.py` (composition root)
-2. `controllers/` (HTTP boundary)
-3. `services/` (use-case orchestration)
-4. `repositories/` (persistence boundary)
-5. `models/` (domain entities/builders)
+1. `app.py` — composition root
+2. `controllers/` — HTTP boundary
+3. `services/` — use-case orchestration
+4. `repositories/` — persistence boundary
+5. `models/` — domain entities and builders
 
-Allowed direction is one-way only: `app.py -> controllers -> services -> repositories -> models`.
+Allowed dependency direction is strictly one-way:
+
+```
+app.py -> controllers -> services -> repositories -> models
+```
+
 No cross-layer shortcuts are permitted.
 
-## 2. Deployment Topology (Unchanged)
+All external integrations are accessed from the service layer via provider abstractions.
 
-Runtime topology remains unchanged:
+---
 
-- Frontend container (`frontend`)
-- Backend container (`backend`)
-- Scheduler container (`scheduler`)
-- Database container (`database`)
+## 2. Deployment Topology
 
-Backend layering is internal to the backend container only and does not alter Docker topology.
+Runtime topology consists of three application containers deployed via Docker Compose:
+
+* Frontend container (`frontend`)
+* Backend container (`backend`)
+* Scheduler container (`scheduler`)
+
+The database is not containerized within the Compose stack.
+Persistence is provided by a managed external MongoDB Atlas instance.
+
+Backend layering is internal to the backend container and does not alter Docker topology.
+
+---
 
 ## 3. Communication Boundaries
 
 Allowed communication paths:
 
-- Frontend -> Backend (HTTP)
-- Scheduler -> Backend (HTTP)
-- Backend -> Database
-- Backend -> Optix
-- Backend -> Email Provider
-- Backend -> SMS Provider
-- Backend -> OCR Provider
+* Frontend → Backend (JSON/HTTP)
+* Scheduler → Backend (HTTP via Docker DNS)
+* Backend → MongoDB Atlas (MongoDB/TLS)
+* Backend → Optix API (JSON/HTTPS)
+* Backend → Email Provider API (HTTPS)
+* Backend → SMS Provider API (HTTPS)
+* Backend → OCR API (JSON/HTTPS)
 
 Disallowed paths:
 
-- Frontend -> Database
-- Scheduler -> Database
-- Frontend -> External providers
-- Scheduler -> External providers
+* Frontend → MongoDB
+* Scheduler → MongoDB
+* Frontend → External providers
+* Scheduler → External providers
 
-## 4. Internal Layer Interaction Sequence
+The backend is the sole integration boundary for persistence and third-party services.
 
-Canonical sequence diagram source:
+---
 
-- `docs/architecture/diagrams/internal-layer-interaction-sequence.mmd`
+## 4. Internal Docker DNS Model
 
-```mermaid
-sequenceDiagram
-    autonumber
-    actor Frontend
-    participant Controller as Controller Layer
-    participant Service as Service Layer
-    participant Repository as Repository Layer
-    participant DB as MongoDB
+Within the Docker Compose network, service DNS names are:
 
-    Frontend->>Controller: HTTP request
-    Controller->>Service: validated input DTO
-    Service->>Repository: use-case persistence calls
-    Repository->>DB: Mongo queries/updates
-    DB-->>Repository: documents
-    Repository-->>Service: domain data
-    Service-->>Controller: use-case result
-    Controller-->>Frontend: HTTP JSON response
+* `frontend`
+* `backend`
+* `scheduler`
 
-    actor Scheduler
-    participant InternalController as Internal Jobs Controller
-    participant Notifier as Notification Notifier
-    participant Channel as Notification Channels
-    participant Provider as Notification Providers
+The scheduler reaches the backend via:
 
-    Scheduler->>InternalController: POST /api/internal/jobs/weekly-summary
-    InternalController->>Service: trigger weekly summary use-case
-    Service->>Repository: read candidate users + write logs
-    Service->>Notifier: notifyWeeklySummary(...)
-    Notifier->>Channel: dispatch preferred channels (email/sms)
-    Channel->>Provider: send via Graph/Twilio
-    Provider-->>Channel: provider result/error
-    Channel-->>Notifier: channel results
-    Notifier-->>Service: aggregated notify result
-    Service-->>InternalController: job result
-    InternalController-->>Scheduler: HTTP JSON response
+```
+http://backend:8000
 ```
 
-## 5. Internal Docker DNS Model
+MongoDB Atlas is external and is accessed via its managed cloud endpoint over TLS.
 
-Within the compose network, service DNS names are:
+---
 
-- `frontend`
-- `backend`
-- `scheduler`
-- `database`
+## 5. Quality Constraint Alignment
 
-Scheduler reaches backend at `http://backend:8000`.
+QA-M1 remains satisfied:
 
-## 6. Quality Constraint Alignment
+External provider replacements such as OCR, email, or SMS are isolated to provider abstractions and service wiring. No modifications are required to:
 
-QA-M1 remains satisfied: provider swaps (for example OCR/email/sms) stay isolated to provider abstractions and service wiring, without requiring changes to repository persistence flows or domain entities.
+* Repository layer
+* Domain models
+* Aggregation logic
+* HTTP controller contracts
 
-## 7. Design Constraints
+Notification failure isolation and cross-channel aggregation integrity remain enforced at the service layer.
 
-- No combined monolithic application container.
-- No internal reverse-proxy routing inside application containers.
-- Inter-service app communication uses explicit HTTP boundaries.
-- Secrets/configuration come from environment variables, not image-embedded values.
+---
+
+## 6. Design Constraints
+
+* No monolithic combined application container.
+* No internal reverse proxy embedded in application containers.
+* Inter-container communication uses explicit HTTP boundaries.
+* All third-party integrations are isolated behind the backend.
+* Secrets and configuration are supplied via environment variables.
+* The database is a managed external service and is not deployed within the application stack.

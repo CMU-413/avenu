@@ -4,23 +4,33 @@ Member["Avenu Member<br>[Person]"]
 Admin["Avenu Admin<br>[Person]"]
 
 subgraph Avenu["Avenu Mail System"]
+
     Frontend["Frontend<br>[Container: React, JavaScript]<br>Single-page application used by admins and members"]
+
     Backend["Backend<br>[Container: Python, Flask]<br>Implements business logic, notifications, and external integrations"]
+
     Scheduler["Scheduler<br>[Container: Python Job Runner]<br>Executes time-based jobs by invoking Backend APIs"]
-    Database["Database<br>[Container: MongoDB]<br>Stores users, teams, mailboxes, mail entries,<br>and notification logs/preferences"]
+
 end
 
-Optix["Optix<br>Authoritative source for user and team identity"]
-EmailProvider["Email Provider (Microsoft Graph)<br>Sends email notifications"]
-SMSProvider["SMS Provider (Twilio)<br>Sends SMS notifications"]
-OCRProvider["OCR Provider<br>Extracts mailbox identifiers from images"]
+MongoDB["MongoDB Atlas<br>[External Managed Database]<br>Stores users, teams, mailboxes, mail entries,<br>and notification logs/preferences"]
+
+Optix["Optix API<br>[External System]<br>Authoritative identity source"]
+
+EmailProvider["Email Provider API<br>[External System]"]
+
+SMSProvider["SMS Provider API<br>[External System]"]
+
+OCRProvider["OCR API<br>[External System]"]
 
 Member -->|"Uses"| Frontend
 Admin -->|"Uses"| Frontend
-Frontend -->|"API requests"| Backend
-Scheduler -->|"Internal job HTTP requests"| Backend
-Backend -->|"Reads/Writes"| Database
-Backend -->|"Identity sync"| Optix
-Backend -->|"Send email"| EmailProvider
-Backend -->|"Send SMS"| SMSProvider
-Backend -->|"OCR extraction"| OCRProvider
+
+Frontend -->|"Makes API requests to<br>[JSON/HTTPS]"| Backend
+Scheduler -->|"Makes internal API requests to<br>[HTTP]"| Backend
+
+Backend -->|"Reads from and writes to<br>[MongoDB/TLS]"| MongoDB
+Backend -->|"Makes API requests to<br>[JSON/HTTPS]"| Optix
+Backend -->|"Sends notifications via<br>[HTTPS]"| EmailProvider
+Backend -->|"Sends notifications via<br>[HTTPS]"| SMSProvider
+Backend -->|"Makes API requests to<br>[JSON/HTTPS]"| OCRProvider

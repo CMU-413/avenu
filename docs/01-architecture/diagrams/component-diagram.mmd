@@ -1,0 +1,175 @@
+flowchart TB
+
+Member["Avenu Member<br>[Person]"]
+Admin["Avenu Admin<br>[Person]"]
+
+subgraph Avenu["Avenu Mail System"]
+
+    Frontend["Frontend<br>[Container: React, JavaScript]"]
+    Scheduler["Scheduler<br>[Container: Python Job Runner]"]
+
+    subgraph Backend["Backend (Exploded)<br>[Container: Python, Flask]"]
+
+        ApiEntry["Flask App + Blueprint Registration<br>[Component]"]
+
+        subgraph Controllers["Controllers Layer"]
+            SessionCtrl["Session Controller"]
+            IdentityCtrl["Identity Controller"]
+            UserCtrl["Users Controller"]
+            TeamCtrl["Teams Controller"]
+            MailboxCtrl["Mailboxes Controller"]
+            MailCtrl["Mail Controller"]
+            MemberCtrl["Member Controller"]
+            MailReqCtrl["Mail Requests Controller"]
+            NotifyCtrl["Notifications Controller"]
+            InternalJobsCtrl["Internal Jobs Controller"]
+            AuthGuard["Auth Guard"]
+        end
+
+        subgraph Services["Services Layer"]
+            UserSvc["User Service"]
+            TeamSvc["Team Service"]
+            MailboxSvc["Mailbox Service"]
+            MailSvc["Mail Service"]
+            MemberSvc["Member Service"]
+            MailReqSvc["Mail Request Service"]
+            IdentitySyncSvc["Identity Sync Service"]
+            IdempotencySvc["Idempotency Service"]
+            MailSummarySvc["Mail Summary Service"]
+            WeeklyNotifier["Weekly Summary Notifier"]
+            SpecialNotifier["Special Case Notifier"]
+            ChannelFactory["Notification Channel Factory"]
+            EmailChannel["Email Channel"]
+            SmsChannel["SMS Channel"]
+        end
+
+        subgraph Repositories["Repositories Layer"]
+            UsersRepo["Users Repository"]
+            TeamsRepo["Teams Repository"]
+            MailboxesRepo["Mailboxes Repository"]
+            MailRepo["Mail Repository"]
+            MailReqRepo["Mail Requests Repository"]
+            NotifLogRepo["Notification Logs Repository"]
+            IdempotencyRepo["Idempotency Repository"]
+            RepoCommon["Repository Common<br>(transactions, api-doc mapper)"]
+        end
+
+        subgraph Providers["Provider Adapters"]
+            EmailProvider["MS Graph Email Provider<br>(Console in tests)"]
+            SmsProvider["Twilio SMS Provider<br>(Console in tests)"]
+        end
+
+    end
+end
+
+MongoDB["MongoDB Atlas<br>[External Managed Database]"]
+Optix["Optix GraphQL API<br>[External System]"]
+MSGraph["Microsoft Graph API<br>[External System]"]
+Twilio["Twilio API<br>[External System]"]
+
+Member -->|Uses| Frontend
+Admin -->|Uses| Frontend
+Frontend -->|JSON/HTTPS| ApiEntry
+Scheduler -->|POST /api/internal/jobs/weekly-summary| InternalJobsCtrl
+
+ApiEntry --> SessionCtrl
+ApiEntry --> IdentityCtrl
+ApiEntry --> UserCtrl
+ApiEntry --> TeamCtrl
+ApiEntry --> MailboxCtrl
+ApiEntry --> MailCtrl
+ApiEntry --> MemberCtrl
+ApiEntry --> MailReqCtrl
+ApiEntry --> NotifyCtrl
+ApiEntry --> InternalJobsCtrl
+
+SessionCtrl --> AuthGuard
+UserCtrl --> AuthGuard
+TeamCtrl --> AuthGuard
+MailboxCtrl --> AuthGuard
+MailCtrl --> AuthGuard
+MemberCtrl --> AuthGuard
+MailReqCtrl --> AuthGuard
+NotifyCtrl --> AuthGuard
+
+AuthGuard --> UsersRepo
+
+SessionCtrl --> UserSvc
+IdentityCtrl --> IdentitySyncSvc
+UserCtrl --> UserSvc
+UserCtrl --> IdempotencyRepo
+TeamCtrl --> TeamSvc
+TeamCtrl --> IdempotencyRepo
+MailboxCtrl --> MailboxSvc
+MailCtrl --> MailSvc
+MailCtrl --> IdempotencyRepo
+MemberCtrl --> MemberSvc
+MailReqCtrl --> MailReqSvc
+MailReqCtrl --> ChannelFactory
+MailReqCtrl --> SpecialNotifier
+NotifyCtrl --> ChannelFactory
+NotifyCtrl --> WeeklyNotifier
+InternalJobsCtrl --> IdempotencySvc
+InternalJobsCtrl --> ChannelFactory
+InternalJobsCtrl --> WeeklyNotifier
+
+IdempotencySvc --> IdempotencyRepo
+
+UserSvc --> UsersRepo
+UserSvc --> MailboxesRepo
+TeamSvc --> TeamsRepo
+TeamSvc --> MailboxesRepo
+MailSvc --> MailRepo
+MailSvc --> MailboxesRepo
+MailboxSvc --> MailboxesRepo
+MemberSvc --> MailSummarySvc
+MemberSvc --> UsersRepo
+MailReqSvc --> MailReqRepo
+MailReqSvc --> MailboxesRepo
+MailReqSvc --> NotifLogRepo
+MailReqSvc --> ChannelFactory
+MailReqSvc --> SpecialNotifier
+IdentitySyncSvc --> TeamsRepo
+IdentitySyncSvc --> UsersRepo
+IdentitySyncSvc --> Optix
+MailSummarySvc --> UsersRepo
+MailSummarySvc --> MailboxesRepo
+MailSummarySvc --> MailRepo
+
+WeeklyNotifier --> MailSummarySvc
+WeeklyNotifier --> UsersRepo
+WeeklyNotifier --> NotifLogRepo
+WeeklyNotifier --> EmailChannel
+WeeklyNotifier --> SmsChannel
+
+SpecialNotifier --> UsersRepo
+SpecialNotifier --> NotifLogRepo
+SpecialNotifier --> EmailChannel
+SpecialNotifier --> SmsChannel
+
+ChannelFactory --> EmailChannel
+ChannelFactory --> SmsChannel
+ChannelFactory --> EmailProvider
+ChannelFactory --> SmsProvider
+
+EmailChannel --> EmailProvider
+SmsChannel --> SmsProvider
+
+EmailProvider --> MSGraph
+SmsProvider --> Twilio
+
+UsersRepo --> RepoCommon
+TeamsRepo --> RepoCommon
+MailboxesRepo --> RepoCommon
+MailRepo --> RepoCommon
+MailReqRepo --> RepoCommon
+NotifLogRepo --> RepoCommon
+IdempotencyRepo --> RepoCommon
+
+UsersRepo --> MongoDB
+TeamsRepo --> MongoDB
+MailboxesRepo --> MongoDB
+MailRepo --> MongoDB
+MailReqRepo --> MongoDB
+NotifLogRepo --> MongoDB
+IdempotencyRepo --> MongoDB

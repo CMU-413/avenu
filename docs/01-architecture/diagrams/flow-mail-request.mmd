@@ -1,0 +1,26 @@
+sequenceDiagram
+    participant Admin
+    participant API
+    participant MailRequestSvc
+    participant MailRequestRepo
+    participant Notifier
+    participant Channel
+    participant Provider
+    participant EmailAPI
+    participant NotificationLogRepo
+
+    Admin->>API: Resolve mail request
+    API->>MailRequestSvc: Transition ACTIVE -> RESOLVED
+    MailRequestSvc->>MailRequestRepo: Persist lifecycle change
+
+    MailRequestSvc->>Notifier: Trigger mail-arrived notification
+
+    Notifier->>Channel: Build notification
+    Channel->>Provider: Send via transport adapter
+    Provider->>EmailAPI: POST /send [JSON/HTTPS]
+
+    EmailAPI-->>Provider: 200 / Error
+    Provider-->>Channel: Result
+    Channel-->>Notifier: Result
+
+    Notifier->>NotificationLogRepo: Persist attempt outcome

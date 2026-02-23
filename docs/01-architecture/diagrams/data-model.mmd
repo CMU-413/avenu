@@ -38,13 +38,26 @@ erDiagram
         ObjectId mailboxId FK
         string expectedSender
         string description
-        string startDate
-        string endDate
+        datetime startDate
+        datetime endDate
         enum status "ACTIVE | CANCELLED | RESOLVED"
         datetime resolvedAt
         ObjectId resolvedBy FK
         enum lastNotificationStatus "SENT | FAILED"
         datetime lastNotificationAt
+    }
+
+    NOTIFICATION_LOG {
+        ObjectId id PK
+        ObjectId userId FK
+        enum type "weekly-summary | mail-arrived"
+        datetime weekStart
+        enum status "sent | skipped | failed"
+        enum reason "already_sent | opted_out | empty_summary | user_not_found | all_channels_failed"
+        string triggeredBy
+        datetime sentAt
+        datetime createdAt
+        string errorMessage
     }
 
     %% Relationships

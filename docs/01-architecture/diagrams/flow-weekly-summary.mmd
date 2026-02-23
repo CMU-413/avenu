@@ -1,0 +1,29 @@
+sequenceDiagram
+    participant Scheduler
+    participant API
+    participant Idempotency
+    participant MailSummary
+    participant Notifier
+    participant Channel
+    participant Provider
+    participant EmailAPI
+    participant NotificationLogRepo
+
+    Scheduler->>API: POST /internal/jobs/weekly-summary
+    API->>Idempotency: Validate execution key
+    Idempotency-->>API: Valid
+
+    API->>MailSummary: Compute weekly totals
+    MailSummary-->>API: Aggregated results
+
+    API->>Notifier: Trigger summary dispatch
+
+    Notifier->>Channel: Build email notification
+    Channel->>Provider: Send via transport adapter
+    Provider->>EmailAPI: POST /send [JSON/HTTPS]
+
+    EmailAPI-->>Provider: 200 / Error
+    Provider-->>Channel: Result
+    Channel-->>Notifier: Result
+
+    Notifier->>NotificationLogRepo: Persist attempt outcome
