@@ -18,7 +18,7 @@ const AdminDashboard = () => {
     { id: string; name: string; type: "company" | "personal" }[]
   >([]);
   const [records, setRecords] = useState<
-    { id: string; mailboxId: string; type: "letter" | "package"; count: number }[]
+    { id: string; mailboxId: string; type: "letter" | "package" }[]
   >([]);
   const [loading, setLoading] = useState(true);
 
@@ -63,7 +63,6 @@ const AdminDashboard = () => {
             id: item.id,
             mailboxId: item.mailboxId,
             type: item.type,
-            count: item.count,
           }))
         );
       } catch (err) {
@@ -93,8 +92,8 @@ const AdminDashboard = () => {
     for (const r of records) {
       const existing = map.get(r.mailboxId) || { letters: 0, packages: 0 };
       map.set(r.mailboxId, {
-        letters: existing.letters + (r.type === "letter" ? r.count : 0),
-        packages: existing.packages + (r.type === "package" ? r.count : 0),
+        letters: existing.letters + (r.type === "letter" ? 1 : 0),
+        packages: existing.packages + (r.type === "package" ? 1 : 0),
       });
     }
     return Array.from(map.entries())
