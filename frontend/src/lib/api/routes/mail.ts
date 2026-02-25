@@ -17,8 +17,7 @@ export function createMail(payload: {
   mailboxId: string;
   date: string;
   type: MailType;
-  count: number;
-  receiverAddress?: string;
+  receiverName?: string;
   senderInfo?: string;
   idempotencyKey: string;
 }): Promise<ApiMailRecord> {
@@ -26,10 +25,9 @@ export function createMail(payload: {
     mailboxId: payload.mailboxId,
     date: payload.date,
     type: payload.type,
-    count: payload.count,
   };
-  if (payload.receiverAddress !== undefined && payload.receiverAddress !== "") {
-    body.receiverAddress = payload.receiverAddress;
+  if (payload.receiverName !== undefined && payload.receiverName !== "") {
+    body.receiverName = payload.receiverName;
   }
   if (payload.senderInfo !== undefined && payload.senderInfo !== "") {
     body.senderInfo = payload.senderInfo;
@@ -49,8 +47,7 @@ export function updateMail(
     mailboxId: string;
     date: string;
     type: MailType;
-    count: number;
-    receiverAddress: string;
+    receiverName: string;
     senderInfo: string;
   }>
 ): Promise<ApiMailRecord> {
