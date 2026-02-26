@@ -166,5 +166,27 @@ class HttpIntegrationTestCase(MongoIntegrationTestCase):
             }
         )
 
+    def insert_mail(
+        self,
+        *,
+        mailbox_id: ObjectId,
+        when: datetime,
+        mail_type: str,
+        count: int,
+    ) -> ObjectId:
+        from repositories.mail_repository import insert_mail
+
+        now = self._utcnow()
+        return insert_mail(
+            {
+                "mailboxId": mailbox_id,
+                "date": when,
+                "type": mail_type,
+                "count": count,
+                "createdAt": now,
+                "updatedAt": now,
+            }
+        )
+
     def login(self, *, email: str):
         return self.client.post("/api/session/login", json={"email": email})

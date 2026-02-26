@@ -16,8 +16,8 @@
 - ☑ Add authentication/authorization HTTP integration tests for 401, cross-mailbox 403, and mutation non-occurrence.
 
 ## Phase 2
-- ☐ Add a mail logging -> member dashboard aggregation integration test using real HTTP endpoints and persisted records.
-- ☐ Add weekly-summary internal-job integration tests for scheduler token enforcement, continue-on-failure semantics, idempotency replay, and notification-log persistence.
+- ☑ Add a mail logging -> member dashboard aggregation integration test using real HTTP endpoints and persisted records.
+- ☑ Add weekly-summary internal-job integration tests for scheduler token enforcement, continue-on-failure semantics, idempotency replay, and notification-log persistence.
 
 ## Phase 3
 - ☐ Wire the HTTP integration suite into CI as a required backend check.
