@@ -23,10 +23,18 @@ class FakeEmailProvider(EmailProvider):
         self.calls.append({"to": to, "subject": subject, "html": html})
         return "fake-message-id"
 
+    def check_health(self, *, timeout_seconds: float) -> str:
+        _ = timeout_seconds
+        return "healthy"
+
 
 class RaisingEmailProvider(EmailProvider):
     def send(self, *, to: str, subject: str, html: str) -> str:
         raise RuntimeError("provider down")
+
+    def check_health(self, *, timeout_seconds: float) -> str:
+        _ = timeout_seconds
+        return "error"
 
 
 class FakeUsersCollection:

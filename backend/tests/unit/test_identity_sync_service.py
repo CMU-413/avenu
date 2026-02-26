@@ -3,11 +3,12 @@ import unittest
 from unittest.mock import patch
 
 from bson import ObjectId
+from requests import Timeout
 
 os.environ.setdefault("MONGO_URI", "mongodb://localhost:27017")
 
 from errors import APIError
-from services.identity_sync_service import sync_optix_identity
+from services.identity_sync_service import check_optix_health, sync_optix_identity
 
 
 class FakeResponse:
@@ -20,6 +21,25 @@ class FakeResponse:
 
 
 class IdentitySyncServiceTests(unittest.TestCase):
+    def test_check_optix_health_returns_misconfigured_when_token_missing(self):
+        status = check_optix_health(token="", timeout_seconds=0.1)
+        self.assertEqual(status, "misconfigured")
+
+    def test_check_optix_health_returns_healthy_on_200(self):
+        with patch(
+            "services.identity_sync_service.requests.post",
+            return_value=FakeResponse(status_code=200, payload={"data": {}}),
+        ):
+            status = check_optix_health(token="optix-token", timeout_seconds=0.1)
+
+        self.assertEqual(status, "healthy")
+
+    def test_check_optix_health_returns_unreachable_on_timeout(self):
+        with patch("services.identity_sync_service.requests.post", side_effect=Timeout("timeout")):
+            status = check_optix_health(token="optix-token", timeout_seconds=0.1)
+
+        self.assertEqual(status, "unreachable")
+
     def test_sync_optix_identity_creates_new_user_and_team(self):
         user_id = ObjectId()
         team_id = ObjectId()

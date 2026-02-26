@@ -138,6 +138,28 @@ class MSGraphEmailProviderTests(unittest.TestCase):
 
         self.assertEqual(message_id, "msgraph-accepted")
 
+    def test_check_health_returns_healthy_when_token_is_available(self):
+        provider = self._build_provider()
+
+        with patch(
+            "services.notifications.providers.ms_graph_provider.urlopen",
+            return_value=_FakeHTTPResponse(status_code=200, body=json.dumps({"access_token": "token-1", "expires_in": 3600})),
+        ):
+            status = provider.check_health(timeout_seconds=0.2)
+
+        self.assertEqual(status, "healthy")
+
+    def test_check_health_returns_misconfigured_on_auth_failure(self):
+        provider = self._build_provider()
+
+        with patch(
+            "services.notifications.providers.ms_graph_provider.urlopen",
+            return_value=_FakeHTTPResponse(status_code=401, body="invalid_client"),
+        ):
+            status = provider.check_health(timeout_seconds=0.2)
+
+        self.assertEqual(status, "misconfigured")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -16,3 +16,7 @@ class SMSProvider(ABC):
     @abstractmethod
     def send(self, *, to: str, body: str) -> SMSProviderResult:
         raise NotImplementedError
+
+    @abstractmethod
+    def check_health(self, *, timeout_seconds: float) -> str:
+        raise NotImplementedError
