@@ -134,7 +134,7 @@ jobs:
         run: npm run build
 
   backend-integration:
-    name: Backend Integration Tests
+    name: integration tests (backend)
     runs-on: ubuntu-latest
     needs: [detect-changes, build]
     if: needs.detect-changes.outputs.any_changed == 'true'
@@ -174,7 +174,7 @@ jobs:
         run: python -m unittest discover -s tests/integration -t .
 
   deploy:
-    name: Docker Build & Push
+    name: docker build & push
     if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.detect-changes.outputs.any_changed == 'true'
     needs: [build, backend-integration, detect-changes]
     runs-on: ubuntu-latest
