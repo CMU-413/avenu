@@ -13,8 +13,8 @@ None.
 - ☑ Add integration test C for notification-log persistence using real `notification_log` writes.
 
 ## Phase 2
-- ☐ Add a dedicated backend integration-test CI job with a Mongo service container (`mongo:6`) and explicit test DB env (`avenu_db_dev`).
-- ☐ Make CI fail when integration tests fail while keeping existing backend unit/coverage checks isolated and intact.
+- ☑ Add a dedicated backend integration-test CI job with a Mongo service container (`mongo:6`) and explicit test DB env (`avenu_db_dev`).
+- ☑ Make CI fail when integration tests fail while keeping existing backend unit/coverage checks isolated and intact.
 
 ## Phase 3
 - ☐ Document a local command path for running only Mongo integration tests with `MONGO_URI` + `DB_NAME=avenu_db_dev`.
