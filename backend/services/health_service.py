@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 import time
 from collections.abc import Callable
 from typing import Literal
@@ -11,7 +10,6 @@ from requests import ConnectionError as RequestsConnectionError
 from requests import RequestException, Timeout as RequestsTimeout
 
 from config import MONGO_URI
-from services.identity_sync_service import check_optix_health
 
 HealthStatus = Literal["healthy", "unreachable", "misconfigured", "error"]
 
@@ -20,7 +18,7 @@ UNREACHABLE: HealthStatus = "unreachable"
 MISCONFIGURED: HealthStatus = "misconfigured"
 ERROR: HealthStatus = "error"
 
-DEPENDENCY_ORDER = ("mongo", "optix", "graph", "twilio")
+DEPENDENCY_ORDER = ("mongo", "graph", "twilio")
 _ALLOWED_STATUSES: set[str] = {HEALTHY, UNREACHABLE, MISCONFIGURED, ERROR}
 
 
@@ -38,7 +36,6 @@ class HealthService:
         self._monotonic = monotonic
         self._checks = checks or {
             "mongo": self._check_mongo,
-            "optix": self._check_optix,
             "graph": self._check_graph,
             "twilio": self._check_twilio,
         }
@@ -95,10 +92,6 @@ class HealthService:
             return ERROR
         finally:
             client.close()
-
-    def _check_optix(self, timeout_seconds: float) -> HealthStatus:
-        token = os.getenv("OPTIX_HEALTH_TOKEN", "").strip()
-        return check_optix_health(token=token, timeout_seconds=timeout_seconds)
 
     def _check_graph(self, timeout_seconds: float) -> HealthStatus:
         from services.notifications.providers.factory import build_email_provider

@@ -12,7 +12,6 @@ class HealthServiceTests(unittest.TestCase):
         service = HealthService(
             checks={
                 "mongo": lambda _timeout: "healthy",
-                "optix": lambda _timeout: "healthy",
                 "graph": lambda _timeout: "healthy",
                 "twilio": lambda _timeout: "healthy",
             }
@@ -20,12 +19,11 @@ class HealthServiceTests(unittest.TestCase):
 
         result = service.check_dependencies()
 
-        self.assertEqual(list(result.keys()), ["mongo", "optix", "graph", "twilio"])
+        self.assertEqual(list(result.keys()), ["mongo", "graph", "twilio"])
         self.assertEqual(
             result,
             {
                 "mongo": "healthy",
-                "optix": "healthy",
                 "graph": "healthy",
                 "twilio": "healthy",
             },
@@ -35,15 +33,14 @@ class HealthServiceTests(unittest.TestCase):
         service = HealthService(
             checks={
                 "mongo": lambda _timeout: "healthy",
-                "optix": lambda _timeout: "unknown-status",
                 "graph": lambda _timeout: "healthy",
-                "twilio": lambda _timeout: "healthy",
+                "twilio": lambda _timeout: "unknown-status",
             }
         )
 
         result = service.check_dependencies()
 
-        self.assertEqual(result["optix"], "error")
+        self.assertEqual(result["twilio"], "error")
         self.assertEqual(set(result.values()), {"healthy", "error"})
 
     def test_dependency_failure_is_isolated(self):
@@ -53,22 +50,17 @@ class HealthServiceTests(unittest.TestCase):
             calls.append("mongo")
             return "healthy"
 
-        def check_optix(_timeout: float) -> str:
-            calls.append("optix")
-            raise RuntimeError("boom")
-
         def check_graph(_timeout: float) -> str:
             calls.append("graph")
             return "misconfigured"
 
         def check_twilio(_timeout: float) -> str:
             calls.append("twilio")
-            return "healthy"
+            raise RuntimeError("boom")
 
         service = HealthService(
             checks={
                 "mongo": check_mongo,
-                "optix": check_optix,
                 "graph": check_graph,
                 "twilio": check_twilio,
             }
@@ -76,25 +68,23 @@ class HealthServiceTests(unittest.TestCase):
 
         result = service.check_dependencies()
 
-        self.assertEqual(calls, ["mongo", "optix", "graph", "twilio"])
+        self.assertEqual(calls, ["mongo", "graph", "twilio"])
         self.assertEqual(result["mongo"], "healthy")
-        self.assertEqual(result["optix"], "error")
         self.assertEqual(result["graph"], "misconfigured")
-        self.assertEqual(result["twilio"], "healthy")
+        self.assertEqual(result["twilio"], "error")
 
     def test_timeout_exception_maps_to_unreachable(self):
         service = HealthService(
             checks={
                 "mongo": lambda _timeout: "healthy",
-                "optix": lambda _timeout: (_ for _ in ()).throw(TimeoutError("timed out")),
-                "graph": lambda _timeout: "healthy",
+                "graph": lambda _timeout: (_ for _ in ()).throw(TimeoutError("timed out")),
                 "twilio": lambda _timeout: "healthy",
             }
         )
 
         result = service.check_dependencies()
 
-        self.assertEqual(result["optix"], "unreachable")
+        self.assertEqual(result["graph"], "unreachable")
 
     def test_total_deadline_marks_remaining_dependencies_unreachable(self):
         def slow_mongo(_timeout: float) -> str:
@@ -106,7 +96,6 @@ class HealthServiceTests(unittest.TestCase):
             total_timeout_seconds=0.02,
             checks={
                 "mongo": slow_mongo,
-                "optix": lambda _timeout: "healthy",
                 "graph": lambda _timeout: "healthy",
                 "twilio": lambda _timeout: "healthy",
             },
@@ -115,10 +104,9 @@ class HealthServiceTests(unittest.TestCase):
         result = service.check_dependencies()
 
         self.assertEqual(result["mongo"], "healthy")
-        self.assertEqual(result["optix"], "unreachable")
         self.assertEqual(result["graph"], "unreachable")
         self.assertEqual(result["twilio"], "unreachable")
-        self.assertEqual(list(result.keys()), ["mongo", "optix", "graph", "twilio"])
+        self.assertEqual(list(result.keys()), ["mongo", "graph", "twilio"])
 
     def test_checkers_receive_capped_per_provider_timeout(self):
         received: dict[str, float] = {}
@@ -135,7 +123,6 @@ class HealthServiceTests(unittest.TestCase):
             total_timeout_seconds=3.0,
             checks={
                 "mongo": capture_timeout("mongo"),
-                "optix": capture_timeout("optix"),
                 "graph": capture_timeout("graph"),
                 "twilio": capture_timeout("twilio"),
             },

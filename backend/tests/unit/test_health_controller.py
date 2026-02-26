@@ -24,7 +24,6 @@ class HealthControllerTests(unittest.TestCase):
             "controllers.health_controller.HealthService.check_dependencies",
             return_value={
                 "mongo": "healthy",
-                "optix": "healthy",
                 "graph": "healthy",
                 "twilio": "healthy",
             },
@@ -36,7 +35,6 @@ class HealthControllerTests(unittest.TestCase):
             response.get_json(),
             {
                 "mongo": "healthy",
-                "optix": "healthy",
                 "graph": "healthy",
                 "twilio": "healthy",
             },
@@ -47,9 +45,8 @@ class HealthControllerTests(unittest.TestCase):
             "controllers.health_controller.HealthService.check_dependencies",
             return_value={
                 "mongo": "healthy",
-                "optix": "unreachable",
                 "graph": "healthy",
-                "twilio": "healthy",
+                "twilio": "unreachable",
             },
         ):
             response = self.client.get("/api/health/dependencies")
@@ -59,9 +56,8 @@ class HealthControllerTests(unittest.TestCase):
             response.get_json(),
             {
                 "mongo": "healthy",
-                "optix": "unreachable",
                 "graph": "healthy",
-                "twilio": "healthy",
+                "twilio": "unreachable",
             },
         )
 
@@ -77,7 +73,6 @@ class HealthControllerTests(unittest.TestCase):
             response.get_json(),
             {
                 "mongo": "healthy",
-                "optix": "unreachable",
                 "graph": "unreachable",
                 "twilio": "unreachable",
             },
@@ -88,16 +83,15 @@ class HealthControllerTests(unittest.TestCase):
             "controllers.health_controller.HealthService.check_dependencies",
             return_value={
                 "mongo": "healthy",
-                "optix": "misconfigured",
                 "graph": "error",
-                "twilio": "unreachable",
+                "twilio": "misconfigured",
             },
         ):
             response = self.client.get("/api/health/dependencies")
 
         self.assertEqual(response.status_code, 503)
         body = response.get_json()
-        self.assertEqual(set(body.keys()), {"mongo", "optix", "graph", "twilio"})
+        self.assertEqual(set(body.keys()), {"mongo", "graph", "twilio"})
         self.assertTrue(
             all(value in {"healthy", "unreachable", "misconfigured", "error"} for value in body.values())
         )

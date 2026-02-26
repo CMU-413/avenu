@@ -9,7 +9,7 @@ None.
 - Legacy `/health` is removed; only `/api/health` and `/api/health/dependencies` are supported.
 - OCR is out of scope for this ticket and omitted from the dependency map until an OCR provider abstraction exists.
 - Health coverage is unit-test only for this ticket; no additional integration tests are added.
-- Dependency response shape is deterministic with stable keys (`mongo`, `optix`, `graph`, `twilio`) and always returns the full map, including failure responses.
+- Dependency response shape is deterministic with stable keys (`mongo`, `graph`, `twilio`) and always returns the full map, including failure responses.
 
 # Task Checklist
 ## Phase 1
@@ -29,11 +29,10 @@ None.
 
 ## Phase 1: HealthService + Dependency Adapters
 Affected files and changes
-- `backend/services/health_service.py` (new): define `HealthService` with `check_dependencies() -> dict[str, str]`, plus small provider-check methods for `mongo`, `optix`, `graph`, and `twilio`.
+- `backend/services/health_service.py` (new): define `HealthService` with `check_dependencies() -> dict[str, str]`, plus provider-check methods for `mongo`, `graph`, and `twilio`.
 - `backend/services/__init__.py`: export `HealthService` for controller/app usage.
 - `backend/services/notifications/providers/ms_graph_provider.py`: add a side-effect-free health probe entrypoint (for example `check_health(timeout_seconds: float) -> str`) that reuses existing token acquisition flow.
 - `backend/services/notifications/providers/twilio_sms_provider.py`: add a side-effect-free health probe entrypoint using Twilio account fetch/read-only validation (no message send).
-- `backend/services/identity_sync_service.py` or a focused Optix client helper module: extract/reuse lightweight Optix auth/`me` probe path with explicit request timeout support.
 
 ### Service design
 - Implement `HealthService` as a thin orchestrator with:
@@ -45,7 +44,7 @@ Affected files and changes
     - unexpected exceptions -> `error`.
 - Keep check execution independent by wrapping each check in its own exception boundary and storing results as immutable values in the response map.
 - Mongo check uses read-only ping (`client.admin.command("ping")`) with short server selection timeout; no writes, inserts, or queue interactions.
-- Optix/Graph/Twilio checks use safe auth/identity paths only; no sends, no mutation endpoints.
+- Graph/Twilio checks use safe auth/identity paths only; no sends, no mutation endpoints.
 - If total deadline is reached mid-evaluation, assign remaining dependencies `unreachable` so the endpoint returns promptly with the full stable map.
 
 ### Unit tests (phase-local)
@@ -71,7 +70,7 @@ Affected files and changes
   - obtains `statuses = HealthService().check_dependencies()`,
   - returns `200` only when all values are `healthy`,
   - returns `503` when any value is `unreachable`, `misconfigured`, or `error`,
-  - always returns the full stable JSON map with keys in deterministic order: `mongo`, `optix`, `graph`, `twilio`.
+  - always returns the full stable JSON map with keys in deterministic order: `mongo`, `graph`, `twilio`.
 
 ### Unit tests (phase-local)
 - `backend/tests/unit/test_health_controller.py` (new):
