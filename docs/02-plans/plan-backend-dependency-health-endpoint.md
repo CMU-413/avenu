@@ -18,9 +18,9 @@ None.
 - ☑ Add unit tests for status normalization, timeout handling, and per-provider isolation.
 
 ## Phase 2
-- ☐ Add `GET /api/health` returning `200` with `{ "status": "ok" }` only.
-- ☐ Add `GET /api/health/dependencies` returning aggregated dependency statuses and `503` when any dependency is non-healthy.
-- ☐ Ensure endpoint behavior is deterministic and side-effect free under dependency failures.
+- ☑ Add `GET /api/health` returning `200` with `{ "status": "ok" }` only.
+- ☑ Add `GET /api/health/dependencies` returning aggregated dependency statuses and `503` when any dependency is non-healthy.
+- ☑ Ensure endpoint behavior is deterministic and side-effect free under dependency failures.
 
 ## Phase 3
 - ☐ Update/replace existing health route tests (`/health`) to cover `/api/health` and `/api/health/dependencies` contracts.
