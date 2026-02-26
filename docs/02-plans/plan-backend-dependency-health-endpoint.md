@@ -23,9 +23,9 @@ None.
 - ☑ Ensure endpoint behavior is deterministic and side-effect free under dependency failures.
 
 ## Phase 3
-- ☐ Update/replace existing health route tests (`/health`) to cover `/api/health` and `/api/health/dependencies` contracts.
-- ☐ Add HTTP-level backend unit tests for full response shape and status-code behavior across all-healthy and partial-failure scenarios.
-- ☐ Keep this ticket unit-only: no new integration tests.
+- ☑ Update/replace existing health route tests (`/health`) to cover `/api/health` and `/api/health/dependencies` contracts.
+- ☑ Add HTTP-level backend unit tests for full response shape and status-code behavior across all-healthy and partial-failure scenarios.
+- ☑ Keep this ticket unit-only: no new integration tests.
 
 ## Phase 1: HealthService + Dependency Adapters
 Affected files and changes

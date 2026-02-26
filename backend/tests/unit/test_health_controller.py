@@ -83,6 +83,29 @@ class HealthControllerTests(unittest.TestCase):
             },
         )
 
+    def test_dependencies_route_values_use_allowed_status_literals(self):
+        with patch(
+            "controllers.health_controller.HealthService.check_dependencies",
+            return_value={
+                "mongo": "healthy",
+                "optix": "misconfigured",
+                "graph": "error",
+                "twilio": "unreachable",
+            },
+        ):
+            response = self.client.get("/api/health/dependencies")
+
+        self.assertEqual(response.status_code, 503)
+        body = response.get_json()
+        self.assertEqual(set(body.keys()), {"mongo", "optix", "graph", "twilio"})
+        self.assertTrue(
+            all(value in {"healthy", "unreachable", "misconfigured", "error"} for value in body.values())
+        )
+
+    def test_legacy_health_route_is_not_available(self):
+        response = self.client.get("/health")
+        self.assertEqual(response.status_code, 404)
+
 
 if __name__ == "__main__":
     unittest.main()
