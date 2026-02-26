@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 
 from bson import ObjectId
 
-from support import MongoIntegrationTestCase
+from .support import MongoIntegrationTestCase
 
 
 class MailPersistenceIntegrationTests(MongoIntegrationTestCase):
