@@ -17,8 +17,8 @@ None.
 - ☑ Make CI fail when integration tests fail while keeping existing backend unit/coverage checks isolated and intact.
 
 ## Phase 3
-- ☐ Document a local command path for running only Mongo integration tests with `MONGO_URI` + `DB_NAME=avenu_db_dev`.
-- ☐ Add guardrails in docs to avoid production URI/DB usage during integration runs.
+- ☑ Document a local command path for running only Mongo integration tests with `MONGO_URI` + `DB_NAME=avenu_db_dev`.
+- ☑ Add guardrails in docs to avoid production URI/DB usage during integration runs.
 
 ## Phase 1: Real-Mongo Integration Test Suite
 Affected files and changes
