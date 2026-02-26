@@ -87,7 +87,7 @@ jobs:
         if: steps.changed.outputs.run == 'true' && matrix.service == 'backend'
         working-directory: ./backend
         run: |
-          coverage run -m unittest discover tests
+          coverage run -m unittest discover -s tests -p "test_*.py" -t .
           coverage report --fail-under=75
 
       # --------------------
@@ -156,7 +156,7 @@ jobs:
           MONGO_URI: "mongodb://localhost:27017/avenu_db_dev"
           DB_NAME: "avenu_db_dev"
           FLASK_TESTING: "true"
-        run: python -m unittest discover tests/integration
+        run: python -m unittest discover -s tests/integration -t .
 
   deploy:
     name: Docker Build & Push
