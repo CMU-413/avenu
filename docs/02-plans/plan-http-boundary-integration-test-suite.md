@@ -20,8 +20,8 @@
 - ☑ Add weekly-summary internal-job integration tests for scheduler token enforcement, continue-on-failure semantics, idempotency replay, and notification-log persistence.
 
 ## Phase 3
-- ☐ Wire the HTTP integration suite into CI as a required backend check.
-- ☐ Update architecture/testing documentation to include HTTP boundary integration coverage and the protected guarantees.
+- ☑ Wire the HTTP integration suite into CI as a required backend check.
+- ☑ Update architecture/testing documentation to include HTTP boundary integration coverage and the protected guarantees.
 
 ## Phase 1: HTTP Harness + AuthZ Boundary Coverage
 Affected files and changes
