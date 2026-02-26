@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAppStore } from "@/lib/store";
 import { ArrowLeft } from "lucide-react";
@@ -14,49 +14,50 @@ const NotificationSettings = () => {
   const [pending, setPending] = useState(false);
   const [optimisticPrefs, setOptimisticPrefs] = useState<NotificationPreferenceState | null>(null);
 
-  if (!sessionUser) return null;
-
   const basePrefs: NotificationPreferenceState = useMemo(
     () => ({
-      emailNotifications: sessionUser.emailNotifications,
-      smsNotifications: sessionUser.smsNotifications,
-      hasPhone: sessionUser.hasPhone,
+      emailNotifications: sessionUser?.emailNotifications ?? false,
+      smsNotifications: sessionUser?.smsNotifications ?? false,
+      hasPhone: sessionUser?.hasPhone ?? false,
     }),
-    [sessionUser.emailNotifications, sessionUser.smsNotifications, sessionUser.hasPhone],
+    [sessionUser?.emailNotifications, sessionUser?.smsNotifications, sessionUser?.hasPhone],
   );
   const activePrefs = optimisticPrefs ?? basePrefs;
   const settings = deriveSettingsState(activePrefs);
 
-  const persistPreferences = async (
-    patch: { emailNotifications?: boolean; smsNotifications?: boolean },
-    optimisticNext: NotificationPreferenceState,
-    fallback: NotificationPreferenceState,
-  ) => {
-    if (!("emailNotifications" in patch) && !("smsNotifications" in patch)) return;
-    setPending(true);
-    setOptimisticPrefs(optimisticNext);
-    try {
-      const updated = await updateMemberPreferences(patch);
-      const next = {
-        emailNotifications: updated.emailNotifications,
-        smsNotifications: updated.smsNotifications,
-        hasPhone: updated.hasPhone,
-      };
-      setSessionNotificationPreferences(next);
-      setOptimisticPrefs(next);
-    } catch (err) {
-      setSessionNotificationPreferences(fallback);
-      setOptimisticPrefs(fallback);
-      const message = err instanceof Error ? err.message : "Failed to update notification settings";
-      toast({ title: message, variant: "destructive" });
-      if (err instanceof ApiError && err.status === 401) {
-        logout();
-        navigate("/");
+  const persistPreferences = useCallback(
+    async (
+      patch: { emailNotifications?: boolean; smsNotifications?: boolean },
+      optimisticNext: NotificationPreferenceState,
+      fallback: NotificationPreferenceState,
+    ) => {
+      if (!("emailNotifications" in patch) && !("smsNotifications" in patch)) return;
+      setPending(true);
+      setOptimisticPrefs(optimisticNext);
+      try {
+        const updated = await updateMemberPreferences(patch);
+        const next = {
+          emailNotifications: updated.emailNotifications,
+          smsNotifications: updated.smsNotifications,
+          hasPhone: updated.hasPhone,
+        };
+        setSessionNotificationPreferences(next);
+        setOptimisticPrefs(next);
+      } catch (err) {
+        setSessionNotificationPreferences(fallback);
+        setOptimisticPrefs(fallback);
+        const message = err instanceof Error ? err.message : "Failed to update notification settings";
+        toast({ title: message, variant: "destructive" });
+        if (err instanceof ApiError && err.status === 401) {
+          logout();
+          navigate("/");
+        }
+      } finally {
+        setPending(false);
       }
-    } finally {
-      setPending(false);
-    }
-  };
+    },
+    [logout, navigate, setSessionNotificationPreferences, toast],
+  );
 
   useEffect(() => {
     if (pending) return;
@@ -68,7 +69,9 @@ const NotificationSettings = () => {
       };
       void persistPreferences(patch, optimisticNext, basePrefs);
     }
-  }, [pending, activePrefs.hasPhone, activePrefs.smsNotifications, basePrefs]);
+  }, [pending, activePrefs.hasPhone, activePrefs.smsNotifications, basePrefs, persistPreferences]);
+
+  if (!sessionUser) return null;
 
   const handleEmailToggle = async (nextValue: boolean) => {
     if (pending) return;
