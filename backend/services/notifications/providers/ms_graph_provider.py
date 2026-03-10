@@ -69,6 +69,24 @@ class MSGraphEmailProvider(EmailProvider):
             raise MailProviderError(f"MS Graph sendMail failed status={status_code} body={response_body[:300]}")
         return self.SYNTHETIC_MESSAGE_ID
 
+    def check_health(self, *, timeout_seconds: float) -> str:
+        original_timeout = self._timeout_seconds
+        self._timeout_seconds = timeout_seconds
+        try:
+            _ = self._get_access_token()
+            return "healthy"
+        except MailProviderError as exc:
+            message = str(exc).lower()
+            if "is required" in message or "status=401" in message or "status=403" in message:
+                return "misconfigured"
+            if "request failed" in message or "timed out" in message or "timeout" in message:
+                return "unreachable"
+            return "error"
+        except Exception:
+            return "error"
+        finally:
+            self._timeout_seconds = original_timeout
+
     def _get_access_token(self) -> str:
         now = datetime.now(tz=timezone.utc)
         if self._access_token and self._access_token_expires_at and now < self._access_token_expires_at:

@@ -18,11 +18,19 @@ class FakeSMSProvider(SMSProvider):
         self.calls.append({"to": to, "body": body})
         return {"messageId": "SMFAKE123"}
 
+    def check_health(self, *, timeout_seconds: float) -> str:
+        _ = timeout_seconds
+        return "healthy"
+
 
 class RaisingSMSProvider(SMSProvider):
     def send(self, *, to: str, body: str):
         _ = to, body
         raise SMSProviderError("provider down")
+
+    def check_health(self, *, timeout_seconds: float) -> str:
+        _ = timeout_seconds
+        return "error"
 
 
 class SMSChannelTests(unittest.TestCase):
