@@ -1,0 +1,59 @@
+version: "3.8"
+services:
+  frontend:
+    image: <username>/avenu-frontend:latest
+    ports:
+      - 18080:80
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - avenu-internal
+  backend:
+    image: <username>/avenu-backend:latest
+    env_file:
+      - .env
+    environment:
+      PORT: 8000
+      MONGO_URI: ${MONGO_URI}
+      DB_NAME: ${DB_NAME}
+      SECRET_KEY: ${SECRET_KEY}
+      SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE}
+      FRONTEND_ORIGINS: ${FRONTEND_ORIGINS}
+      SCHEDULER_INTERNAL_TOKEN: ${SCHEDULER_INTERNAL_TOKEN}
+      MS_GRAPH_TENANT_ID: ${MS_GRAPH_TENANT_ID}
+      MS_GRAPH_CLIENT_ID: ${MS_GRAPH_CLIENT_ID}
+      MS_GRAPH_CLIENT_SECRET: ${MS_GRAPH_CLIENT_SECRET}
+      MS_GRAPH_SENDER_EMAIL: ${MS_GRAPH_SENDER_EMAIL}
+    ports:
+      - 18000:8000
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request;
+          urllib.request.urlopen('http://localhost:8000/api/health', timeout=5)
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    networks:
+      - avenu-internal
+  scheduler:
+    image: <username>/avenu-scheduler:latest
+    environment:
+      BACKEND_API_URL: http://backend:8000
+      SCHEDULER_INTERNAL_TOKEN: ${SCHEDULER_INTERNAL_TOKEN}
+      SCHEDULER_CRON: ${SCHEDULER_CRON:-0 8 * * 1}
+      SCHEDULER_TIMEZONE: ${SCHEDULER_TIMEZONE:-UTC}
+      SCHEDULER_TICK_SECONDS: ${SCHEDULER_TICK_SECONDS:-20}
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - avenu-internal
+networks:
+  avenu-internal:
+    driver: bridge

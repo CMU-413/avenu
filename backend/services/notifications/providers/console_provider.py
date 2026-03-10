@@ -11,3 +11,7 @@ class ConsoleEmailProvider(EmailProvider):
         print("HTML:", html[:200], "...")
         print("==================")
         return "console-message-id"
+
+    def check_health(self, *, timeout_seconds: float) -> str:
+        _ = timeout_seconds
+        return "healthy"

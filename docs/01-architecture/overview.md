@@ -107,6 +107,12 @@ External provider replacements such as OCR, email, or SMS are isolated to provid
 
 Notification failure isolation and cross-channel aggregation integrity remain enforced at the service layer.
 
+HTTP boundary integration coverage now also enforces:
+
+* Mailbox authorization invariants at controller/service boundary (`QA-S1`).
+* Scheduler internal weekly-summary endpoint contract (`POST /api/internal/jobs/weekly-summary`), including idempotency and failure isolation (`QA-R1`).
+* Dashboard-to-summary aggregation consistency across shared aggregation logic (`QA-R3`).
+
 ---
 
 ## 6. Design Constraints

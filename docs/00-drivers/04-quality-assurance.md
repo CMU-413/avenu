@@ -85,11 +85,52 @@ RUN_MONGO_INTEGRATION=1
 
 ---
 
+### 2.3 HTTP Boundary Integration Tests
+
+Scope:
+
+* Controller routing and middleware enforcement at runtime
+* Mailbox authorization behavior at HTTP boundary
+* Member dashboard aggregation consistency against persisted mail data
+* Scheduler-to-backend contract for `POST /api/internal/jobs/weekly-summary`
+
+Characteristics:
+
+* Real Flask app factory and real repositories against `avenu_db_dev`
+* Real HTTP requests via framework test client
+* Mocked provider transport `send()` methods only
+* No controller/service/repository mocking
+* Not included in coverage accounting
+
+Validated invariants:
+
+* QA-S1 mailbox access boundary enforcement (401/403 + no unauthorized mutation)
+* QA-R1 notification failure isolation on internal weekly summary job path
+* QA-R3 dashboard/summary aggregation integrity through shared service path
+
+Executed in CI via:
+
+```
+python -m unittest discover -s tests/integration -p "test_http_*.py" -t .
+```
+
+Environment:
+
+```
+MONGO_URI=mongodb://localhost:27017/avenu_db_dev
+DB_NAME=avenu_db_dev
+RUN_MONGO_INTEGRATION=1
+FLASK_TESTING=true
+```
+
+---
+
 ## 3. Separation of Concerns
 
 Unit tests validate logic.
 
 Integration tests validate wiring and persistence boundary behavior.
+HTTP integration tests specifically validate runtime controller/auth/internal-job boundaries.
 
 They must remain:
 

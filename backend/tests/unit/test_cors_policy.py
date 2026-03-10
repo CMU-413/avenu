@@ -13,7 +13,7 @@ class CorsPolicyTests(unittest.TestCase):
         with patch("app.FRONTEND_ORIGINS", ("http://frontend.local:8080",)):
             app = create_app(testing=True, ensure_db_indexes_on_startup=False, secret_key="test-secret")
             client = app.test_client()
-            response = client.get("/health", headers={"Origin": "http://frontend.local:8080"})
+            response = client.get("/api/health", headers={"Origin": "http://frontend.local:8080"})
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.headers.get("Access-Control-Allow-Origin"), "http://frontend.local:8080")
@@ -23,7 +23,7 @@ class CorsPolicyTests(unittest.TestCase):
         with patch("app.FRONTEND_ORIGINS", ("http://frontend.local:8080",)):
             app = create_app(testing=True, ensure_db_indexes_on_startup=False, secret_key="test-secret")
             client = app.test_client()
-            response = client.get("/health", headers={"Origin": "http://unknown.local:8080"})
+            response = client.get("/api/health", headers={"Origin": "http://unknown.local:8080"})
 
         self.assertEqual(response.status_code, 200)
         self.assertIsNone(response.headers.get("Access-Control-Allow-Origin"))

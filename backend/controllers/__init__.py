@@ -1,5 +1,6 @@
 from flask import Flask
 
+from .health_controller import health_bp
 from .identity_controller import identity_bp
 from .internal_jobs_controller import internal_jobs_bp
 from .mail_controller import mail_bp
@@ -13,6 +14,7 @@ from .users_controller import users_bp
 
 
 def register_blueprints(app: Flask) -> None:
+    app.register_blueprint(health_bp)
     app.register_blueprint(session_bp)
     app.register_blueprint(users_bp)
     app.register_blueprint(teams_bp)

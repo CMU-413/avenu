@@ -28,6 +28,34 @@ query {
 """
 
 
+def check_optix_health(*, token: str, timeout_seconds: float = 1.0) -> str:
+    normalized_token = token.strip()
+    if not normalized_token:
+        return "misconfigured"
+
+    try:
+        response = requests.post(
+            OPTIX_GRAPHQL_ENDPOINT,
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {normalized_token}",
+            },
+            json={"query": "query { me { user { user_id } } }"},
+            timeout=timeout_seconds,
+        )
+    except requests.Timeout:
+        return "unreachable"
+    except requests.RequestException:
+        return "unreachable"
+
+    if response.status_code in {401, 403}:
+        return "misconfigured"
+    if response.status_code != 200:
+        return "error"
+
+    return "healthy"
+
+
 def _coerce_positive_int(value: Any, *, field_name: str) -> int:
     if isinstance(value, bool):
         raise APIError(422, f"{field_name} must be a positive integer")

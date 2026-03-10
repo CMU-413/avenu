@@ -72,10 +72,6 @@ def create_app(
             response.headers["Vary"] = "Origin" if not existing_vary else f"{existing_vary}, Origin"
         return response
 
-    @app.route("/health", methods=["GET"])
-    def health():
-        return jsonify({"message": "HEALTH OK"}), 200
-
     register_blueprints(app)
 
     return app

@@ -53,6 +53,29 @@ class TwilioSMSProvider(SMSProvider):
             raise SMSProviderError("Twilio send response missing sid")
         return {"messageId": sid}
 
+    def check_health(self, *, timeout_seconds: float) -> str:
+        http_client = getattr(self._client, "http_client", None)
+        timeout_before = getattr(http_client, "timeout", None) if http_client is not None else None
+        if http_client is not None and timeout_before is not None:
+            http_client.timeout = timeout_seconds
+
+        try:
+            account = self._client.api.accounts(self._account_sid).fetch()
+            sid = getattr(account, "sid", None)
+            if isinstance(sid, str) and sid.strip():
+                return "healthy"
+            return "error"
+        except Exception as exc:
+            message = str(exc).lower()
+            if "authenticate" in message or "unauthorized" in message or "auth token" in message:
+                return "misconfigured"
+            if "timeout" in message or "timed out" in message or "connection" in message:
+                return "unreachable"
+            return "error"
+        finally:
+            if http_client is not None and timeout_before is not None:
+                http_client.timeout = timeout_before
+
     def _require_value(self, env_name: str, value: str) -> str:
         normalized = value.strip()
         if not normalized:

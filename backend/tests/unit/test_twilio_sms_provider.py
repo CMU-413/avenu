@@ -61,6 +61,37 @@ class TwilioSMSProviderTests(unittest.TestCase):
 
         self.assertIn("missing sid", str(ctx.exception))
 
+    def test_check_health_returns_healthy_when_account_fetch_succeeds(self):
+        account = Mock()
+        account.sid = "AC123"
+        twilio_client = Mock()
+        twilio_client.api.accounts.return_value.fetch.return_value = account
+
+        with patch("services.notifications.providers.twilio_sms_provider.Client", return_value=twilio_client):
+            provider = TwilioSMSProvider(
+                account_sid="acct-123",
+                auth_token="token-123",
+                from_phone="+15550001111",
+            )
+            status = provider.check_health(timeout_seconds=0.2)
+
+        self.assertEqual(status, "healthy")
+        twilio_client.api.accounts.assert_called_once_with("acct-123")
+
+    def test_check_health_returns_misconfigured_on_auth_error(self):
+        twilio_client = Mock()
+        twilio_client.api.accounts.return_value.fetch.side_effect = RuntimeError("authenticate")
+
+        with patch("services.notifications.providers.twilio_sms_provider.Client", return_value=twilio_client):
+            provider = TwilioSMSProvider(
+                account_sid="acct-123",
+                auth_token="token-123",
+                from_phone="+15550001111",
+            )
+            status = provider.check_health(timeout_seconds=0.2)
+
+        self.assertEqual(status, "misconfigured")
+
 
 if __name__ == "__main__":
     unittest.main()
