@@ -65,6 +65,13 @@ Failure isolation:
 2. Backend validates scheduler token and idempotency key.
 3. Backend runs weekly summary orchestration and dispatches through `WeeklySummaryNotifier`.
 
+HTTP boundary coverage:
+
+- `POST /api/internal/jobs/weekly-summary` is covered by backend HTTP integration tests for:
+  - scheduler token enforcement (`401` on missing/invalid token),
+  - idempotency replay behavior,
+  - continue-on-failure delivery semantics with persisted `NOTIFICATION_LOG` outcomes.
+
 ### Admin-triggered mail-arrived notifications
 
 Mail-arrived notifications are triggered exclusively by expected-mail request workflow endpoints:

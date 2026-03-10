@@ -17,6 +17,9 @@ jobs:
       backend: ${{ steps.filter.outputs.backend }}
       frontend: ${{ steps.filter.outputs.frontend }}
       scheduler: ${{ steps.filter.outputs.scheduler }}
+      any_changed: ${{ steps.matrices.outputs.any_changed }}
+      build_matrix: ${{ steps.matrices.outputs.build_matrix }}
+      deploy_matrix: ${{ steps.matrices.outputs.deploy_matrix }}
     steps:
       - uses: actions/checkout@v4
 
@@ -31,45 +34,56 @@ jobs:
             scheduler:
               - 'scheduler/**'
 
+      - name: Build changed-service matrices
+        id: matrices
+        env:
+          BACKEND_CHANGED: ${{ steps.filter.outputs.backend }}
+          FRONTEND_CHANGED: ${{ steps.filter.outputs.frontend }}
+          SCHEDULER_CHANGED: ${{ steps.filter.outputs.scheduler }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+
+          include = []
+          if os.environ.get("BACKEND_CHANGED") == "true":
+              include.append({"service": "backend"})
+          if os.environ.get("FRONTEND_CHANGED") == "true":
+              include.append({"service": "frontend"})
+          if os.environ.get("SCHEDULER_CHANGED") == "true":
+              include.append({"service": "scheduler"})
+
+          matrix = json.dumps({"include": include})
+          any_changed = "true" if include else "false"
+
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as fh:
+              fh.write(f"build_matrix={matrix}\n")
+              fh.write(f"deploy_matrix={matrix}\n")
+              fh.write(f"any_changed={any_changed}\n")
+          PY
+
   build:
     runs-on: ubuntu-latest
     needs: detect-changes
+    if: needs.detect-changes.outputs.any_changed == 'true'
 
     strategy:
-      matrix:
-        service: [backend, frontend, scheduler]
+      matrix: ${{ fromJSON(needs.detect-changes.outputs.build_matrix) }}
 
     steps:
       - uses: actions/checkout@v4
-
-      - name: Determine if service changed
-        id: changed
-        run: |
-          if [ "${{ needs.detect-changes.outputs.backend }}" = "true" ] && [ "${{ matrix.service }}" = "backend" ]; then
-            echo "run=true" >> $GITHUB_OUTPUT
-          elif [ "${{ needs.detect-changes.outputs.frontend }}" = "true" ] && [ "${{ matrix.service }}" = "frontend" ]; then
-            echo "run=true" >> $GITHUB_OUTPUT
-          elif [ "${{ needs.detect-changes.outputs.scheduler }}" = "true" ] && [ "${{ matrix.service }}" = "scheduler" ]; then
-            echo "run=true" >> $GITHUB_OUTPUT
-          else
-            echo "run=false" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Skip if unchanged
-        if: steps.changed.outputs.run != 'true'
-        run: echo "Skipping ${{ matrix.service }}"
 
       # --------------------
       # Backend & Scheduler (Python)
       # --------------------
       - name: Set up Python
-        if: steps.changed.outputs.run == 'true' && (matrix.service == 'backend' || matrix.service == 'scheduler')
+        if: matrix.service == 'backend' || matrix.service == 'scheduler'
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
       - name: Install Python dependencies
-        if: steps.changed.outputs.run == 'true' && (matrix.service == 'backend' || matrix.service == 'scheduler')
+        if: matrix.service == 'backend' || matrix.service == 'scheduler'
         working-directory: ./${{ matrix.service }}
         run: |
           python -m pip install --upgrade pip
@@ -79,89 +93,108 @@ jobs:
           fi
 
       - name: Run Python tests (scheduler)
-        if: steps.changed.outputs.run == 'true' && matrix.service == 'scheduler'
+        if: matrix.service == 'scheduler'
         working-directory: ./scheduler
         run: python -m unittest discover tests
 
       - name: Run Python tests with coverage (backend)
-        if: steps.changed.outputs.run == 'true' && matrix.service == 'backend'
+        if: matrix.service == 'backend'
         working-directory: ./backend
         run: |
-          coverage run -m unittest discover tests
+          coverage run -m unittest discover -s tests/unit -p "test_*.py" -t .
           coverage report --fail-under=75
 
       # --------------------
       # Frontend (Node / Vite)
       # --------------------
       - name: Set up Node
-        if: steps.changed.outputs.run == 'true' && matrix.service == 'frontend'
+        if: matrix.service == 'frontend'
         uses: actions/setup-node@v4
         with:
           node-version: "20"
 
       - name: Install frontend dependencies
-        if: steps.changed.outputs.run == 'true' && matrix.service == 'frontend'
+        if: matrix.service == 'frontend'
         working-directory: ./frontend
         run: npm install
 
       - name: Lint frontend
-        if: steps.changed.outputs.run == 'true' && matrix.service == 'frontend'
+        if: matrix.service == 'frontend'
         working-directory: ./frontend
         run: npm run lint
 
       - name: Type-check frontend
-        if: steps.changed.outputs.run == 'true' && matrix.service == 'frontend'
+        if: matrix.service == 'frontend'
         working-directory: ./frontend
         run: npx tsc --noEmit
 
       - name: Build frontend
-        if: steps.changed.outputs.run == 'true' && matrix.service == 'frontend'
+        if: matrix.service == 'frontend'
         working-directory: ./frontend
         run: npm run build
 
-  deploy:
-    name: Docker Build & Push
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: [build, detect-changes]
+  backend-integration:
+    name: integration tests (backend)
     runs-on: ubuntu-latest
-
-    strategy:
-      matrix:
-        service: [backend, frontend, scheduler]
+    needs: [detect-changes, build]
+    if: needs.detect-changes.outputs.any_changed == 'true'
+    services:
+      mongo:
+        image: mongo:6
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --eval \"db.adminCommand('ping')\""
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Determine if service changed
-        id: changed
-        run: |
-          if [ "${{ needs.detect-changes.outputs.backend }}" = "true" ] && [ "${{ matrix.service }}" = "backend" ]; then
-            echo "run=true" >> $GITHUB_OUTPUT
-          elif [ "${{ needs.detect-changes.outputs.frontend }}" = "true" ] && [ "${{ matrix.service }}" = "frontend" ]; then
-            echo "run=true" >> $GITHUB_OUTPUT
-          elif [ "${{ needs.detect-changes.outputs.scheduler }}" = "true" ] && [ "${{ matrix.service }}" = "scheduler" ]; then
-            echo "run=true" >> $GITHUB_OUTPUT
-          else
-            echo "run=false" >> $GITHUB_OUTPUT
-          fi
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
 
-      - name: Skip if unchanged
-        if: steps.changed.outputs.run != 'true'
-        run: echo "Skipping ${{ matrix.service }}"
+      - name: Install Python dependencies
+        working-directory: ./backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run Mongo integration tests
+        working-directory: ./backend
+        env:
+          RUN_MONGO_INTEGRATION: "1"
+          MONGO_URI: "mongodb://localhost:27017/avenu_db_dev"
+          DB_NAME: "avenu_db_dev"
+          FLASK_TESTING: "true"
+          SCHEDULER_INTERNAL_TOKEN: "scheduler-secret"
+        run: python -m unittest discover -s tests/integration -t .
+
+  deploy:
+    name: docker build & push
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.detect-changes.outputs.any_changed == 'true'
+    needs: [build, backend-integration, detect-changes]
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix: ${{ fromJSON(needs.detect-changes.outputs.deploy_matrix) }}
+
+    steps:
+      - uses: actions/checkout@v4
 
       - name: Set up Docker Buildx
-        if: steps.changed.outputs.run == 'true'
         uses: docker/setup-buildx-action@v3
 
       - name: Login to Docker Hub
-        if: steps.changed.outputs.run == 'true'
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Docker Build & Push
-        if: steps.changed.outputs.run == 'true'
         uses: docker/build-push-action@v5
         with:
           context: ./${{ matrix.service }}

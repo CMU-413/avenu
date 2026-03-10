@@ -10,3 +10,7 @@ class ConsoleSMSProvider(SMSProvider):
         print(f"Body: {body}")
         print("=== END SMS ===")
         return {"messageId": "console-sms-message-id"}
+
+    def check_health(self, *, timeout_seconds: float) -> str:
+        _ = timeout_seconds
+        return "healthy"

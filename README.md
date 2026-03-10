@@ -140,6 +140,21 @@ PORT=8000 python app.py
 
 Runs on: [http://localhost:8000](http://localhost:8000)
 
+### Backend Mongo Integration Tests
+
+Prerequisite: a local Mongo instance is reachable at `localhost:27017`.
+
+```
+cd backend
+RUN_MONGO_INTEGRATION=1 MONGO_URI=mongodb://localhost:27017/avenu_db_dev DB_NAME=avenu_db_dev python -m unittest discover tests/integration
+```
+
+Safety guardrails:
+
+* Integration tests only run when `RUN_MONGO_INTEGRATION=1`.
+* Integration tests require `DB_NAME=avenu_db_dev` and will fail fast for any other DB name.
+* The test harness drops only `avenu_db_dev`; no fallback to `avenu_db`.
+
 ### Frontend
 
 ```
