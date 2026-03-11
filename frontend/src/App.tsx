@@ -50,6 +50,7 @@ function toSessionUser(session: ApiSessionMe): SessionUser {
 }
 
 const AppRoutes = () => {
+  const navigate = useNavigate();
   const {
     sessionUser,
     isHydratingSession,
@@ -61,16 +62,34 @@ const AppRoutes = () => {
     let alive = true;
     const hydrate = async () => {
       setSessionHydrating(true);
+      const params = new URLSearchParams(window.location.search);
+      const tokenParam = params.get("token");
+      const orgId = params.get("org_id");
+      const userId = params.get("user_id");
+
       try {
+        if (tokenParam) {
+          const token = tokenParam.trim().replace(/ /g, "+");
+          await bootstrapOptixSession({ token, orgId, userId });
+          if (!alive) return;
+        }
         const me = await sessionMe();
         if (!alive) return;
         setSessionUser(toSessionUser(me));
+        if (tokenParam) {
+          stripOptixBootstrapParams();
+          navigate(me.isAdmin ? "/admin" : "/member", { replace: true });
+        }
       } catch (err) {
         if (!alive) return;
         if (err instanceof ApiError && err.status === 401) {
           setSessionUser(null);
         } else {
           setSessionUser(null);
+        }
+        if (tokenParam) {
+          stripOptixBootstrapParams();
+          navigate("/", { replace: true });
         }
       } finally {
         if (alive) setSessionHydrating(false);
@@ -80,7 +99,7 @@ const AppRoutes = () => {
     return () => {
       alive = false;
     };
-  }, [setSessionHydrating, setSessionUser]);
+  }, [navigate, setSessionHydrating, setSessionUser]);
 
   if (isHydratingSession) {
     return (
@@ -132,38 +151,6 @@ const AppRoutes = () => {
 
 
 const App = () => {
-  const navigate = useNavigate();
-  const { setSessionUser } = useAppStore();
-
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const tokenParam = params.get("token");
-    const orgId = params.get("org_id");
-    const userId = params.get("user_id");
-    if (!tokenParam) return;
-
-    const hydrateFromOptix = async () => {
-      try {
-        // URLSearchParams decodes '+' into spaces; restore it for bearer tokens.
-        const token = tokenParam.trim().replace(/ /g, "+");
-        const data = await bootstrapOptixSession({ token, orgId, userId });
-        console.log("Backend response:", data);
-
-        const me = await sessionMe();
-        setSessionUser(toSessionUser(me));
-        navigate(me.isAdmin ? "/admin" : "/member", { replace: true });
-      } catch (err) {
-        setSessionUser(null);
-        navigate("/", { replace: true });
-        console.error("Error bootstrapping Optix session:", err);
-      } finally {
-        stripOptixBootstrapParams();
-      }
-    };
-
-    void hydrateFromOptix();
-  }, [navigate, setSessionUser]);
-
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
