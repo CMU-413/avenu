@@ -7,10 +7,10 @@ import time
 
 from flask import Blueprint, jsonify, request
 
-from config import OCR_MAX_FILE_BYTES, OCR_SPACE_API_KEY
+from config import OCR_MAX_FILE_BYTES, OCR_PROVIDER, OCR_SPACE_API_KEY
 from controllers.auth_guard import require_admin_session
 from errors import APIError
-from services.ocr import OCRSpaceClient
+from services.ocr import EasyOCRClient, OCRSpaceClient, PaddleOCRClient, TesseractClient
 
 logger = logging.getLogger(__name__)
 
@@ -27,10 +27,14 @@ ocr_bp = Blueprint("ocr", __name__)
 
 
 def _get_ocr_client():
-    """Return configured OCR client. Uses OCR.space when API key is set."""
-    if OCR_SPACE_API_KEY:
+    """Return configured OCR client. Defaults to self-hosted PaddleOCR."""
+    if OCR_PROVIDER == "ocrspace" and OCR_SPACE_API_KEY:
         return OCRSpaceClient(api_key=OCR_SPACE_API_KEY)
-    return None
+    if OCR_PROVIDER == "tesseract":
+        return TesseractClient()
+    if OCR_PROVIDER == "easyocr":
+        return EasyOCRClient()
+    return PaddleOCRClient()
 
 
 @ocr_bp.route("/api/ocr", methods=["OPTIONS"])
@@ -53,7 +57,7 @@ def ocr_extract():
         logger.exception("ocr_extract: unhandled error: %s", e)
         return jsonify({
             "text": "",
-            "provider": "ocr.space",
+            "provider": "unknown",
             "error": "OCR failed unexpectedly",
         }), 200
 
@@ -86,13 +90,6 @@ def _ocr_extract_impl():
         )
 
     client = _get_ocr_client()
-    if not client:
-        logger.warning("ocr_extract: OCR_SPACE_API_KEY not configured")
-        return jsonify({
-            "text": "",
-            "provider": "ocr.space",
-            "error": "OCR not configured",
-        }), 200
 
     start = time.perf_counter()
     try:

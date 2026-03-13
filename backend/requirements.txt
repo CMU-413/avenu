@@ -6,3 +6,8 @@ twilio
 opentelemetry-distro
 opentelemetry-exporter-otlp
 opentelemetry-instrumentation-flask
+paddleocr
+paddlepaddle
+Pillow
+easyocr
+pytesseract

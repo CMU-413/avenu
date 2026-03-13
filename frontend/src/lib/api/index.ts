@@ -10,6 +10,7 @@ export * from "./routes/adminMailRequests";
 export * from "./routes/notifications";
 export * from "./routes/optix";
 export * from "./routes/ocr";
+export * from "./routes/ocrQueue";
 
 export * as SessionApi from "./routes/session";
 export * as MailApi from "./routes/mail";

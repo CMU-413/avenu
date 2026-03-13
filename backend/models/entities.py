@@ -30,7 +30,8 @@ class MailEntryEntity(TypedDict, total=False):
     mailboxId: str
     date: str
     type: str
-    count: int
+    receiverName: str | None
+    senderInfo: str | None
 
 
 class WeeklySummaryEntity(TypedDict, total=False):

@@ -11,6 +11,7 @@ import AdminNotifications from "./pages/admin/AdminNotifications";
 import AdminMailRequests from "./pages/admin/AdminMailRequests";
 import SearchMailbox from "./pages/admin/SearchMailbox";
 import RecordEntry from "./pages/admin/RecordEntry";
+import OcrQueue from "./pages/admin/OcrQueue";
 import MemberDashboard from "./pages/member/MemberDashboard";
 import NotificationSettings from "./pages/member/NotificationSettings";
 import NotFound from "./pages/NotFound";
@@ -130,6 +131,10 @@ const AppRoutes = () => {
       <Route
         path="/admin/mail-requests"
         element={isAdmin ? <AdminMailRequests /> : <Navigate to={isMember ? "/member" : "/"} replace />}
+      />
+      <Route
+        path="/admin/ocr-queue"
+        element={isAdmin ? <OcrQueue /> : <Navigate to={isMember ? "/member" : "/"} replace />}
       />
       <Route
         path="/admin/mailboxes"

@@ -29,7 +29,8 @@ erDiagram
         ObjectId mailboxId FK
         datetime date
         enum type "letter | package"
-        int count
+        string receiverName "optional"
+        string senderInfo "optional"
     }
 
     MAIL_REQUEST {

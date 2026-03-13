@@ -133,21 +133,16 @@ def build_mail_create(payload: dict[str, Any]) -> dict[str, Any]:
     if mail_type not in MAIL_TYPES:
         raise APIError(422, f"type must be one of {sorted(MAIL_TYPES)}")
 
-    count = payload.get("count")
-    if not isinstance(count, int) or isinstance(count, bool) or count < 1:
-        raise APIError(422, "count must be an integer >= 1")
-
     doc: dict[str, Any] = {
         "mailboxId": ObjectId(mailbox_id),
         "date": parse_iso_datetime(payload, "date"),
         "type": mail_type,
-        "count": count,
         "createdAt": now,
         "updatedAt": now,
     }
-    receiver = _optional_text(payload, "receiverAddress", 2000)
+    receiver = _optional_text(payload, "receiverName", 2000)
     if receiver is not None:
-        doc["receiverAddress"] = receiver
+        doc["receiverName"] = receiver
     sender = _optional_text(payload, "senderInfo", 500)
     if sender is not None:
         doc["senderInfo"] = sender
@@ -172,14 +167,8 @@ def build_mail_patch(payload: dict[str, Any]) -> dict[str, Any]:
             raise APIError(422, f"type must be one of {sorted(MAIL_TYPES)}")
         patch["type"] = mail_type
 
-    if "count" in payload:
-        count = payload.get("count")
-        if not isinstance(count, int) or isinstance(count, bool) or count < 1:
-            raise APIError(422, "count must be an integer >= 1")
-        patch["count"] = count
-
-    if "receiverAddress" in payload:
-        patch["receiverAddress"] = _optional_text(payload, "receiverAddress", 2000)
+    if "receiverName" in payload:
+        patch["receiverName"] = _optional_text(payload, "receiverName", 2000)
     if "senderInfo" in payload:
         patch["senderInfo"] = _optional_text(payload, "senderInfo", 500)
 

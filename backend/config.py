@@ -42,6 +42,7 @@ SESSION_COOKIE_SAMESITE = _env_samesite("SESSION_COOKIE_SAMESITE", "Lax")
 
 SCHEDULER_INTERNAL_TOKEN = os.getenv("SCHEDULER_INTERNAL_TOKEN", "").strip()
 
+OCR_PROVIDER = os.getenv("OCR_PROVIDER", "paddleocr").strip().lower()
 OCR_SPACE_API_KEY = os.getenv("OCR_SPACE_API_KEY", "").strip()
 OCR_MAX_FILE_BYTES = int(os.getenv("OCR_MAX_FILE_BYTES", "2097152"))  # 2MB default
 
@@ -67,6 +68,8 @@ mail_collection = db["mail"]
 mail_requests_collection = db["mail_requests"]
 idempotency_keys_collection = db["idempotency_keys"]
 notification_log_collection = db["notification_log"]
+ocr_jobs_collection = db["ocr_jobs"]
+ocr_queue_items_collection = db["ocr_queue_items"]
 
 
 def ensure_indexes() -> None:
@@ -113,3 +116,7 @@ def ensure_indexes() -> None:
         [("userId", ASCENDING), ("weekStart", ASCENDING)],
         name="notification_log_user_week_idx",
     )
+
+    ocr_jobs_collection.create_index([("createdBy", ASCENDING), ("createdAt", DESCENDING)], name="ocr_jobs_created_idx")
+    ocr_queue_items_collection.create_index([("jobId", ASCENDING), ("index", ASCENDING)], name="ocr_queue_job_idx")
+    ocr_queue_items_collection.create_index([("status", ASCENDING)], name="ocr_queue_status_idx")

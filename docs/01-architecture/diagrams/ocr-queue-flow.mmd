@@ -1,0 +1,19 @@
+flowchart TD
+    Admin["Admin"] --> Upload["Upload multiple photos\n(bulk mail)"]
+    Upload --> CreateJob["POST /api/ocr/jobs\nFormData with files[]"]
+    CreateJob --> Async["Background thread\nruns OCR on each image"]
+    CreateJob --> Return["Return job_id immediately"]
+    Return --> Poll["Frontend polls\nGET /api/ocr/jobs/:id"]
+    Async --> Parse["Parse receiver + sender\nfrom raw OCR text"]
+    Parse --> UpdateItems["Update ocr_queue_items\nreceiverName, senderInfo"]
+    UpdateItems --> JobDone["Job status = completed"]
+    Poll --> JobDone
+
+    JobDone --> Queue["Queue review screen\n(Slack-style swipe)"]
+    Queue --> Item["For each item:"]
+    Item --> Verify["Verify no typos\n(edit receiver/sender)"]
+    Verify --> Search["Search mailboxes\nby recipient name"]
+    Search --> Assign["Assign mailbox\n(company or personal)"]
+    Assign --> Confirm["Confirm"]
+    Confirm --> CreateMail["POST /api/ocr/queue/:id/confirm\n→ creates mail entry"]
+    CreateMail --> Next["Process next item\nor done"]

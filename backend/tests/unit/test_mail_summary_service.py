@@ -73,9 +73,12 @@ class MailSummaryServiceTests(unittest.TestCase):
             mailboxes=FakeCollection([{"_id": mailbox_id, "type": "user", "refId": user_id, "displayName": "Jane Doe"}]),
             mail=FakeCollection(
                 [
-                    {"mailboxId": mailbox_id, "date": _at(week_start), "type": "letter", "count": 2},
-                    {"mailboxId": mailbox_id, "date": _at(week_start + timedelta(days=1), 9), "type": "package", "count": 1},
-                    {"mailboxId": mailbox_id, "date": _at(week_start + timedelta(days=1), 15), "type": "letter", "count": 3},
+                    {"mailboxId": mailbox_id, "date": _at(week_start), "type": "letter"},
+                    {"mailboxId": mailbox_id, "date": _at(week_start), "type": "letter"},
+                    {"mailboxId": mailbox_id, "date": _at(week_start + timedelta(days=1), 9), "type": "package"},
+                    {"mailboxId": mailbox_id, "date": _at(week_start + timedelta(days=1), 15), "type": "letter"},
+                    {"mailboxId": mailbox_id, "date": _at(week_start + timedelta(days=1), 15), "type": "letter"},
+                    {"mailboxId": mailbox_id, "date": _at(week_start + timedelta(days=1), 16), "type": "letter"},
                 ]
             ),
         )
@@ -114,8 +117,9 @@ class MailSummaryServiceTests(unittest.TestCase):
             ),
             mail=FakeCollection(
                 [
-                    {"mailboxId": personal_mailbox, "date": _at(week_start), "type": "letter", "count": 1},
-                    {"mailboxId": team_mailbox, "date": _at(week_start), "type": "package", "count": 2},
+                    {"mailboxId": personal_mailbox, "date": _at(week_start), "type": "letter"},
+                    {"mailboxId": team_mailbox, "date": _at(week_start), "type": "package"},
+                    {"mailboxId": team_mailbox, "date": _at(week_start), "type": "package"},
                 ]
             ),
         )
@@ -167,10 +171,11 @@ class MailSummaryServiceTests(unittest.TestCase):
             mailboxes=FakeCollection([{"_id": mailbox_id, "type": "user", "refId": user_id, "displayName": "Boundary"}]),
             mail=FakeCollection(
                 [
-                    {"mailboxId": mailbox_id, "date": start_dt, "type": "letter", "count": 1},
-                    {"mailboxId": mailbox_id, "date": end_last_dt, "type": "package", "count": 2},
-                    {"mailboxId": mailbox_id, "date": end_plus_one_dt, "type": "letter", "count": 10},
-                    {"mailboxId": mailbox_id, "date": before_start_dt, "type": "package", "count": 10},
+                    {"mailboxId": mailbox_id, "date": start_dt, "type": "letter"},
+                    {"mailboxId": mailbox_id, "date": end_last_dt, "type": "package"},
+                    {"mailboxId": mailbox_id, "date": end_last_dt, "type": "package"},
+                    {"mailboxId": mailbox_id, "date": end_plus_one_dt, "type": "letter"},
+                    {"mailboxId": mailbox_id, "date": before_start_dt, "type": "package"},
                 ]
             ),
         )

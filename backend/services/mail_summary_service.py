@@ -68,7 +68,7 @@ class MailSummaryService:
         else:
             cursor = self._mail.find(
                 {"mailboxId": {"$in": mailbox_ids}, "date": {"$gte": day_start, "$lt": day_end}},
-                {"mailboxId": 1, "date": 1, "type": 1, "count": 1},
+                {"mailboxId": 1, "date": 1, "type": 1},
             )
         for row in cursor:
             mailbox_id = row["mailboxId"]
@@ -76,11 +76,10 @@ class MailSummaryService:
             if row_date.tzinfo is None:
                 row_date = row_date.replace(tzinfo=timezone.utc)
             day_key = row_date.astimezone(timezone.utc).date().isoformat()
-            count = row.get("count", 0)
             if row.get("type") == "letter":
-                totals[mailbox_id][day_key]["letters"] += count
+                totals[mailbox_id][day_key]["letters"] += 1
             elif row.get("type") == "package":
-                totals[mailbox_id][day_key]["packages"] += count
+                totals[mailbox_id][day_key]["packages"] += 1
 
         mailboxes: list[dict[str, Any]] = []
         total_letters = 0

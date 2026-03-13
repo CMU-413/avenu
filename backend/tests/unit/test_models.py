@@ -33,20 +33,20 @@ class ModelBuilderTests(unittest.TestCase):
             "mailboxId": str(ObjectId()),
             "date": "2025-01-01T10:00:00Z",
             "type": "letter",
-            "count": 2,
+            "receiverName": "Acme Corp",
         }
         doc = build_mail_create(payload)
         self.assertEqual(doc["type"], "letter")
-        self.assertEqual(doc["count"], 2)
+        self.assertEqual(doc["receiverName"], "Acme Corp")
+        self.assertNotIn("count", doc)
 
-    def test_build_mail_create_rejects_bad_count(self):
+    def test_build_mail_create_rejects_bad_type(self):
         with self.assertRaises(APIError):
             build_mail_create(
                 {
                     "mailboxId": str(ObjectId()),
                     "date": "2025-01-01T10:00:00Z",
-                    "type": "letter",
-                    "count": 0,
+                    "type": "postcard",
                 }
             )
 

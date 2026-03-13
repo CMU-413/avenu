@@ -3,6 +3,7 @@ from flask import Flask
 from .health_controller import health_bp
 from .identity_controller import identity_bp
 from .ocr_controller import ocr_bp
+from .ocr_queue_controller import ocr_queue_bp
 from .internal_jobs_controller import internal_jobs_bp
 from .mail_controller import mail_bp
 from .mail_requests_controller import mail_requests_bp
@@ -18,6 +19,7 @@ def register_blueprints(app: Flask) -> None:
     app.register_blueprint(health_bp)
     app.register_blueprint(session_bp)
     app.register_blueprint(ocr_bp)
+    app.register_blueprint(ocr_queue_bp)
     app.register_blueprint(users_bp)
     app.register_blueprint(teams_bp)
     app.register_blueprint(mailboxes_bp)
