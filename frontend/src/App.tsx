@@ -122,6 +122,10 @@ const AppRoutes = () => {
       <Route path="/admin" element={isAdmin ? <AdminHome /> : <Navigate to={isMember ? "/member" : "/"} replace />} />
       <Route
         path="/admin/recording"
+        element={isAdmin ? <OcrQueue /> : <Navigate to={isMember ? "/member" : "/"} replace />}
+      />
+      <Route
+        path="/admin/dashboard"
         element={isAdmin ? <AdminDashboard /> : <Navigate to={isMember ? "/member" : "/"} replace />}
       />
       <Route
@@ -131,10 +135,6 @@ const AppRoutes = () => {
       <Route
         path="/admin/mail-requests"
         element={isAdmin ? <AdminMailRequests /> : <Navigate to={isMember ? "/member" : "/"} replace />}
-      />
-      <Route
-        path="/admin/ocr-queue"
-        element={isAdmin ? <OcrQueue /> : <Navigate to={isMember ? "/member" : "/"} replace />}
       />
       <Route
         path="/admin/mailboxes"

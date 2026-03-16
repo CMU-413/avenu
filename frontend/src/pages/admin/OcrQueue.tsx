@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   ArrowLeft,
@@ -34,6 +34,8 @@ const OcrQueue = () => {
   const jobIdFromUrl = searchParams.get("job");
   const logout = useAppStore((s) => s.logout);
   const { toast } = useToast();
+  const toastRef = useRef(toast);
+  toastRef.current = toast;
 
   const [jobs, setJobs] = useState<ApiOcrJob[]>([]);
   const [loadingJobs, setLoadingJobs] = useState(true);
@@ -43,6 +45,8 @@ const OcrQueue = () => {
   } | null>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [uploading, setUploading] = useState(false);
+  const [stagedFiles, setStagedFiles] = useState<File[]>([]);
+  const [pendingJobId, setPendingJobId] = useState<string | null>(null);
   const [mailboxes, setMailboxes] = useState<
     { id: string; name: string; type: "company" | "personal"; memberNames: string[] }[]
   >([]);
@@ -59,7 +63,7 @@ const OcrQueue = () => {
       const { jobs: list } = await listOcrJobs();
       setJobs(list);
     } catch (err) {
-      toast({ title: err instanceof Error ? err.message : "Failed to load jobs", variant: "destructive" });
+      toastRef.current({ title: err instanceof Error ? err.message : "Failed to load jobs", variant: "destructive" });
       if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
         logout();
         navigate("/");
@@ -67,7 +71,7 @@ const OcrQueue = () => {
     } finally {
       setLoadingJobs(false);
     }
-  }, [logout, navigate, toast]);
+  }, [logout, navigate]);
 
   const loadJobDetail = useCallback(
     async (id: string) => {
@@ -77,10 +81,10 @@ const OcrQueue = () => {
         setCurrentIndex(0);
         setEditingItem({});
       } catch (err) {
-        toast({ title: err instanceof Error ? err.message : "Failed to load job", variant: "destructive" });
+        toastRef.current({ title: err instanceof Error ? err.message : "Failed to load job", variant: "destructive" });
       }
     },
-    [toast]
+    []
   );
 
   useEffect(() => {
@@ -169,7 +173,7 @@ const OcrQueue = () => {
     setShowMailboxPicker(false);
   }, [currentIndex]);
 
-  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files?.length) return;
     const list = Array.from(files).filter((f) => f.type.startsWith("image/"));
@@ -177,19 +181,54 @@ const OcrQueue = () => {
       toast({ title: "No valid images selected", variant: "destructive" });
       return;
     }
+    setStagedFiles((prev) => [...prev, ...list]);
+    toast({ title: `${list.length} photo${list.length > 1 ? "s" : ""} added (${stagedFiles.length + list.length} total)` });
+    e.target.value = "";
+  };
+
+  const handleRemoveStaged = (index: number) => {
+    setStagedFiles((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleProcessAll = async () => {
+    if (!stagedFiles.length) return;
     setUploading(true);
     try {
-      const job = await createOcrJob(list, date);
-      toast({ title: `Uploaded ${list.length} images. Processing...` });
-      navigate(`/admin/ocr-queue?job=${job.id}&date=${date}`);
+      const job = await createOcrJob(stagedFiles, date);
+      toast({ title: `Uploaded ${stagedFiles.length} images. Processing in background...` });
+      setStagedFiles([]);
+      setPendingJobId(job.id);
       loadJobs();
     } catch (err) {
       toast({ title: err instanceof Error ? err.message : "Upload failed", variant: "destructive" });
     } finally {
       setUploading(false);
-      e.target.value = "";
     }
   };
+
+  useEffect(() => {
+    if (!pendingJobId) return;
+    const poll = setInterval(async () => {
+      try {
+        const data = await getOcrJob(pendingJobId);
+        if (data.job.status === "completed" || data.job.status === "failed") {
+          clearInterval(poll);
+          setPendingJobId(null);
+          loadJobs();
+          if (data.job.status === "completed") {
+            toastRef.current({ title: "All images parsed. Ready to review." });
+            navigate(`/admin/recording?job=${pendingJobId}&date=${date}`);
+          } else {
+            toastRef.current({ title: "OCR processing failed", variant: "destructive" });
+          }
+        }
+      } catch {
+        /* keep polling */
+      }
+    }, POLL_INTERVAL_MS);
+    return () => clearInterval(poll);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingJobId, date, navigate]);
 
   const item = currentJob?.items[currentIndex];
   const effectiveItem = item
@@ -273,14 +312,14 @@ const OcrQueue = () => {
         <div className="flex items-center gap-3 px-4 h-14">
           <button
             onClick={() =>
-              jobIdFromUrl ? navigate("/admin/ocr-queue") : navigate("/admin")
+              jobIdFromUrl ? navigate("/admin/recording") : navigate("/admin")
             }
             className="text-muted-foreground hover:text-foreground transition-colors"
           >
             <ArrowLeft className="h-5 w-5" />
           </button>
           <h1 className="text-lg font-bold text-foreground">
-            {currentJob ? `Verify (${confirmedCount}/${currentJob.items.length})` : "OCR Queue"}
+            {currentJob ? `Verify (${confirmedCount}/${currentJob.items.length})` : "Record Mail"}
           </h1>
         </div>
       </header>
@@ -288,13 +327,14 @@ const OcrQueue = () => {
       <div className="px-4 py-4 max-w-lg mx-auto space-y-4">
         {!currentJob && (
           <>
-            <div className="rounded-xl border border-dashed border-muted-foreground/30 bg-muted/20 p-8 flex flex-col items-center justify-center gap-3">
-              <Camera className="h-12 w-12 text-muted-foreground" />
+            <div className="rounded-xl border border-dashed border-muted-foreground/30 bg-muted/20 p-6 flex flex-col items-center justify-center gap-3">
+              <Camera className="h-10 w-10 text-muted-foreground" />
               <p className="text-sm text-muted-foreground text-center">
-                Take or upload photos of all mail, then process in one batch.
+                Snap or upload photos of all mail, then process in one batch.
               </p>
-              <label className="cursor-pointer">
+              <div>
                 <input
+                  id="ocr-file-input"
                   type="file"
                   accept="image/*"
                   multiple
@@ -302,16 +342,62 @@ const OcrQueue = () => {
                   onChange={handleFileSelect}
                   disabled={uploading}
                 />
-                <Button disabled={uploading} className="gap-2">
+                <Button
+                  variant="outline"
+                  disabled={uploading}
+                  className="gap-2"
+                  onClick={() => document.getElementById("ocr-file-input")?.click()}
+                >
+                  <Camera className="h-4 w-4" />
+                  {stagedFiles.length > 0 ? "Add more photos" : "Add photos"}
+                </Button>
+              </div>
+            </div>
+
+            {stagedFiles.length > 0 && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-foreground">
+                    {stagedFiles.length} photo{stagedFiles.length !== 1 ? "s" : ""} ready
+                  </h3>
+                  <button
+                    onClick={() => setStagedFiles([])}
+                    className="text-xs text-muted-foreground hover:text-destructive transition-colors"
+                  >
+                    Clear all
+                  </button>
+                </div>
+                <div className="grid grid-cols-4 gap-2">
+                  {stagedFiles.map((file, i) => (
+                    <div key={i} className="relative group rounded-lg overflow-hidden border bg-muted aspect-square">
+                      <img
+                        src={URL.createObjectURL(file)}
+                        alt={file.name}
+                        className="w-full h-full object-cover"
+                      />
+                      <button
+                        onClick={() => handleRemoveStaged(i)}
+                        className="absolute top-0.5 right-0.5 bg-black/60 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        &times;
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <Button
+                  className="w-full gap-2"
+                  onClick={handleProcessAll}
+                  disabled={uploading}
+                >
                   {uploading ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
-                    <Camera className="h-4 w-4" />
+                    <Check className="h-4 w-4" />
                   )}
-                  {uploading ? "Uploading..." : "Upload mail photos"}
+                  {uploading ? "Uploading..." : `Process ${stagedFiles.length} photo${stagedFiles.length !== 1 ? "s" : ""}`}
                 </Button>
-              </label>
-            </div>
+              </div>
+            )}
 
             <div className="space-y-2">
               <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground px-1">
@@ -326,7 +412,7 @@ const OcrQueue = () => {
                   {jobs.map((j) => (
                     <button
                       key={j.id}
-                      onClick={() => navigate(`/admin/ocr-queue?job=${j.id}&date=${date}`)}
+                      onClick={() => navigate(`/admin/recording?job=${j.id}&date=${date}`)}
                       className="w-full flex items-center justify-between px-4 py-3 hover:bg-muted/50 transition-colors text-left"
                     >
                       <div>
@@ -353,6 +439,16 @@ const OcrQueue = () => {
             <Loader2 className="h-10 w-10 animate-spin text-primary" />
             <p className="text-sm text-muted-foreground">
               Parsing {currentJob.job.completedCount} of {currentJob.job.totalCount} images...
+            </p>
+            <p className="text-xs text-muted-foreground">Review will start automatically when done.</p>
+          </div>
+        )}
+
+        {!currentJob && pendingJobId && (
+          <div className="rounded-xl border bg-card p-4 flex items-center gap-3">
+            <Loader2 className="h-5 w-5 animate-spin text-primary shrink-0" />
+            <p className="text-sm text-muted-foreground">
+              Processing images in the background. You can keep adding more or wait...
             </p>
           </div>
         )}
@@ -529,7 +625,7 @@ const OcrQueue = () => {
               variant="outline"
               className="mt-4"
               onClick={() => {
-                navigate("/admin/ocr-queue");
+                navigate("/admin/recording");
                 setCurrentJob(null);
                 loadJobs();
               }}

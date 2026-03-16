@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useAppStore } from "@/lib/store";
-import { ArrowLeft, ImagePlus, Trash2, Pencil, Plus } from "lucide-react";
+import { ArrowLeft, ChevronRight, ImagePlus, Trash2, Pencil, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -449,10 +449,19 @@ const RecordEntry = () => {
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-10 border-b bg-background/95 backdrop-blur">
         <div className="flex items-center gap-3 px-4 h-14">
-          <button onClick={() => navigate(-1)} className="text-muted-foreground hover:text-foreground transition-colors">
+          <button onClick={() => navigate(`/admin/recording${date ? `?date=${date}` : ""}`)} className="text-muted-foreground hover:text-foreground transition-colors">
             <ArrowLeft className="h-5 w-5" />
           </button>
-          <h1 className="text-lg font-bold text-foreground truncate">{mailboxName}</h1>
+          <h1 className="text-lg font-bold text-foreground truncate flex-1">{mailboxName}</h1>
+          <Button
+            variant="secondary"
+            size="sm"
+            className="gap-1.5 shrink-0"
+            onClick={() => navigate(`/admin/mailboxes?date=${date}`)}
+          >
+            <ChevronRight className="h-4 w-4" />
+            Next user
+          </Button>
         </div>
       </header>
 

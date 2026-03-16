@@ -148,7 +148,7 @@ const AdminDashboard = () => {
         <div className="space-y-1">
           <div className="flex items-center justify-between px-1 pb-2">
             <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider">
-              Recorded — {formatDisplayDate(selectedDate)}
+              Check recorded mail — {formatDisplayDate(selectedDate)}
             </h2>
             <div className="flex items-center gap-3 text-xs font-medium text-muted-foreground">
               <span className="flex items-center gap-1">

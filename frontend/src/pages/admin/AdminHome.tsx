@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { ClipboardList, Bell, MailOpen, Wrench, Camera } from "lucide-react";
+import { Camera, ClipboardList, Bell, MailOpen, Wrench } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAppStore } from "@/lib/store";
 import { sessionLogout } from "@/lib/api";
@@ -33,17 +33,17 @@ const AdminHome = () => {
           onClick={() => navigate("/admin/recording")}
           className="w-full h-16 justify-start gap-3 text-base shadow-sm"
         >
-          <ClipboardList className="h-5 w-5" />
+          <Camera className="h-5 w-5" />
           Record Mail
         </Button>
 
         <Button
-          onClick={() => navigate("/admin/ocr-queue")}
+          onClick={() => navigate("/admin/dashboard")}
           className="w-full h-14 justify-start gap-3 text-base shadow-sm"
           variant="secondary"
         >
-          <Camera className="h-5 w-5" />
-          Bulk OCR Queue
+          <ClipboardList className="h-5 w-5" />
+          View Recorded Mail
         </Button>
 
         <section className="rounded-xl border bg-card p-3 space-y-2">
