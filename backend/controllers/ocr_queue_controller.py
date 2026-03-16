@@ -48,38 +48,45 @@ def _get_ocr_client():
     return _get_ocr_client()
 
 
-def _process_ocr_job(job_id: ObjectId, image_payloads: list[tuple[bytes, str]]) -> None:
-    """Background worker: run OCR on each image and update queue items."""
-    try:
-        client = _get_ocr_client()
-        items = list(ocr_queue_items_collection.find({"jobId": job_id}).sort("index", 1))
-        completed = 0
-        for i, (image_bytes, content_type) in enumerate(image_payloads):
-            if i >= len(items):
-                break
-            item_id = items[i]["_id"]
-            try:
-                text = client.extract_text(image_bytes, content_type)
-                receiver, sender = parse_ocr_text(text)
-                update_ocr_queue_item(
-                    item_id,
-                    status="completed",
-                    raw_text=text,
-                    receiver_name=receiver or None,
-                    sender_info=sender or None,
-                )
-                logger.info("ocr_queue: processed item %s for job %s", item_id, job_id)
-            except Exception as e:
-                logger.warning("ocr_queue: item %s failed: %s", item_id, e)
-                update_ocr_queue_item(item_id, status="failed", error=str(e))
-            completed += 1
-            update_ocr_job_status(job_id, "processing", completed_count=completed)
+def _process_ocr_job(app, job_id: ObjectId, image_payloads: list[tuple[bytes, str]]) -> None:
+    """Background worker: run OCR on each image and update queue items.
 
-        update_ocr_job_status(job_id, "completed", completed_count=completed)
-        logger.info("ocr_queue: job %s completed, %d/%d items", job_id, completed, len(image_payloads))
-    except Exception as e:
-        logger.exception("ocr_queue: job %s failed: %s", job_id, e)
-        update_ocr_job_status(job_id, "failed")
+    Needs the Flask ``app`` so we can push an application context — the
+    background thread has no request/app context by default and MongoDB
+    collection references live in ``config`` which is loaded at import time,
+    but pymongo operations themselves are fine without Flask context.
+    """
+    with app.app_context():
+        try:
+            client = _get_ocr_client()
+            items = list(ocr_queue_items_collection.find({"jobId": job_id}).sort("index", 1))
+            completed = 0
+            for i, (image_bytes, content_type) in enumerate(image_payloads):
+                if i >= len(items):
+                    break
+                item_id = items[i]["_id"]
+                try:
+                    text = client.extract_text(image_bytes, content_type)
+                    receiver, sender = parse_ocr_text(text)
+                    update_ocr_queue_item(
+                        item_id,
+                        status="completed",
+                        raw_text=text,
+                        receiver_name=receiver or None,
+                        sender_info=sender or None,
+                    )
+                    logger.info("ocr_queue: processed item %s for job %s", item_id, job_id)
+                except Exception as e:
+                    logger.warning("ocr_queue: item %s failed: %s", item_id, e)
+                    update_ocr_queue_item(item_id, status="failed", error=str(e))
+                completed += 1
+                update_ocr_job_status(job_id, "processing", completed_count=completed)
+
+            update_ocr_job_status(job_id, "completed", completed_count=completed)
+            logger.info("ocr_queue: job %s completed, %d/%d items", job_id, completed, len(image_payloads))
+        except Exception as e:
+            logger.exception("ocr_queue: job %s failed: %s", job_id, e)
+            update_ocr_job_status(job_id, "failed")
 
 
 def _serialize_job(doc: dict[str, Any]) -> dict:
@@ -148,7 +155,9 @@ def create_job():
     job_id = create_ocr_job(created_by=admin_id, date=date, item_count=len(image_payloads))
     create_ocr_queue_items(job_id, len(image_payloads))
 
-    thread = threading.Thread(target=_process_ocr_job, args=(job_id, image_payloads), daemon=True)
+    from flask import current_app
+    app = current_app._get_current_object()
+    thread = threading.Thread(target=_process_ocr_job, args=(app, job_id, image_payloads), daemon=True)
     thread.start()
 
     return jsonify({
@@ -168,7 +177,10 @@ def list_jobs():
     user_id = session.get("user_id")
     if not user_id or not ObjectId.is_valid(user_id):
         return jsonify({"error": "unauthorized"}), 401
-    limit = min(int(request.args.get("limit", 50)), 100)
+    try:
+        limit = min(int(request.args.get("limit", 50)), 100)
+    except (TypeError, ValueError):
+        limit = 50
     jobs = list_ocr_jobs_for_admin(ObjectId(user_id), limit=limit)
     return jsonify({"jobs": [_serialize_job(j) for j in jobs]}), 200
 
@@ -204,33 +216,19 @@ def update_queue_item(item_id: str):
         raise APIError(400, "item already confirmed")
 
     data = request.get_json() or {}
-    updates: dict[str, Any] = {}
+    repo_kwargs: dict[str, Any] = {}
     if "receiverName" in data:
-        updates["receiver_name"] = data["receiverName"]
+        repo_kwargs["receiver_name"] = data["receiverName"]
     if "senderInfo" in data:
-        updates["sender_info"] = data["senderInfo"]
+        repo_kwargs["sender_info"] = data["senderInfo"]
     if "type" in data and data["type"] in ("letter", "package"):
-        updates["mail_type"] = data["type"]
+        repo_kwargs["mail_type"] = data["type"]
     if "mailboxId" in data:
         mb = data["mailboxId"]
-        updates["mailbox_id"] = ObjectId(mb) if mb and ObjectId.is_valid(mb) else None
+        repo_kwargs["mailbox_id"] = ObjectId(mb) if mb and ObjectId.is_valid(mb) else None
 
-    for k, v in list(updates.items()):
-        if k not in ("receiver_name", "sender_info", "mail_type", "mailbox_id"):
-            del updates[k]
-    # Map to repo kwargs
-    repo_updates = {}
-    if "receiver_name" in updates:
-        repo_updates["receiver_name"] = updates["receiver_name"]
-    if "sender_info" in updates:
-        repo_updates["sender_info"] = updates["sender_info"]
-    if "mail_type" in updates:
-        repo_updates["mail_type"] = updates["mail_type"]
-    if "mailbox_id" in updates:
-        repo_updates["mailbox_id"] = updates["mailbox_id"]
-
-    if repo_updates:
-        update_ocr_queue_item(oid, **repo_updates)
+    if repo_kwargs:
+        update_ocr_queue_item(oid, **repo_kwargs)
 
     updated = get_ocr_queue_item(oid)
     return jsonify({"item": _serialize_item(updated)}), 200
@@ -292,9 +290,21 @@ def confirm_queue_item(item_id: str):
         raise
 
 
-@ocr_queue_bp.route("/api/ocr/jobs/<job_id>", methods=["OPTIONS"])
-@ocr_queue_bp.route("/api/ocr/jobs", methods=["OPTIONS"])
-@ocr_queue_bp.route("/api/ocr/queue/<item_id>", methods=["OPTIONS"])
-@ocr_queue_bp.route("/api/ocr/queue/<item_id>/confirm", methods=["OPTIONS"])
-def _options():
+@ocr_queue_bp.route("/api/ocr/jobs", methods=["OPTIONS"], endpoint="ocr_jobs_options")
+def _jobs_options():
+    return "", 204
+
+
+@ocr_queue_bp.route("/api/ocr/jobs/<job_id>", methods=["OPTIONS"], endpoint="ocr_job_options")
+def _job_options(job_id: str):
+    return "", 204
+
+
+@ocr_queue_bp.route("/api/ocr/queue/<item_id>", methods=["OPTIONS"], endpoint="ocr_queue_item_options")
+def _queue_item_options(item_id: str):
+    return "", 204
+
+
+@ocr_queue_bp.route("/api/ocr/queue/<item_id>/confirm", methods=["OPTIONS"], endpoint="ocr_queue_confirm_options")
+def _queue_confirm_options(item_id: str):
     return "", 204

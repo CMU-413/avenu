@@ -33,7 +33,7 @@ def _clean_address_text(s: str) -> str:
     s = re.sub(r"([a-z])(St\.?|Street)", r"\1 \2", s, flags=re.I)
     s = re.sub(r"([a-z])(Dr\.?|Drive)", r"\1 \2", s, flags=re.I)
     s = re.sub(r"([a-z])(Rd\.?|Road)", r"\1 \2", s, flags=re.I)
-    s = re.sub(r"(Blvd\.?|Ave\.?|St\.?)([A-Za-z])", r"\1 \2", s, flags=re.I)
+    s = re.sub(r"(Blvd\.?|Ave\.?|St\.)([A-Za-z])", r"\1 \2", s, flags=re.I)
     s = re.sub(r",([A-Za-z])", r", \1", s)
     s = re.sub(r"([a-z])(North|South|East|West)\b", r"\1 \2", s, flags=re.I)
     return s

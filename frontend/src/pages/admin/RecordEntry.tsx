@@ -46,7 +46,7 @@ function cleanAddressText(s: string): string {
     .replace(/([a-z])(St\.?|Street)/gi, "$1 $2")
     .replace(/([a-z])(Dr\.?|Drive)/gi, "$1 $2")
     .replace(/([a-z])(Rd\.?|Road)/gi, "$1 $2")
-    .replace(/(Blvd\.?|Ave\.?|St\.?)([A-Za-z])/gi, "$1 $2") // "Blvd.Everytown" -> "Blvd. Everytown"
+    .replace(/(Blvd\.?|Ave\.?|St\.)([A-Za-z])/gi, "$1 $2") // "Blvd.Everytown" -> "Blvd. Everytown"
     .replace(/,([A-Za-z])/g, ", $1") // "Anywhere,PA" -> "Anywhere, PA"
     .replace(/([a-z])(North|South|East|West)\b/gi, "$1 $2"); // "SmithNorth" -> "Smith North"
 }

@@ -68,24 +68,27 @@ def get_ocr_queue_item(item_id: ObjectId) -> dict[str, Any] | None:
     return ocr_queue_items_collection.find_one({"_id": item_id})
 
 
+_SENTINEL = object()
+
+
 def update_ocr_queue_item(
     item_id: ObjectId,
     *,
     status: str | None = None,
-    receiver_name: str | None = None,
-    sender_info: str | None = None,
+    receiver_name: str | object = _SENTINEL,
+    sender_info: str | object = _SENTINEL,
     mail_type: str | None = None,
     raw_text: str | None = None,
     error: str | None = None,
-    mailbox_id: ObjectId | None = None,
+    mailbox_id: ObjectId | None | object = _SENTINEL,
     confirmed_at: datetime | None = None,
 ) -> bool:
     updates: dict[str, Any] = {"updatedAt": datetime.utcnow()}
     if status is not None:
         updates["status"] = status
-    if receiver_name is not None:
+    if receiver_name is not _SENTINEL:
         updates["receiverName"] = receiver_name
-    if sender_info is not None:
+    if sender_info is not _SENTINEL:
         updates["senderInfo"] = sender_info
     if mail_type is not None:
         updates["type"] = mail_type
@@ -93,7 +96,7 @@ def update_ocr_queue_item(
         updates["rawText"] = raw_text
     if error is not None:
         updates["error"] = error
-    if mailbox_id is not None:
+    if mailbox_id is not _SENTINEL:
         updates["mailboxId"] = mailbox_id
     if confirmed_at is not None:
         updates["confirmedAt"] = confirmed_at

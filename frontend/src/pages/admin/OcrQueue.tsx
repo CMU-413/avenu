@@ -84,14 +84,17 @@ const OcrQueue = () => {
   );
 
   useEffect(() => {
-    loadJobs();
-  }, [loadJobs]);
+    if (!jobIdFromUrl) {
+      loadJobs();
+    }
+  }, [jobIdFromUrl, loadJobs]);
 
   useEffect(() => {
     if (jobIdFromUrl) {
       loadJobDetail(jobIdFromUrl);
     } else {
       setCurrentJob(null);
+      setCurrentIndex(0);
     }
   }, [jobIdFromUrl, loadJobDetail]);
 
@@ -160,6 +163,11 @@ const OcrQueue = () => {
       personal: all.filter((m) => m.type === "personal"),
     };
   }, [mailboxes, mailboxQuery]);
+
+  useEffect(() => {
+    setEditingItem({});
+    setShowMailboxPicker(false);
+  }, [currentIndex]);
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
