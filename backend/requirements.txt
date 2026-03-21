@@ -3,3 +3,5 @@ pymongo==4.10.1
 python-dotenv
 requests
 twilio
+opentelemetry-distro
+opentelemetry-exporter-otlp
