@@ -24,7 +24,7 @@ def create_ocr_job(*, created_by: ObjectId, date: str, item_count: int) -> Objec
     return r.inserted_id
 
 
-def create_ocr_queue_items(job_id: ObjectId, count: int) -> list[ObjectId]:
+def create_ocr_queue_items(job_id: ObjectId, count: int, file_ids: list[ObjectId] | None = None) -> list[ObjectId]:
     now = datetime.utcnow()
     docs = [
         {
@@ -37,6 +37,7 @@ def create_ocr_queue_items(job_id: ObjectId, count: int) -> list[ObjectId]:
             "rawText": None,
             "error": None,
             "mailboxId": None,
+            "fileId": file_ids[i] if file_ids and i < len(file_ids) else None,
             "confirmedAt": None,
             "createdAt": now,
             "updatedAt": now,
@@ -61,7 +62,17 @@ def update_ocr_job_status(job_id: ObjectId, status: str, completed_count: int | 
 
 
 def get_ocr_queue_items_for_job(job_id: ObjectId) -> list[dict[str, Any]]:
-    return list(ocr_queue_items_collection.find({"jobId": job_id}).sort("index", 1))
+    return list(ocr_queue_items_collection.find({"jobId": job_id, "status": {"$ne": "deleted"}}).sort("index", 1))
+
+
+def delete_ocr_queue_item(item_id: ObjectId) -> bool:
+    """Soft delete a queue item."""
+    r = ocr_queue_items_collection.update_one(
+        {"_id": item_id},
+        {"$set": {"status": "deleted", "updatedAt": datetime.utcnow()}}
+    )
+    return r.modified_count > 0
+
 
 
 def get_ocr_queue_item(item_id: ObjectId) -> dict[str, Any] | None:

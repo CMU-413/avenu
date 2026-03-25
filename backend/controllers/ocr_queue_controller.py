@@ -8,9 +8,9 @@ from datetime import datetime
 from typing import Any
 
 from bson import ObjectId
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, send_file
 
-from config import OCR_MAX_FILE_BYTES, ocr_queue_items_collection
+from config import OCR_MAX_FILE_BYTES, ocr_queue_items_collection, fs
 from controllers.auth_guard import require_admin_session
 from errors import APIError
 from idempotency import payload_hash
@@ -18,6 +18,7 @@ from repositories.idempotency_repository import delete_reservation, reserve_or_r
 from repositories.ocr_queue_repository import (
     create_ocr_job,
     create_ocr_queue_items,
+    delete_ocr_queue_item,
     get_ocr_job,
     get_ocr_queue_item,
     get_ocr_queue_items_for_job,
@@ -82,8 +83,8 @@ def _process_ocr_job(app, job_id: ObjectId, image_payloads: list[tuple[bytes, st
                 completed += 1
                 update_ocr_job_status(job_id, "processing", completed_count=completed)
 
-            update_ocr_job_status(job_id, "completed", completed_count=completed)
-            logger.info("ocr_queue: job %s completed, %d/%d items", job_id, completed, len(image_payloads))
+            update_ocr_job_status(job_id, "processed", completed_count=completed)
+            logger.info("ocr_queue: job %s processed, %d/%d items", job_id, completed, len(image_payloads))
         except Exception as e:
             logger.exception("ocr_queue: job %s failed: %s", job_id, e)
             update_ocr_job_status(job_id, "failed")
@@ -114,6 +115,7 @@ def _serialize_item(doc: dict[str, Any]) -> dict:
         "rawText": doc.get("rawText"),
         "error": doc.get("error"),
         "mailboxId": str(doc["mailboxId"]) if doc.get("mailboxId") else None,
+        "fileId": str(doc["fileId"]) if doc.get("fileId") else None,
         "confirmedAt": doc["confirmedAt"].isoformat() if doc.get("confirmedAt") else None,
     }
 
@@ -150,10 +152,16 @@ def create_job():
     if not image_payloads:
         raise APIError(422, "no valid images to process")
 
+    # Store images in GridFS
+    file_ids: list[ObjectId] = []
+    for img_data, content_type in image_payloads:
+        fid = fs.put(img_data, content_type=content_type, filename="ocr_upload")
+        file_ids.append(fid)
+
     date = request.form.get("date") or datetime.utcnow().strftime("%Y-%m-%d")
 
     job_id = create_ocr_job(created_by=admin_id, date=date, item_count=len(image_payloads))
-    create_ocr_queue_items(job_id, len(image_payloads))
+    create_ocr_queue_items(job_id, len(image_payloads), file_ids=file_ids)
 
     from flask import current_app
     app = current_app._get_current_object()
@@ -288,6 +296,58 @@ def confirm_queue_item(item_id: str):
     except Exception:
         delete_reservation(key=idempotency_key, route=route, method="POST")
         raise
+
+
+@ocr_queue_bp.route("/api/ocr/queue/<item_id>", methods=["DELETE"])
+@require_admin_session
+def delete_queue_item(item_id: str):
+    """Delete item (soft delete)."""
+    if not ObjectId.is_valid(item_id):
+        raise APIError(404, "item not found")
+    
+    success = delete_ocr_queue_item(ObjectId(item_id))
+    if not success:
+        raise APIError(404, "item not found or already deleted")
+        
+    return jsonify({"success": True}), 200
+
+
+@ocr_queue_bp.route("/api/ocr/jobs/<job_id>/stage", methods=["POST"])
+@require_admin_session
+def update_job_stage(job_id: str):
+    """Update job stage (processing -> processed -> audited)."""
+    if not ObjectId.is_valid(job_id):
+        raise APIError(404, "job not found")
+    
+    stage = request.json.get("stage")
+    if stage not in ("processed", "audited"):
+        raise APIError(400, "invalid stage")
+
+    oid = ObjectId(job_id)
+    success = update_ocr_job_status(oid, stage)
+    if not success:
+        raise APIError(404, "job not found")
+
+    updated = get_ocr_job(oid)
+    return jsonify({"job": _serialize_job(updated)}), 200
+
+
+@ocr_queue_bp.route("/api/ocr/queue/<item_id>/image", methods=["GET"])
+@require_admin_session
+def get_item_image(item_id: str):
+    """Get the image for a queue item."""
+    if not ObjectId.is_valid(item_id):
+        raise APIError(404, "item not found")
+    
+    item = get_ocr_queue_item(ObjectId(item_id))
+    if not item or not item.get("fileId"):
+        raise APIError(404, "image not found")
+
+    try:
+        grid_out = fs.get(item["fileId"])
+        return send_file(grid_out, mimetype=grid_out.content_type)
+    except Exception:
+        raise APIError(404, "image file missing")
 
 
 @ocr_queue_bp.route("/api/ocr/jobs", methods=["OPTIONS"], endpoint="ocr_jobs_options")
