@@ -132,10 +132,10 @@ Services:
 
 ```
 cd backend
-python -m venv .venv
+python3 -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
-PORT=8000 python app.py
+pip3 install -r requirements.txt
+python3 app.py
 ```
 
 Runs on: [http://localhost:8000](http://localhost:8000)
@@ -163,7 +163,11 @@ npm install
 npm run dev
 ```
 
-Runs on: [http://localhost:5173](http://localhost:5173)
+Runs on: [http://localhost:8080/mail](http://localhost:8080/mail)
+
+Local Vite dev uses the same `/mail` base path as Docker.
+
+API requests to `/mail/api/*` are proxied to the backend at `http://localhost:8000/api/*`.
 
 ### Scheduler
 
