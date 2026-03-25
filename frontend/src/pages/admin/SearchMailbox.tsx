@@ -5,6 +5,17 @@ import { ApiError, listMailboxes, listTeams, listUsers } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { useAppStore } from "@/lib/store";
 
+type MailboxResult = {
+  id: string;
+  name: string;
+  type: "company" | "personal";
+  memberNames: string[];
+};
+
+type FilteredMailboxResult = MailboxResult & {
+  matchedMemberNames: string[];
+};
+
 const SearchMailbox = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -12,9 +23,7 @@ const SearchMailbox = () => {
   const logout = useAppStore((s) => s.logout);
   const { toast } = useToast();
   const [query, setQuery] = useState("");
-  const [mailboxes, setMailboxes] = useState<
-    { id: string; name: string; type: "company" | "personal"; memberNames: string[] }[]
-  >([]);
+  const [mailboxes, setMailboxes] = useState<MailboxResult[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -75,22 +84,27 @@ const SearchMailbox = () => {
 
   const filtered = useMemo(() => {
     const q = query.toLowerCase().trim();
+    const grouped = (items: FilteredMailboxResult[]) => ({
+      company: items.filter((m) => m.type === "company"),
+      personal: items.filter((m) => m.type === "personal"),
+    });
+
     if (!q) {
-      return {
-        company: mailboxes.filter((m) => m.type === "company"),
-        personal: mailboxes.filter((m) => m.type === "personal"),
-      };
+      return grouped(mailboxes.map((m) => ({ ...m, matchedMemberNames: [] })));
     }
 
-    const matchedByName = mailboxes.filter((m) => m.name.toLowerCase().includes(q));
-    const matchedByMember = mailboxes.filter(
-      (m) => !matchedByName.includes(m) && m.memberNames.some((n) => n.toLowerCase().includes(q))
-    );
-    const all = [...matchedByName, ...matchedByMember];
-    return {
-      company: all.filter((m) => m.type === "company"),
-      personal: all.filter((m) => m.type === "personal"),
-    };
+    const matchedByName = mailboxes
+      .filter((m) => m.name.toLowerCase().includes(q))
+      .map((m) => ({ ...m, matchedMemberNames: [] }));
+    const matchedByMember = mailboxes
+      .filter((m) => !m.name.toLowerCase().includes(q))
+      .map((m) => ({
+        ...m,
+        matchedMemberNames: m.memberNames.filter((n) => n.toLowerCase().includes(q)),
+      }))
+      .filter((m) => m.matchedMemberNames.length > 0);
+
+    return grouped([...matchedByName, ...matchedByMember]);
   }, [mailboxes, query]);
 
   const hasResults = filtered.company.length > 0 || filtered.personal.length > 0;
@@ -138,9 +152,16 @@ const SearchMailbox = () => {
                 <button
                   key={mb.id}
                   onClick={() => navigate(`/admin/mailboxes/${mb.id}${selectedDate ? `?date=${selectedDate}` : ""}`)}
-                  className="w-full flex items-center justify-between px-4 py-3 hover:bg-muted/50 transition-colors text-left"
+                  className="w-full flex items-center justify-between gap-3 px-4 py-3 hover:bg-muted/50 transition-colors text-left"
                 >
-                  <span className="text-sm font-medium text-card-foreground">{mb.name}</span>
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium text-card-foreground">{mb.name}</div>
+                    {mb.matchedMemberNames.length > 0 && (
+                      <div className="text-xs text-muted-foreground">
+                        {`Member match: ${mb.matchedMemberNames.join(", ")}`}
+                      </div>
+                    )}
+                  </div>
                   <ChevronRight className="h-4 w-4 text-muted-foreground" />
                 </button>
               ))}
@@ -157,9 +178,9 @@ const SearchMailbox = () => {
                 <button
                   key={mb.id}
                   onClick={() => navigate(`/admin/mailboxes/${mb.id}${selectedDate ? `?date=${selectedDate}` : ""}`)}
-                  className="w-full flex items-center justify-between px-4 py-3 hover:bg-muted/50 transition-colors text-left"
+                  className="w-full flex items-center justify-between gap-3 px-4 py-3 hover:bg-muted/50 transition-colors text-left"
                 >
-                  <span className="text-sm font-medium text-card-foreground">{mb.name}</span>
+                  <span className="min-w-0 text-sm font-medium text-card-foreground">{mb.name}</span>
                   <ChevronRight className="h-4 w-4 text-muted-foreground" />
                 </button>
               ))}
