@@ -103,18 +103,16 @@ const SearchMailbox = () => {
       return grouped(mailboxes.map((m) => ({ ...m, matchedMemberNames: [] })));
     }
 
-    const matchedByName = mailboxes
-      .filter((m) => m.name.toLowerCase().includes(q))
-      .map((m) => ({ ...m, matchedMemberNames: [] }));
-    const matchedByMember = mailboxes
-      .filter((m) => !m.name.toLowerCase().includes(q))
+    const matches = mailboxes
       .map((m) => ({
         ...m,
+        nameMatches: m.name.toLowerCase().includes(q),
         matchedMemberNames: m.memberNames.filter((n) => n.toLowerCase().includes(q)),
       }))
-      .filter((m) => m.matchedMemberNames.length > 0);
+      .filter((m) => m.nameMatches || m.matchedMemberNames.length > 0)
+      .map(({ nameMatches: _nameMatches, ...m }) => m);
 
-    return grouped([...matchedByName, ...matchedByMember]);
+    return grouped(matches);
   }, [mailboxes, query]);
 
   const hasResults = filtered.company.length > 0 || filtered.personal.length > 0;
