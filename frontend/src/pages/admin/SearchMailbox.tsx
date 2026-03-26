@@ -16,6 +16,16 @@ type FilteredMailboxResult = MailboxResult & {
   matchedMemberNames: string[];
 };
 
+function formatMemberMatchHint(names: string[]): string | null {
+  if (names.length === 0) {
+    return null;
+  }
+  if (names.length === 1) {
+    return `Member match: ${names[0]}`;
+  }
+  return `Member match: ${names[0]} +${names.length - 1} more`;
+}
+
 const SearchMailbox = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -148,23 +158,24 @@ const SearchMailbox = () => {
           <div className="space-y-1">
             <h3 className="text-xs font-semibold uppercase tracking-wider text-primary px-1">Company</h3>
             <div className="divide-y divide-border rounded-xl border bg-card overflow-hidden">
-              {filtered.company.map((mb) => (
-                <button
-                  key={mb.id}
-                  onClick={() => navigate(`/admin/mailboxes/${mb.id}${selectedDate ? `?date=${selectedDate}` : ""}`)}
-                  className="w-full flex items-center justify-between gap-3 px-4 py-3 hover:bg-muted/50 transition-colors text-left"
-                >
-                  <div className="min-w-0">
-                    <div className="text-sm font-medium text-card-foreground">{mb.name}</div>
-                    {mb.matchedMemberNames.length > 0 && (
-                      <div className="text-xs text-muted-foreground">
-                        {`Member match: ${mb.matchedMemberNames.join(", ")}`}
-                      </div>
-                    )}
-                  </div>
-                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                </button>
-              ))}
+              {filtered.company.map((mb) => {
+                const memberMatchHint = formatMemberMatchHint(mb.matchedMemberNames);
+                return (
+                  <button
+                    key={mb.id}
+                    onClick={() => navigate(`/admin/mailboxes/${mb.id}${selectedDate ? `?date=${selectedDate}` : ""}`)}
+                    className="w-full flex items-center justify-between gap-3 px-4 py-3 hover:bg-muted/50 transition-colors text-left"
+                  >
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium text-card-foreground">{mb.name}</div>
+                      {memberMatchHint && (
+                        <div className="text-xs text-muted-foreground">{memberMatchHint}</div>
+                      )}
+                    </div>
+                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                  </button>
+                );
+              })}
             </div>
           </div>
         )}

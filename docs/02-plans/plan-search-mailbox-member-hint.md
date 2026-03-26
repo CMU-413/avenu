@@ -5,6 +5,7 @@ None.
 ## Phase 1
 - ☑ Add explicit search-match metadata to admin mailbox results so company mailboxes can distinguish direct name matches from member-name matches.
 - ☑ Render member-match hint text under company results only when the active query matched a member rather than the company name itself.
+- ☑ Collapse multiple matched member names into a compact `first +N more` hint string.
 
 ## Phase 2
 - ☑ Keep search grouping and navigation behavior unchanged while refining result presentation.
@@ -12,7 +13,7 @@ None.
 
 ## Phase 1: Query-Specific Match Metadata + Rendering
 Affected files and changes
-- `frontend/src/pages/admin/SearchMailbox.tsx`: enrich filtered mailbox results with query-specific member-match data and render secondary hint text for company matches driven by member names.
+- `frontend/src/pages/admin/SearchMailbox.tsx`: enrich filtered mailbox results with query-specific member-match data and render secondary hint text for company matches driven by member names, collapsing multiple matches into a compact summary.
 
 ## Phase 2: Preserve Existing Search Behavior
 Affected files and changes
