@@ -3,6 +3,7 @@ pymongo==4.10.1
 python-dotenv
 requests
 twilio
-opentelemetry-distro
-opentelemetry-exporter-otlp
-opentelemetry-instrumentation-flask
+# opentelemetry-distro
+# opentelemetry-exporter-otlp
+# opentelemetry-instrumentation-flask
+prometheus-flask-exporter
