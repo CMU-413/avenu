@@ -35,6 +35,7 @@ const OcrQueue = () => {
   const [searchParams] = useSearchParams();
   const jobIdFromUrl = searchParams.get("job");
   const logout = useAppStore((s) => s.logout);
+  const featureFlags = useAppStore((s) => s.featureFlags);
   const { toast } = useToast();
   const toastRef = useRef(toast);
   toastRef.current = toast;
@@ -344,6 +345,9 @@ const OcrQueue = () => {
           <h1 className="text-lg font-bold text-foreground">
             {currentJob ? `Verify (${confirmedCount}/${currentJob.items.length})` : "Record Mail"}
           </h1>
+          <span className="ml-2 inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+            OCR Queue V2: {featureFlags.ocrQueueV2 ? "On" : "Off"}
+          </span>
         </div>
       </header>
 
