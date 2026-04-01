@@ -21,6 +21,9 @@ dist/
 dist-ssr/
 *.local
 
+# Logs
+*.log
+
 # IDE / editor
 .vscode/
 .idea/

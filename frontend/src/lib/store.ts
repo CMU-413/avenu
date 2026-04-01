@@ -11,11 +11,20 @@ export interface SessionUser {
   hasPhone: boolean;
 }
 
+export interface FeatureFlags {
+  ocrQueueV2: boolean;
+  ocrShadowLaunch: boolean;
+}
+
 interface AppState {
   sessionUser: SessionUser | null;
   isHydratingSession: boolean;
+  featureFlags: FeatureFlags;
+  isHydratingFeatureFlags: boolean;
   setSessionUser: (user: SessionUser | null) => void;
   setSessionHydrating: (isHydrating: boolean) => void;
+  setFeatureFlags: (flags: FeatureFlags) => void;
+  setFeatureFlagsHydrating: (isHydrating: boolean) => void;
   setSessionNotificationPreferences: (prefs: {
     emailNotifications: boolean;
     smsNotifications: boolean;
@@ -27,8 +36,15 @@ interface AppState {
 export const useAppStore = create<AppState>((set) => ({
   sessionUser: null,
   isHydratingSession: true,
+  featureFlags: {
+    ocrQueueV2: true,
+    ocrShadowLaunch: false,
+  },
+  isHydratingFeatureFlags: true,
   setSessionUser: (user) => set({ sessionUser: user }),
   setSessionHydrating: (isHydrating) => set({ isHydratingSession: isHydrating }),
+  setFeatureFlags: (flags) => set({ featureFlags: flags }),
+  setFeatureFlagsHydrating: (isHydrating) => set({ isHydratingFeatureFlags: isHydrating }),
   setSessionNotificationPreferences: (prefs) =>
     set((state) => ({
       sessionUser: state.sessionUser ? { ...state.sessionUser, ...prefs } : null,

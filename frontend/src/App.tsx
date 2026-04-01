@@ -15,7 +15,7 @@ import OcrQueue from "./pages/admin/OcrQueue";
 import MemberDashboard from "./pages/member/MemberDashboard";
 import NotificationSettings from "./pages/member/NotificationSettings";
 import NotFound from "./pages/NotFound";
-import { ApiError, ApiSessionMe, bootstrapOptixSession, sessionMe } from "./lib/api";
+import { ApiError, ApiSessionMe, bootstrapOptixSession, fetchFeatureFlags, sessionMe } from "./lib/api";
 import { SessionUser, useAppStore } from "./lib/store";
 import { ConfirmDialogProvider } from "./components/ConfirmDialogProvider";
 
@@ -57,6 +57,10 @@ const AppRoutes = () => {
     isHydratingSession,
     setSessionHydrating,
     setSessionUser,
+    featureFlags,
+    isHydratingFeatureFlags,
+    setFeatureFlags,
+    setFeatureFlagsHydrating,
   } = useAppStore();
 
   useEffect(() => {
@@ -102,7 +106,31 @@ const AppRoutes = () => {
     };
   }, [navigate, setSessionHydrating, setSessionUser]);
 
-  if (isHydratingSession) {
+  useEffect(() => {
+    let alive = true;
+    const hydrateFlags = async () => {
+      setFeatureFlagsHydrating(true);
+      try {
+        const flags = await fetchFeatureFlags();
+        if (!alive) return;
+        setFeatureFlags(flags);
+      } catch (err) {
+        if (!alive) return;
+        setFeatureFlags({
+          ocrQueueV2: true,
+          ocrShadowLaunch: false,
+        });
+      } finally {
+        if (alive) setFeatureFlagsHydrating(false);
+      }
+    };
+    hydrateFlags();
+    return () => {
+      alive = false;
+    };
+  }, [setFeatureFlags, setFeatureFlagsHydrating]);
+
+  if (isHydratingSession || isHydratingFeatureFlags) {
     return (
       <div className="min-h-screen flex items-center justify-center text-muted-foreground">
         Loading...
@@ -122,7 +150,17 @@ const AppRoutes = () => {
       <Route path="/admin" element={isAdmin ? <AdminHome /> : <Navigate to={isMember ? "/member" : "/"} replace />} />
       <Route
         path="/admin/recording"
-        element={isAdmin ? <OcrQueue /> : <Navigate to={isMember ? "/member" : "/"} replace />}
+        element={
+          isAdmin ? (
+            featureFlags.ocrQueueV2 ? (
+              <OcrQueue />
+            ) : (
+              <Navigate to="/admin" replace />
+            )
+          ) : (
+            <Navigate to={isMember ? "/member" : "/"} replace />
+          )
+        }
       />
       <Route
         path="/admin/dashboard"

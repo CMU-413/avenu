@@ -7,7 +7,13 @@ import time
 
 from flask import Blueprint, jsonify, request
 
-from config import OCR_MAX_FILE_BYTES, OCR_PROVIDER, OCR_SPACE_API_KEY
+from config import (
+    FEATURE_OCR_SHADOW_LAUNCH,
+    OCR_MAX_FILE_BYTES,
+    OCR_PROVIDER,
+    OCR_SHADOW_PROVIDER,
+    OCR_SPACE_API_KEY,
+)
 from controllers.auth_guard import require_admin_session
 from errors import APIError
 from services.ocr import EasyOCRClient, OCRSpaceClient, PaddleOCRClient, TesseractClient
@@ -26,15 +32,19 @@ ALLOWED_CONTENT_TYPES = frozenset({
 ocr_bp = Blueprint("ocr", __name__)
 
 
-def _get_ocr_client():
-    """Return configured OCR client. Defaults to self-hosted PaddleOCR."""
-    if OCR_PROVIDER == "ocrspace" and OCR_SPACE_API_KEY:
+def _get_ocr_client_for(provider: str | None):
+    """Return OCR client for a specific provider. Defaults to self-hosted PaddleOCR."""
+    if provider == "ocrspace" and OCR_SPACE_API_KEY:
         return OCRSpaceClient(api_key=OCR_SPACE_API_KEY)
-    if OCR_PROVIDER == "tesseract":
+    if provider == "tesseract":
         return TesseractClient()
-    if OCR_PROVIDER == "easyocr":
+    if provider == "easyocr":
         return EasyOCRClient()
     return PaddleOCRClient()
+
+
+def _get_ocr_client():
+    return _get_ocr_client_for(OCR_PROVIDER)
 
 
 @ocr_bp.route("/api/ocr", methods=["OPTIONS"])
@@ -94,6 +104,8 @@ def _ocr_extract_impl():
     start = time.perf_counter()
     try:
         text = client.extract_text(image_bytes, content_type)
+        if FEATURE_OCR_SHADOW_LAUNCH and OCR_SHADOW_PROVIDER:
+            _run_shadow_ocr(image_bytes, content_type, active_provider=client.provider_name)
         elapsed_ms = (time.perf_counter() - start) * 1000
         logger.info(
             "ocr_extract: success provider=%s latency_ms=%.1f text_len=%d",
@@ -117,3 +129,32 @@ def _ocr_extract_impl():
             "text": "",
             "provider": client.provider_name,
         }), 200
+
+
+def _run_shadow_ocr(image_bytes: bytes, content_type: str, *, active_provider: str) -> None:
+    if OCR_SHADOW_PROVIDER == active_provider:
+        return
+    try:
+        shadow_client = _get_ocr_client_for(OCR_SHADOW_PROVIDER)
+    except Exception as exc:
+        logger.warning("ocr_shadow: failed to init provider=%s error=%s", OCR_SHADOW_PROVIDER, exc)
+        return
+
+    start = time.perf_counter()
+    try:
+        shadow_text = shadow_client.extract_text(image_bytes, content_type)
+        elapsed_ms = (time.perf_counter() - start) * 1000
+        logger.info(
+            "ocr_shadow: success provider=%s latency_ms=%.1f text_len=%d",
+            shadow_client.provider_name,
+            elapsed_ms,
+            len(shadow_text),
+        )
+    except Exception as exc:
+        elapsed_ms = (time.perf_counter() - start) * 1000
+        logger.warning(
+            "ocr_shadow: failure provider=%s latency_ms=%.1f error=%s",
+            shadow_client.provider_name,
+            elapsed_ms,
+            str(exc),
+        )
