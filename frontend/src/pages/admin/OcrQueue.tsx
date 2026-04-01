@@ -21,6 +21,8 @@ import {
   getOcrJob,
   updateOcrQueueItem,
   confirmOcrQueueItem,
+  deleteOcrQueueItem,
+  updateOcrJobStage,
   type ApiOcrJob,
   type ApiOcrQueueItem,
 } from "@/lib/api";
@@ -211,11 +213,11 @@ const OcrQueue = () => {
     const poll = setInterval(async () => {
       try {
         const data = await getOcrJob(pendingJobId);
-        if (data.job.status === "completed" || data.job.status === "failed") {
+        if (data.job.status === "completed" || data.job.status === "processed" || data.job.status === "failed") {
           clearInterval(poll);
           setPendingJobId(null);
           loadJobs();
-          if (data.job.status === "completed") {
+          if (data.job.status === "completed" || data.job.status === "processed") {
             toastRef.current({ title: "All images parsed. Ready to review." });
             navigate(`/admin/recording?job=${pendingJobId}&date=${date}`);
           } else {
@@ -288,6 +290,27 @@ const OcrQueue = () => {
       toast({ title: err instanceof Error ? err.message : "Confirm failed", variant: "destructive" });
     } finally {
       setConfirmingId(null);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!item) return;
+    try {
+      await deleteOcrQueueItem(item.id);
+      toast({ title: "Item deleted" });
+      if (currentJob) {
+        // Optimistically remove
+        const next = currentJob.items.filter((i) => i.id !== item.id);
+        setCurrentJob({ ...currentJob, items: next });
+        setEditingItem({});
+        if (next.length === 0) {
+          setCurrentIndex(0);
+        } else if (currentIndex >= next.length) {
+          setCurrentIndex(next.length - 1);
+        }
+      }
+    } catch (err) {
+      toast({ title: "Delete failed", variant: "destructive" });
     }
   };
 
@@ -453,8 +476,8 @@ const OcrQueue = () => {
           </div>
         )}
 
-        {currentJob?.job.status === "completed" && currentJob.items.length > 0 && !allConfirmed && (
-          <>
+        {((currentJob?.job.status === "processed" || currentJob?.job.status === "completed") && currentJob.items.length > 0 && !allConfirmed) && (
+          <div className="flex flex-col gap-4">
             <div className="flex items-center justify-between gap-2">
               <Button
                 variant="outline"
@@ -477,16 +500,35 @@ const OcrQueue = () => {
               </Button>
             </div>
 
-            {effectiveItem?.status === "failed" && (
-              <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4">
-                <p className="text-sm font-medium text-destructive">OCR failed</p>
-                <p className="text-xs text-muted-foreground mt-1">{item?.error}</p>
-                <p className="text-xs text-muted-foreground mt-2">Skip to next or add manually later.</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Left Column: Image */}
+              <div className="rounded-xl overflow-hidden bg-muted flex items-center justify-center border aspect-[3/4] md:aspect-auto">
+                {effectiveItem?.fileId ? (
+                   <img 
+                     src={`/api/ocr/queue/${effectiveItem.id}/image`} 
+                     alt="Mail Item" 
+                     className="max-h-full max-w-full object-contain"
+                   />
+                ) : (
+                  <p className="text-muted-foreground text-sm">No image available</p>
+                )}
               </div>
-            )}
 
-            {effectiveItem && effectiveItem.status !== "confirmed" && effectiveItem.status !== "failed" && (
-              <div className="rounded-xl border bg-card p-4 space-y-4">
+              {/* Right Column: Form */}
+              <div className="flex flex-col gap-4">
+                {effectiveItem?.status === "failed" && (
+                  <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4">
+                    <p className="text-sm font-medium text-destructive">OCR failed</p>
+                    <p className="text-xs text-muted-foreground mt-1">{item?.error}</p>
+                    <div className="flex justify-between items-center mt-2">
+                        <p className="text-xs text-muted-foreground">Skip to next or add manually later.</p>
+                        <Button variant="destructive" size="sm" onClick={handleDelete}>Delete</Button>
+                    </div>
+                  </div>
+                )}
+
+                {effectiveItem && effectiveItem.status !== "confirmed" && effectiveItem.status !== "failed" && (
+                  <div className="rounded-xl border bg-card p-4 space-y-4">
                 <div>
                   <label className="text-xs font-medium text-muted-foreground">Receiver</label>
                   <textarea
@@ -602,6 +644,9 @@ const OcrQueue = () => {
                   )}
                   Confirm & record
                 </Button>
+                <div className="flex justify-end pt-2">
+                    <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive text-xs h-auto py-1" onClick={handleDelete}>Delete this item</Button>
+                </div>
               </div>
             )}
 
@@ -613,17 +658,35 @@ const OcrQueue = () => {
                 </p>
               </div>
             )}
-          </>
+            </div>
+            </div>
+          </div>
         )}
 
         {currentJob && allConfirmed && (
           <div className="rounded-xl border border-green-500/30 bg-green-500/5 p-6 text-center">
             <Check className="h-12 w-12 text-green-600 dark:text-green-400 mx-auto mb-3" />
             <p className="font-medium text-green-700 dark:text-green-400">All items recorded</p>
-            <p className="text-sm text-muted-foreground mt-1">You&apos;re done for this batch.</p>
+            <p className="text-sm text-muted-foreground mt-1">Review complete.</p>
+            <Button
+              className="mt-4 w-full"
+              onClick={async () => {
+                try {
+                  await updateOcrJobStage(currentJob.job.id, "audited");
+                  toast({ title: "Job marked as audited" });
+                  navigate("/admin/recording");
+                  setCurrentJob(null);
+                  loadJobs();
+                } catch (err) {
+                   toast({ title: "Failed to update job stage", variant: "destructive" });
+                }
+              }}
+            >
+              Finish Auditing
+            </Button>
             <Button
               variant="outline"
-              className="mt-4"
+              className="mt-2 w-full"
               onClick={() => {
                 navigate("/admin/recording");
                 setCurrentJob(null);

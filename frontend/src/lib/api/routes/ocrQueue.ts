@@ -1,7 +1,7 @@
 import { apiFetch, buildUrl } from "../../http/client";
 
-export type OcrJobStatus = "processing" | "completed" | "failed";
-export type OcrQueueItemStatus = "pending" | "completed" | "failed" | "confirmed";
+export type OcrJobStatus = "processing" | "completed" | "failed" | "processed" | "audited";
+export type OcrQueueItemStatus = "pending" | "completed" | "failed" | "confirmed" | "deleted";
 
 export interface ApiOcrJob {
   id: string;
@@ -25,6 +25,7 @@ export interface ApiOcrQueueItem {
   rawText?: string | null;
   error?: string | null;
   mailboxId?: string | null;
+  fileId?: string | null;
   confirmedAt?: string | null;
 }
 
@@ -99,4 +100,17 @@ export async function confirmOcrQueueItem(
     `/ocr/queue/${itemId}/confirm`,
     { method: "POST" }
   );
+}
+
+/** Delete a queue item. */
+export async function deleteOcrQueueItem(itemId: string): Promise<void> {
+  return apiFetch<void>(`/ocr/queue/${itemId}`, { method: "DELETE" });
+}
+
+/** Update job stage (e.g. processing -> processed -> audited). */
+export async function updateOcrJobStage(jobId: string, stage: "processed" | "audited"): Promise<{ job: ApiOcrJob }> {
+  return apiFetch<{ job: ApiOcrJob }>(`/ocr/jobs/${jobId}/stage`, {
+    method: "POST",
+    body: JSON.stringify({ stage }),
+  });
 }
