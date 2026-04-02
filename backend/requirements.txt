@@ -6,3 +6,4 @@ twilio
 opentelemetry-distro
 opentelemetry-exporter-otlp
 opentelemetry-instrumentation-flask
+haze-auth[full]==0.1.2

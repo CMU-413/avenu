@@ -40,6 +40,11 @@ SESSION_COOKIE_SECURE = _env_bool("SESSION_COOKIE_SECURE", False)
 SESSION_COOKIE_PARTITIONED = _env_bool("SESSION_COOKIE_PARTITIONED", False)
 SESSION_COOKIE_SAMESITE = _env_samesite("SESSION_COOKIE_SAMESITE", "Lax")
 
+AUTH_MAGIC_LINK_BASE_URL = os.getenv("AUTH_MAGIC_LINK_BASE_URL", "http://localhost:8080/mail").strip().rstrip("/")
+AUTH_MAGIC_LINK_PATH = os.getenv("AUTH_MAGIC_LINK_PATH", "/").strip() or "/"
+AUTH_MAGIC_LINK_EXPIRY_SECONDS = int(os.getenv("AUTH_MAGIC_LINK_EXPIRY_SECONDS", "900"))
+AUTH_MAGIC_LINK_SECRET = os.getenv("AUTH_MAGIC_LINK_SECRET", "").strip() or SECRET_KEY
+
 SCHEDULER_INTERNAL_TOKEN = os.getenv("SCHEDULER_INTERNAL_TOKEN", "").strip()
 
 
@@ -64,6 +69,7 @@ mail_collection = db["mail"]
 mail_requests_collection = db["mail_requests"]
 idempotency_keys_collection = db["idempotency_keys"]
 notification_log_collection = db["notification_log"]
+auth_magic_links_collection = db["auth_magic_links"]
 
 
 def ensure_indexes() -> None:
@@ -110,3 +116,6 @@ def ensure_indexes() -> None:
         [("userId", ASCENDING), ("weekStart", ASCENDING)],
         name="notification_log_user_week_idx",
     )
+
+    auth_magic_links_collection.create_index([("tokenId", ASCENDING)], unique=True, name="auth_magic_links_tokenid_uq")
+    auth_magic_links_collection.create_index([("expiresAt", ASCENDING)], expireAfterSeconds=0, name="auth_magic_links_expires_ttl")
