@@ -6,4 +6,5 @@ twilio
 # opentelemetry-distro
 # opentelemetry-exporter-otlp
 # opentelemetry-instrumentation-flask
+prometheus-client
 prometheus-flask-exporter
