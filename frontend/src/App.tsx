@@ -21,6 +21,10 @@ import { ConfirmDialogProvider } from "./components/ConfirmDialogProvider";
 const queryClient = new QueryClient();
 const OPTIX_BOOTSTRAP_QUERY_KEYS = ["token", "org_id", "user_id"] as const;
 const MAGIC_LINK_QUERY_KEYS = ["token_id", "signature"] as const;
+const APP_ROOT_PATH = (() => {
+  const raw = import.meta.env.VITE_BASE_PATH || "/mail/";
+  return raw.endsWith("/") ? raw : `${raw}/`;
+})();
 
 export function stripAuthBootstrapParams(url: string): string {
   const current = new URL(url);
@@ -41,6 +45,10 @@ export function stripAuthBootstrapParamsFromWindow(): void {
   if (nextUrl !== `${window.location.pathname}${window.location.search}${window.location.hash}`) {
     window.history.replaceState({}, "", nextUrl);
   }
+}
+
+function redirectToAppRoot(): void {
+  window.location.replace(APP_ROOT_PATH);
 }
 
 export function getMagicLinkParams(search: string): { tokenId: string; signature: string } | null {
@@ -110,7 +118,7 @@ const AppRoutes = () => {
         }
         if (tokenParam || magicLink) {
           stripAuthBootstrapParamsFromWindow();
-          navigate("/", { replace: true });
+          redirectToAppRoot();
         }
       } finally {
         if (alive) setSessionHydrating(false);
