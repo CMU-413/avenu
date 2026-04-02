@@ -53,6 +53,10 @@ class AuthMagicLinkService:
         )
         self._haze.storage(self._storage_handler)
 
+    @property
+    def link_expiry_seconds(self) -> int:
+        return self._link_expiry_seconds
+
     def generate_admin_login_link(
         self,
         *,
