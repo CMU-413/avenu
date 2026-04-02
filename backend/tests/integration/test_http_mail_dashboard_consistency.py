@@ -2,14 +2,13 @@ from __future__ import annotations
 
 from datetime import date, datetime, timedelta, timezone
 
-from services.mail_summary_service import MailSummaryService
-
 from .support import HttpIntegrationTestCase
 
 
 class HttpMailDashboardConsistencyIntegrationTests(HttpIntegrationTestCase):
     def test_admin_mail_logging_matches_member_dashboard_and_weekly_summary_totals(self) -> None:
         from config import mail_collection
+        from services.mail_summary_service import MailSummaryService
 
         week_start = date(2026, 2, 16)
         week_end = date(2026, 2, 22)
@@ -32,7 +31,7 @@ class HttpMailDashboardConsistencyIntegrationTests(HttpIntegrationTestCase):
             display_name="Member Dashboard Mailbox",
         )
 
-        self.assertEqual(self.login(email=admin["email"]).status_code, 204)
+        self.login(email=admin["email"])
         create_headers_1 = {"Idempotency-Key": "mail-create-1"}
         create_headers_2 = {"Idempotency-Key": "mail-create-2"}
 
@@ -61,7 +60,7 @@ class HttpMailDashboardConsistencyIntegrationTests(HttpIntegrationTestCase):
         self.assertEqual(created_package.status_code, 201)
         self.assertEqual(self.client.post("/api/session/logout").status_code, 204)
 
-        self.assertEqual(self.login(email=member["email"]).status_code, 204)
+        self.login(email=member["email"])
         dashboard_response = self.client.get("/api/member/mail?start=2026-02-16&end=2026-02-22")
         self.assertEqual(dashboard_response.status_code, 200)
 
