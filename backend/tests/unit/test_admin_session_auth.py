@@ -174,6 +174,23 @@ class AdminSessionAuthTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 401)
 
+    def test_session_redeem_accepts_long_signature_payload(self):
+        user_id = ObjectId()
+        long_signature = "signed." + ("x" * 600)
+        with patch(
+            "controllers.session_controller.AuthMagicLinkService",
+        ) as auth_magic_link_service_cls, patch(
+            "controllers.session_controller.get_user",
+            return_value={"_id": user_id, "isAdmin": True},
+        ):
+            auth_magic_link_service_cls.return_value.verify_login_link.return_value = {"userId": user_id}
+            response = self.client.post(
+                "/api/session/redeem",
+                json={"tokenId": "token-123", "signature": long_signature},
+            )
+
+        self.assertEqual(response.status_code, 204)
+
     def test_mail_list_without_session_returns_401(self):
         response = self.client.get("/api/mail")
         self.assertEqual(response.status_code, 401)

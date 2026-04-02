@@ -92,8 +92,8 @@ def session_login():
 @session_bp.route("/api/session/redeem", methods=["POST"])
 def session_redeem():
     payload = json_payload()
-    token_id = require_string(payload, "tokenId")
-    signature = require_string(payload, "signature")
+    token_id = require_string(payload, "tokenId", max_len=512)
+    signature = require_string(payload, "signature", max_len=4096)
     verified = AuthMagicLinkService().verify_login_link(token_id=token_id, signature=signature)
     user = get_user(verified["userId"])
     if user is None or user.get("isAdmin") is not True:
