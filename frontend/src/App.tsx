@@ -14,26 +14,43 @@ import RecordEntry from "./pages/admin/RecordEntry";
 import MemberDashboard from "./pages/member/MemberDashboard";
 import NotificationSettings from "./pages/member/NotificationSettings";
 import NotFound from "./pages/NotFound";
-import { ApiError, ApiSessionMe, bootstrapOptixSession, sessionMe } from "./lib/api";
+import { ApiError, ApiSessionMe, bootstrapOptixSession, redeemMagicLink, sessionMe } from "./lib/api";
 import { SessionUser, useAppStore } from "./lib/store";
 import { ConfirmDialogProvider } from "./components/ConfirmDialogProvider";
 
 const queryClient = new QueryClient();
 const OPTIX_BOOTSTRAP_QUERY_KEYS = ["token", "org_id", "user_id"] as const;
+const MAGIC_LINK_QUERY_KEYS = ["token_id", "signature"] as const;
 
-function stripOptixBootstrapParams(): void {
-  const current = new URL(window.location.href);
+export function stripAuthBootstrapParams(url: string): string {
+  const current = new URL(url);
   let changed = false;
-  for (const key of OPTIX_BOOTSTRAP_QUERY_KEYS) {
+  for (const key of [...OPTIX_BOOTSTRAP_QUERY_KEYS, ...MAGIC_LINK_QUERY_KEYS]) {
     if (current.searchParams.has(key)) {
       current.searchParams.delete(key);
       changed = true;
     }
   }
-  if (!changed) return;
+  if (!changed) return url;
   const nextSearch = current.searchParams.toString();
-  const nextUrl = `${current.pathname}${nextSearch ? `?${nextSearch}` : ""}${current.hash}`;
-  window.history.replaceState({}, "", nextUrl);
+  return `${current.pathname}${nextSearch ? `?${nextSearch}` : ""}${current.hash}`;
+}
+
+export function stripAuthBootstrapParamsFromWindow(): void {
+  const nextUrl = stripAuthBootstrapParams(window.location.href);
+  if (nextUrl !== `${window.location.pathname}${window.location.search}${window.location.hash}`) {
+    window.history.replaceState({}, "", nextUrl);
+  }
+}
+
+export function getMagicLinkParams(search: string): { tokenId: string; signature: string } | null {
+  const params = new URLSearchParams(search);
+  const tokenId = params.get("token_id");
+  const signature = params.get("signature");
+  if (!tokenId || !signature) {
+    return null;
+  }
+  return { tokenId, signature };
 }
 
 function toSessionUser(session: ApiSessionMe): SessionUser {
@@ -66,18 +83,22 @@ const AppRoutes = () => {
       const tokenParam = params.get("token");
       const orgId = params.get("org_id");
       const userId = params.get("user_id");
+      const magicLink = getMagicLinkParams(window.location.search);
 
       try {
         if (tokenParam) {
           const token = tokenParam.trim().replace(/ /g, "+");
           await bootstrapOptixSession({ token, orgId, userId });
           if (!alive) return;
+        } else if (magicLink) {
+          await redeemMagicLink(magicLink);
+          if (!alive) return;
         }
         const me = await sessionMe();
         if (!alive) return;
         setSessionUser(toSessionUser(me));
-        if (tokenParam) {
-          stripOptixBootstrapParams();
+        if (tokenParam || magicLink) {
+          stripAuthBootstrapParamsFromWindow();
           navigate(me.isAdmin ? "/admin" : "/member", { replace: true });
         }
       } catch (err) {
@@ -87,8 +108,8 @@ const AppRoutes = () => {
         } else {
           setSessionUser(null);
         }
-        if (tokenParam) {
-          stripOptixBootstrapParams();
+        if (tokenParam || magicLink) {
+          stripAuthBootstrapParamsFromWindow();
           navigate("/", { replace: true });
         }
       } finally {
