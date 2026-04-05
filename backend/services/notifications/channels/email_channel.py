@@ -6,7 +6,7 @@ from typing import Union
 
 from flask import render_template
 
-from metrics_email import email_send_duration_seconds, emails_failed_total, emails_sent_total
+from metrics.metrics_email import email_send_duration_seconds, emails_failed_total, emails_sent_total
 from services.notifications.providers.email_provider import EmailProvider
 from services.notifications.types import (
     ChannelResult,

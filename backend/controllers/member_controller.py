@@ -5,7 +5,7 @@ from flask import Blueprint, jsonify, request
 from controllers.auth_guard import ensure_member_session
 from controllers.common import json_payload, parse_iso_date
 from errors import APIError
-from metrics_dashboard import dashboard_views_total
+from metrics.metrics_dashboard import dashboard_views_total
 from services.member_service import list_member_mail_summary, update_member_notification_preferences
 from services.user_preferences import UNSET
 

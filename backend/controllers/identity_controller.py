@@ -4,7 +4,7 @@ from flask import Blueprint, jsonify, session
 
 from controllers.common import json_payload
 from errors import APIError
-from metrics_autologin import autologin_failed_total, autologin_success_total
+from metrics.metrics_autologin import autologin_failed_total, autologin_success_total
 from repositories import to_api_doc
 from services.identity_sync_service import sync_optix_identity
 
