@@ -20,6 +20,12 @@ class ValidatorTests(unittest.TestCase):
         self.assertEqual(len(parsed), 1)
         self.assertEqual(str(parsed[0]), oid)
 
+    def test_parse_distinct_object_ids_accepts_object_id_instances(self):
+        oid = ObjectId()
+        parsed = parse_distinct_object_ids([oid, oid], "teamIds")
+        self.assertEqual(len(parsed), 1)
+        self.assertEqual(parsed[0], oid)
+
     def test_parse_enum_set_rejects_invalid(self):
         with self.assertRaises(APIError):
             parse_enum_set(["email", "push"], field_name="notifPrefs", allowed={"email", "text"})
