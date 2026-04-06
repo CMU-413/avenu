@@ -17,6 +17,7 @@ query {
       user_id
       email
       fullname
+      phone
       is_admin
       teams {
         team_id
@@ -95,6 +96,7 @@ def sync_optix_identity(*, token: str) -> tuple[bool, dict[str, Any]]:
         optix_id=optix_user_id,
         fullname=user_info.get("fullname", ""),
         email=user_info.get("email", ""),
+        phone=user_info.get("phone", ""),
         is_admin=bool(user_info.get("is_admin", False)),
         team_ids=team_ids,
         notif_prefs=["email"],
