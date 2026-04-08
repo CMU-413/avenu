@@ -137,6 +137,117 @@ class AdminSessionAuthTests(unittest.TestCase):
             ],
         )
 
+    def test_login_request_throttles_per_ip_without_calling_magic_link_sender(self):
+        counts = {}
+        magic_link_service = Mock()
+        magic_link_service.link_expiry_seconds = 900
+        magic_link_service.generate_admin_login_link.return_value = "https://hub.avenuworkspaces.com/mail/?token_id=abc&signature=def"
+        email_provider = Mock()
+
+        def fake_record_login_attempt(*, scope, key, window_seconds, now=None):
+            del window_seconds, now
+            bucket_key = (scope, key)
+            counts[bucket_key] = counts.get(bucket_key, 0) + 1
+            return {
+                "scope": scope,
+                "key": key,
+                "count": counts[bucket_key],
+                "windowSeconds": 60 if scope == "ip" else 900,
+                "windowStart": datetime(2026, 4, 8, 16, 0, tzinfo=timezone.utc),
+                "expiresAt": datetime(2026, 4, 8, 16, 15, tzinfo=timezone.utc),
+                "createdAt": datetime(2026, 4, 8, 16, 0, tzinfo=timezone.utc),
+                "updatedAt": datetime(2026, 4, 8, 16, 0, tzinfo=timezone.utc),
+            }
+
+        with patch(
+            "controllers.session_rate_limit.record_login_attempt",
+            side_effect=fake_record_login_attempt,
+        ), patch(
+            "controllers.session_controller.find_user_by_email",
+            side_effect=lambda email: {"_id": ObjectId(), "isAdmin": True, "email": email, "fullname": "Admin User"},
+        ), patch(
+            "controllers.session_controller.AuthMagicLinkService",
+            return_value=magic_link_service,
+        ), patch(
+            "controllers.session_controller.build_email_provider",
+            return_value=email_provider,
+        ), patch(
+            "controllers.session_controller.logger.warning",
+        ) as warning_log:
+            responses = []
+            for idx in range(6):
+                responses.append(
+                    self.client.post(
+                        "/api/session/login",
+                        json={"email": f"admin{idx}@example.com"},
+                        headers={"X-Forwarded-For": "203.0.113.8"},
+                    )
+                )
+
+        self.assertEqual([response.status_code for response in responses], [202, 202, 202, 202, 202, 202])
+        self.assertEqual([response.json for response in responses], [{"status": "ok"}] * 6)
+        self.assertEqual(magic_link_service.generate_admin_login_link.call_count, 5)
+        self.assertEqual(email_provider.send.call_count, 5)
+        warning_log.assert_called_once()
+        warning_kwargs = warning_log.call_args.kwargs
+        self.assertEqual(warning_kwargs["extra"]["throttled_scopes"], ["ip"])
+        self.assertEqual(warning_kwargs["extra"]["client_ip"], "203.0.113.8")
+        self.assertEqual(warning_kwargs["extra"]["ip_count"], 6)
+
+        with self.client.session_transaction() as sess:
+            self.assertIsNone(sess.get("user_id"))
+
+    def test_login_request_throttles_per_email_for_unknown_user_and_logs_warning(self):
+        counts = {}
+
+        def fake_record_login_attempt(*, scope, key, window_seconds, now=None):
+            del window_seconds, now
+            bucket_key = (scope, key)
+            counts[bucket_key] = counts.get(bucket_key, 0) + 1
+            return {
+                "scope": scope,
+                "key": key,
+                "count": counts[bucket_key],
+                "windowSeconds": 60 if scope == "ip" else 900,
+                "windowStart": datetime(2026, 4, 8, 16, 0, tzinfo=timezone.utc),
+                "expiresAt": datetime(2026, 4, 8, 16, 15, tzinfo=timezone.utc),
+                "createdAt": datetime(2026, 4, 8, 16, 0, tzinfo=timezone.utc),
+                "updatedAt": datetime(2026, 4, 8, 16, 0, tzinfo=timezone.utc),
+            }
+
+        with patch(
+            "controllers.session_rate_limit.record_login_attempt",
+            side_effect=fake_record_login_attempt,
+        ), patch(
+            "controllers.session_controller.find_user_by_email",
+            return_value=None,
+        ), patch(
+            "controllers.session_controller.AuthMagicLinkService",
+        ) as auth_magic_link_service_cls, patch(
+            "controllers.session_controller.build_email_provider",
+        ) as build_email_provider, patch(
+            "controllers.session_controller.logger.warning",
+        ) as warning_log:
+            responses = []
+            for idx in range(6):
+                responses.append(
+                    self.client.post(
+                        "/api/session/login",
+                        json={"email": " Admin@Example.com "},
+                        headers={"X-Forwarded-For": f"203.0.113.{idx}"},
+                    )
+                )
+
+        self.assertEqual([response.status_code for response in responses], [202, 202, 202, 202, 202, 202])
+        self.assertEqual([response.json for response in responses], [{"status": "ok"}] * 6)
+        auth_magic_link_service_cls.assert_not_called()
+        build_email_provider.assert_not_called()
+        warning_log.assert_called_once()
+        warning_kwargs = warning_log.call_args.kwargs
+        self.assertEqual(warning_kwargs["extra"]["throttled_scopes"], ["email"])
+        self.assertEqual(warning_kwargs["extra"]["email_count"], 6)
+        self.assertEqual(warning_kwargs["extra"]["email_key"], "admin@example.com")
+
     def test_admin_route_without_session_returns_401(self):
         response = self.client.get("/api/users")
         self.assertEqual(response.status_code, 401)

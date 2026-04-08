@@ -3,12 +3,12 @@ None.
 
 # Task Checklist
 ## Phase 1
-- ☐ Add a shared login-attempt rate-limit store and policy config for per-IP and per-email windows.
-- ☐ Keep limit state independent from controller logic so `POST /api/session/login` can be gated at the request layer.
+- ☑ Add a shared login-attempt rate-limit store and policy config for per-IP and per-email windows.
+- ☑ Keep limit state independent from controller logic so `POST /api/session/login` can be gated at the request layer.
 
 ## Phase 2
-- ☐ Apply the rate limiter to the session login request path while preserving the existing non-enumerating `202 {"status":"ok"}` contract for throttled requests.
-- ☐ Log throttled requests and extend backend unit tests for per-IP, per-email, and non-throttled login behavior.
+- ☑ Apply the rate limiter to the session login request path while preserving the existing non-enumerating `202 {"status":"ok"}` contract for throttled requests.
+- ☑ Log throttled requests and extend backend unit tests for per-IP, per-email, and non-throttled login behavior.
 
 # Phase 1: Shared Login Rate-Limit Primitives
 Affected files and changes
