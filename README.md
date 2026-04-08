@@ -62,6 +62,7 @@ Copy:
 * `FLASK_TESTING`
 * `FRONTEND_ORIGINS` (CORS allowlist)
 * `SCHEDULER_INTERNAL_TOKEN` (shared secret for scheduler endpoint)
+* `AUTHENTICATED_SESSION_TTL_SECONDS` (authenticated session lifetime in seconds, default `43200` / 12 hours)
 * `AUTH_MAGIC_LINK_BASE_URL` (public SPA entry used in emailed sign-in links)
 * `AUTH_MAGIC_LINK_PATH` (verification route or query-bearing SPA path, default `/`)
 * `AUTH_MAGIC_LINK_EXPIRY_SECONDS` (magic-link lifetime in seconds, default `900`)
@@ -113,6 +114,14 @@ The backend now includes configuration for admin magic-link authentication:
   * local: `http://localhost:8080/mail`
   * production: `https://hub.avenuworkspaces.com/mail`
 * `AUTH_MAGIC_LINK_PATH` should remain aligned with the frontend/nginx entry behavior so callback query params survive the `/mail` to `/mail/` normalization.
+
+All successful sign-in flows create the same authenticated Flask session:
+
+* admin magic-link redemption via `POST /api/session/redeem`
+* admin Optix bootstrap via `POST /api/optix-token`
+* member Optix bootstrap via `POST /api/optix-token`
+
+Authenticated sessions use `AUTHENTICATED_SESSION_TTL_SECONDS`, which defaults to 12 hours. Admin magic links remain separate one-time credentials with their own 15-minute TTL controlled by `AUTH_MAGIC_LINK_EXPIRY_SECONDS`.
 
 The existing public email-post login flow is being replaced by magic-link request/redeem endpoints and should not be treated as the long-term public auth contract.
 

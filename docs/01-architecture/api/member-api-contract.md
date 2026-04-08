@@ -20,6 +20,12 @@ This endpoint is the source of truth for:
 - Requires valid session cookie
 - Returns 401 if unauthenticated
 
+### Session Lifetime
+
+* Authenticated sessions are permanent Flask sessions with an explicit backend TTL.
+* `AUTHENTICATED_SESSION_TTL_SECONDS` defaults to `43200` seconds (12 hours).
+* Expired session cookies must be treated as unauthenticated and return `401`.
+
 ### Response Shape
 
 ```json
