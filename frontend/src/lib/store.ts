@@ -37,7 +37,7 @@ export const useAppStore = create<AppState>((set) => ({
   sessionUser: null,
   isHydratingSession: true,
   featureFlags: {
-    ocrQueueV2: true,
+    ocrQueueV2: false,
     ocrShadowLaunch: false,
   },
   isHydratingFeatureFlags: true,

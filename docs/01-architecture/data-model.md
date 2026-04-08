@@ -83,9 +83,13 @@ Fields:
 - `updatedAt: datetime`
 
 Rules:
-- One document = one piece of mail. No cumulative `count` field.
-- `receiverName` and `senderInfo` are populated via OCR scan (Tesseract, self-hosted) and confirmed by admin before saving.
-- Aggregated counts for dashboards are computed by counting documents.
+- One document = one piece of mail. No cumulative `count` field in the current model.
+- `receiverName` and `senderInfo` are populated via OCR scan (self-hosted) and confirmed by admin before saving.
+- Aggregated counts for dashboards are computed by counting documents (or by summing legacy `count` until migrated).
+
+**Legacy `count` (migration):** Older documents may include `count: N` meaning N pieces of the same `type` for that mailbox/day. Until migrated, weekly summaries and the admin dashboard treat each row as `N` pieces. Run the one-time script to expand into `N` separate documents and remove `count`:
+
+`backend/scripts/migrate_mail_legacy_count.py` (dry-run by default; pass `--apply` to write).
 
 Indexes:
 
@@ -156,6 +160,8 @@ Fields:
 - `completedCount: int`
 - `createdAt: datetime`
 - `updatedAt: datetime`
+
+**Deployment:** Bulk OCR HTTP APIs are gated by env `FEATURE_OCR_QUEUE_V2` (default `false`). When disabled, `/api/ocr/jobs` and related routes return 404 so older frontends and operators are unaffected until the flag is enabled.
 
 Indexes:
 

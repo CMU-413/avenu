@@ -7,6 +7,7 @@ from typing import Any
 from bson import ObjectId
 
 from repositories.mail_repository import find_mail_for_mailboxes
+from services.mail_legacy import legacy_mail_piece_count
 from repositories.mailboxes_repository import list_by_scope, member_mailbox_scope
 from repositories.users_repository import find_user
 
@@ -76,10 +77,11 @@ class MailSummaryService:
             if row_date.tzinfo is None:
                 row_date = row_date.replace(tzinfo=timezone.utc)
             day_key = row_date.astimezone(timezone.utc).date().isoformat()
+            n = legacy_mail_piece_count(row)
             if row.get("type") == "letter":
-                totals[mailbox_id][day_key]["letters"] += 1
+                totals[mailbox_id][day_key]["letters"] += n
             elif row.get("type") == "package":
-                totals[mailbox_id][day_key]["packages"] += 1
+                totals[mailbox_id][day_key]["packages"] += n
 
         mailboxes: list[dict[str, Any]] = []
         total_letters = 0

@@ -117,7 +117,7 @@ const AppRoutes = () => {
       } catch (err) {
         if (!alive) return;
         setFeatureFlags({
-          ocrQueueV2: true,
+          ocrQueueV2: false,
           ocrShadowLaunch: false,
         });
       } finally {
@@ -155,7 +155,7 @@ const AppRoutes = () => {
             featureFlags.ocrQueueV2 ? (
               <OcrQueue />
             ) : (
-              <Navigate to="/admin" replace />
+              <Navigate to="/admin/mailboxes" replace />
             )
           ) : (
             <Navigate to={isMember ? "/member" : "/"} replace />

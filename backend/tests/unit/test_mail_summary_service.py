@@ -99,6 +99,30 @@ class MailSummaryServiceTests(unittest.TestCase):
         self.assertEqual(mailbox["dailyBreakdown"][1], {"date": "2026-02-16", "letters": 3, "packages": 1})
         self.assertEqual(mailbox["dailyBreakdown"][-1]["date"], "2026-02-21")
 
+    def test_get_weekly_summary_legacy_count_field(self):
+        user_id = ObjectId()
+        mailbox_id = ObjectId()
+        week_start = date(2026, 3, 1)
+        week_end = date(2026, 3, 7)
+
+        service = MailSummaryService(
+            users=FakeCollection([{"_id": user_id, "teamIds": []}]),
+            mailboxes=FakeCollection([{"_id": mailbox_id, "type": "user", "refId": user_id, "displayName": "Pat"}]),
+            mail=FakeCollection(
+                [
+                    {"mailboxId": mailbox_id, "date": _at(week_start), "type": "letter", "count": 4},
+                    {"mailboxId": mailbox_id, "date": _at(week_start), "type": "package", "count": 1},
+                ]
+            ),
+        )
+
+        summary = service.getWeeklySummary(userId=user_id, weekStart=week_start, weekEnd=weekEnd)
+        self.assertEqual(summary["totalLetters"], 4)
+        self.assertEqual(summary["totalPackages"], 1)
+        mb = summary["mailboxes"][0]
+        self.assertEqual(mb["letters"], 4)
+        self.assertEqual(mb["packages"], 1)
+
     def test_get_weekly_summary_multiple_mailboxes_are_sorted(self):
         user_id = ObjectId()
         team_id = ObjectId()

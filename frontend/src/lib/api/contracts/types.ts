@@ -15,6 +15,8 @@ export interface ApiMailRecord {
   mailboxId: string;
   date: string;
   type: MailType;
+  /** Legacy cumulative model; prefer migration script. When present, counts as this many pieces. */
+  count?: number;
   receiverName?: string | null;
   senderInfo?: string | null;
   createdAt: string;

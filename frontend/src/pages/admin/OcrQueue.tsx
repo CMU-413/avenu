@@ -27,6 +27,7 @@ import {
   type ApiOcrQueueItem,
 } from "@/lib/api";
 import { useAppStore } from "@/lib/store";
+import { findCloseMailboxMatch } from "@/lib/mailboxMatch";
 
 const POLL_INTERVAL_MS = 2000;
 
@@ -58,6 +59,7 @@ const OcrQueue = () => {
   const [mailboxQuery, setMailboxQuery] = useState("");
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [editingItem, setEditingItem] = useState<Partial<ApiOcrQueueItem>>({});
+  const autoMatchedMailboxIdsRef = useRef<Set<string>>(new Set());
 
   const date = searchParams.get("date") || new Date().toISOString().split("T")[0];
 
@@ -97,6 +99,7 @@ const OcrQueue = () => {
   }, [jobIdFromUrl, loadJobs]);
 
   useEffect(() => {
+    autoMatchedMailboxIdsRef.current.clear();
     if (jobIdFromUrl) {
       loadJobDetail(jobIdFromUrl);
     } else {
@@ -243,6 +246,44 @@ const OcrQueue = () => {
         mailboxId: editingItem.mailboxId ?? item.mailboxId,
       }
     : null;
+
+  /** When OCR receiver text closely matches one mailbox (name or member), preselect and persist. */
+  useEffect(() => {
+    if (!item || loadingMailboxes || mailboxes.length === 0) return;
+    if (item.mailboxId) return;
+    if (item.status !== "completed") return;
+    if (!item.receiverName?.trim()) return;
+    if (autoMatchedMailboxIdsRef.current.has(item.id)) return;
+
+    const match = findCloseMailboxMatch(item.receiverName, mailboxes);
+    if (!match) return;
+
+    autoMatchedMailboxIdsRef.current.add(item.id);
+    void (async () => {
+      try {
+        await updateOcrQueueItem(item.id, { mailboxId: match.id });
+        setCurrentJob((cj) =>
+          cj
+            ? {
+                ...cj,
+                items: cj.items.map((i) =>
+                  i.id === item.id ? { ...i, mailboxId: match.id } : i
+                ),
+              }
+            : null
+        );
+      } catch {
+        autoMatchedMailboxIdsRef.current.delete(item.id);
+      }
+    })();
+  }, [
+    item?.id,
+    item?.mailboxId,
+    item?.receiverName,
+    item?.status,
+    mailboxes,
+    loadingMailboxes,
+  ]);
 
   const handleUpdateItem = async (updates: Partial<ApiOcrQueueItem>) => {
     if (!item) return;

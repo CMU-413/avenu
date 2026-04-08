@@ -47,7 +47,8 @@ OCR_PROVIDER = os.getenv("OCR_PROVIDER", "paddleocr").strip().lower()
 OCR_SPACE_API_KEY = os.getenv("OCR_SPACE_API_KEY", "").strip()
 OCR_MAX_FILE_BYTES = int(os.getenv("OCR_MAX_FILE_BYTES", "2097152"))  # 2MB default
 
-FEATURE_OCR_QUEUE_V2 = _env_bool("FEATURE_OCR_QUEUE_V2", True)
+# OCR bulk queue (/api/ocr/jobs, …). Default off so existing deployments keep prior admin flow until enabled.
+FEATURE_OCR_QUEUE_V2 = _env_bool("FEATURE_OCR_QUEUE_V2", False)
 FEATURE_OCR_SHADOW_LAUNCH = _env_bool("FEATURE_OCR_SHADOW_LAUNCH", False)
 OCR_SHADOW_PROVIDER = os.getenv("OCR_SHADOW_PROVIDER", "").strip().lower() or None
 
