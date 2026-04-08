@@ -1,10 +1,17 @@
 import { apiFetch } from "../../http/client";
 import type { ApiSessionMe } from "../contracts/types";
 
-export function sessionLogin(email: string): Promise<void> {
-  return apiFetch<void>("/session/login", {
+export function requestMagicLink(email: string): Promise<{ status: string }> {
+  return apiFetch<{ status: string }>("/session/login", {
     method: "POST",
     body: JSON.stringify({ email }),
+  });
+}
+
+export function redeemMagicLink(params: { tokenId: string; signature: string }): Promise<void> {
+  return apiFetch<void>("/session/redeem", {
+    method: "POST",
+    body: JSON.stringify(params),
   });
 }
 
