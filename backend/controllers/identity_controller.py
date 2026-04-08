@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from flask import Blueprint, jsonify, session
+from flask import Blueprint, jsonify
 
-from controllers.common import json_payload
+from controllers.common import establish_authenticated_session, json_payload
 from errors import APIError
 from repositories import to_api_doc
 from services.identity_sync_service import sync_optix_identity
@@ -18,5 +18,5 @@ def optix_token_route():
         raise APIError(400, "Missing token")
 
     created, user_doc = sync_optix_identity(token=token)
-    session["user_id"] = str(user_doc["_id"])
+    establish_authenticated_session(user_doc["_id"])
     return jsonify({"created": created, "user": to_api_doc(user_doc)}), (201 if created else 200)
