@@ -5,8 +5,8 @@
 - ☑ Route magic-link redemption and Optix bootstrap through the shared helper.
 - ☑ Document the authenticated session TTL env/config values.
 - Phase 2
-- ☐ Add unit tests for shared permanent-session setup across all auth entry points.
-- ☐ Add unit tests that prove expired authenticated session cookies no longer authenticate requests.
+- ☑ Add unit tests for shared permanent-session setup across all auth entry points.
+- ☑ Add unit tests that prove expired authenticated session cookies no longer authenticate requests.
 
 ## Phase 1
 
