@@ -4,11 +4,13 @@ from datetime import date, datetime, timezone
 from unittest.mock import Mock, patch
 
 from bson import ObjectId
+from flask import request as flask_request
 
 os.environ.setdefault("MONGO_URI", "mongodb://localhost:27017")
 os.environ.setdefault("FLASK_TESTING", "1")
 
 from app import create_app
+from controllers.session_rate_limit import evaluate_login_rate_limit
 from errors import APIError
 from services.notifications.providers.email_provider import MailProviderError
 
@@ -94,6 +96,46 @@ class AdminSessionAuthTests(unittest.TestCase):
             response = self.client.post("/api/session/login", json={"email": "admin@example.com"})
 
         self.assertEqual(response.status_code, 503)
+
+    def test_login_rate_limit_allows_request_when_counts_are_below_threshold(self):
+        recorded = []
+        app = self.client.application
+
+        def fake_record_login_attempt(*, scope, key, window_seconds, now=None):
+            del now
+            recorded.append((scope, key, window_seconds))
+            return {
+                "scope": scope,
+                "key": key,
+                "count": 1,
+                "windowSeconds": window_seconds,
+                "windowStart": datetime(2026, 4, 8, 16, 0, tzinfo=timezone.utc),
+                "expiresAt": datetime(2026, 4, 8, 16, 15, tzinfo=timezone.utc),
+                "createdAt": datetime(2026, 4, 8, 16, 0, tzinfo=timezone.utc),
+                "updatedAt": datetime(2026, 4, 8, 16, 0, tzinfo=timezone.utc),
+            }
+
+        with app.test_request_context(
+            "/api/session/login",
+            method="POST",
+            json={"email": " Admin@Example.com "},
+            headers={"X-Forwarded-For": "203.0.113.8, 10.0.0.1"},
+        ), patch("controllers.session_rate_limit.record_login_attempt", side_effect=fake_record_login_attempt):
+            decision = evaluate_login_rate_limit(
+                request=flask_request,
+                payload={"email": " Admin@Example.com "},
+            )
+
+        self.assertTrue(decision.allowed)
+        self.assertEqual(decision.client_ip, "203.0.113.8")
+        self.assertEqual(decision.email, "admin@example.com")
+        self.assertEqual(
+            recorded,
+            [
+                ("ip", "203.0.113.8", decision.ip.window_seconds),
+                ("email", "admin@example.com", decision.email_scope.window_seconds),
+            ],
+        )
 
     def test_admin_route_without_session_returns_401(self):
         response = self.client.get("/api/users")
