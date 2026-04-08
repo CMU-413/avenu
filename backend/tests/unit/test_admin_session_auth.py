@@ -24,6 +24,20 @@ class AdminSessionAuthTests(unittest.TestCase):
         )
         self.client = app.test_client()
 
+    def _allow_login_rate_limit(self):
+        def fake_record_login_attempt(*, scope, key, window_seconds, now=None):
+            del scope, key, window_seconds, now
+            return {
+                "count": 1,
+                "windowSeconds": 60,
+                "windowStart": datetime(2026, 4, 8, 16, 0, tzinfo=timezone.utc),
+                "expiresAt": datetime(2026, 4, 8, 16, 15, tzinfo=timezone.utc),
+                "createdAt": datetime(2026, 4, 8, 16, 0, tzinfo=timezone.utc),
+                "updatedAt": datetime(2026, 4, 8, 16, 0, tzinfo=timezone.utc),
+            }
+
+        return patch("controllers.session_rate_limit.record_login_attempt", side_effect=fake_record_login_attempt)
+
     def test_login_request_for_admin_sends_magic_link_and_does_not_set_session(self):
         user_id = ObjectId()
         magic_link_service = Mock()
@@ -40,7 +54,7 @@ class AdminSessionAuthTests(unittest.TestCase):
         ), patch(
             "controllers.session_controller.build_email_provider",
             return_value=email_provider,
-        ):
+        ), self._allow_login_rate_limit():
             response = self.client.post("/api/session/login", json={"email": "admin@example.com"})
 
         self.assertEqual(response.status_code, 202)
@@ -55,7 +69,7 @@ class AdminSessionAuthTests(unittest.TestCase):
             self.assertIsNone(sess.get("user_id"))
 
     def test_login_unknown_user_returns_generic_success(self):
-        with patch("controllers.session_controller.find_user_by_email", return_value=None):
+        with patch("controllers.session_controller.find_user_by_email", return_value=None), self._allow_login_rate_limit():
             response = self.client.post("/api/session/login", json={"email": "missing@example.com"})
         self.assertEqual(response.status_code, 202)
         self.assertEqual(response.json, {"status": "ok"})
@@ -69,7 +83,7 @@ class AdminSessionAuthTests(unittest.TestCase):
         ), patch(
             "controllers.session_controller.build_email_provider",
             return_value=email_provider,
-        ):
+        ), self._allow_login_rate_limit():
             response = self.client.post("/api/session/login", json={"email": "member@example.com"})
 
         self.assertEqual(response.status_code, 202)
@@ -92,7 +106,7 @@ class AdminSessionAuthTests(unittest.TestCase):
         ), patch(
             "controllers.session_controller.build_email_provider",
             return_value=email_provider,
-        ):
+        ), self._allow_login_rate_limit():
             response = self.client.post("/api/session/login", json={"email": "admin@example.com"})
 
         self.assertEqual(response.status_code, 503)
