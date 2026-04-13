@@ -60,6 +60,10 @@ AUTH_MAGIC_LINK_BASE_URL = os.getenv("AUTH_MAGIC_LINK_BASE_URL", "http://localho
 AUTH_MAGIC_LINK_PATH = os.getenv("AUTH_MAGIC_LINK_PATH", "/").strip() or "/"
 AUTH_MAGIC_LINK_EXPIRY_SECONDS = _env_positive_int("AUTH_MAGIC_LINK_EXPIRY_SECONDS", 900)
 AUTH_MAGIC_LINK_SECRET = os.getenv("AUTH_MAGIC_LINK_SECRET", "").strip() or SECRET_KEY
+LOGIN_RATE_LIMIT_IP_WINDOW_SECONDS = int(os.getenv("LOGIN_RATE_LIMIT_IP_WINDOW_SECONDS", "60"))
+LOGIN_RATE_LIMIT_IP_MAX_ATTEMPTS = int(os.getenv("LOGIN_RATE_LIMIT_IP_MAX_ATTEMPTS", "5"))
+LOGIN_RATE_LIMIT_EMAIL_WINDOW_SECONDS = int(os.getenv("LOGIN_RATE_LIMIT_EMAIL_WINDOW_SECONDS", "900"))
+LOGIN_RATE_LIMIT_EMAIL_MAX_ATTEMPTS = int(os.getenv("LOGIN_RATE_LIMIT_EMAIL_MAX_ATTEMPTS", "5"))
 
 SCHEDULER_INTERNAL_TOKEN = os.getenv("SCHEDULER_INTERNAL_TOKEN", "").strip()
 
@@ -86,6 +90,7 @@ mail_requests_collection = db["mail_requests"]
 idempotency_keys_collection = db["idempotency_keys"]
 notification_log_collection = db["notification_log"]
 auth_magic_links_collection = db["auth_magic_links"]
+login_rate_limit_collection = db["login_rate_limit"]
 
 
 def ensure_indexes() -> None:
@@ -135,3 +140,13 @@ def ensure_indexes() -> None:
 
     auth_magic_links_collection.create_index([("tokenId", ASCENDING)], unique=True, name="auth_magic_links_tokenid_uq")
     auth_magic_links_collection.create_index([("expiresAt", ASCENDING)], expireAfterSeconds=0, name="auth_magic_links_expires_ttl")
+    login_rate_limit_collection.create_index(
+        [("scope", ASCENDING), ("key", ASCENDING), ("windowStart", ASCENDING)],
+        unique=True,
+        name="login_rate_limit_scope_key_window_uq",
+    )
+    login_rate_limit_collection.create_index(
+        [("expiresAt", ASCENDING)],
+        expireAfterSeconds=0,
+        name="login_rate_limit_expires_ttl",
+    )
