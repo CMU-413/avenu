@@ -66,6 +66,10 @@ Copy:
 * `AUTH_MAGIC_LINK_PATH` (verification route or query-bearing SPA path, default `/`)
 * `AUTH_MAGIC_LINK_EXPIRY_SECONDS` (magic-link lifetime in seconds, default `900`)
 * optional: `AUTH_MAGIC_LINK_SECRET` (falls back to `SECRET_KEY`)
+* `LOGIN_RATE_LIMIT_IP_WINDOW_SECONDS` (per-IP login request window in seconds, default `60`)
+* `LOGIN_RATE_LIMIT_IP_MAX_ATTEMPTS` (max login requests per IP within the IP window, default `5`)
+* `LOGIN_RATE_LIMIT_EMAIL_WINDOW_SECONDS` (per-email login request window in seconds, default `900`)
+* `LOGIN_RATE_LIMIT_EMAIL_MAX_ATTEMPTS` (max login requests per normalized email within the email window, default `5`)
 
 ### Notification Providers (required when `FLASK_TESTING=false`)
 
