@@ -83,9 +83,12 @@ def parse_distinct_object_ids(values: Any, field_name: str) -> list[ObjectId]:
     unique_ids: list[ObjectId] = []
     seen: set[ObjectId] = set()
     for raw in values:
-        if not isinstance(raw, str) or not ObjectId.is_valid(raw):
-            raise APIError(422, f"{field_name} must contain ObjectId strings")
-        oid = ObjectId(raw)
+        if isinstance(raw, ObjectId):
+            oid = raw
+        elif isinstance(raw, str) and ObjectId.is_valid(raw):
+            oid = ObjectId(raw)
+        else:
+            raise APIError(422, f"{field_name} must contain valid ObjectIds")
         if oid not in seen:
             seen.add(oid)
             unique_ids.append(oid)

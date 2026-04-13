@@ -62,6 +62,10 @@ Copy:
 * `FLASK_TESTING`
 * `FRONTEND_ORIGINS` (CORS allowlist)
 * `SCHEDULER_INTERNAL_TOKEN` (shared secret for scheduler endpoint)
+* `AUTH_MAGIC_LINK_BASE_URL` (public SPA entry used in emailed sign-in links)
+* `AUTH_MAGIC_LINK_PATH` (verification route or query-bearing SPA path, default `/`)
+* `AUTH_MAGIC_LINK_EXPIRY_SECONDS` (magic-link lifetime in seconds, default `900`)
+* optional: `AUTH_MAGIC_LINK_SECRET` (falls back to `SECRET_KEY`)
 
 ### Notification Providers (required when `FLASK_TESTING=false`)
 
@@ -78,7 +82,7 @@ Copy:
 For iframe / Canvas embedding:
 
 * `SESSION_COOKIE_NAME=avenu_session`
-* `SESSION_COOKIE_SAMESITE=None`
+* `SESSION_COOKIE_SAMESITE=Lax` for same-site flows, or `None` for iframe embedding
 * `SESSION_COOKIE_SECURE=true`
 * optional: `SESSION_COOKIE_PARTITIONED=true`
 
@@ -103,9 +107,14 @@ These are public and embedded at build time.
 
 Production usage assumes authentication is handled upstream (e.g., Optix or embedding context).
 
-`POST /api/session/login` currently creates a session based on a provided email. This endpoint is intended to be called only from a trusted upstream system.
+The backend now includes configuration for admin magic-link authentication:
 
-It should not be exposed publicly without additional verification.
+* `AUTH_MAGIC_LINK_BASE_URL` should point at the public SPA mount, for example:
+  * local: `http://localhost:8080/mail`
+  * production: `https://hub.avenuworkspaces.com/mail`
+* `AUTH_MAGIC_LINK_PATH` should remain aligned with the frontend/nginx entry behavior so callback query params survive the `/mail` to `/mail/` normalization.
+
+The existing public email-post login flow is being replaced by magic-link request/redeem endpoints and should not be treated as the long-term public auth contract.
 
 ---
 

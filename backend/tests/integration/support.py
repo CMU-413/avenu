@@ -189,4 +189,13 @@ class HttpIntegrationTestCase(MongoIntegrationTestCase):
         )
 
     def login(self, *, email: str):
-        return self.client.post("/api/session/login", json={"email": email})
+        from repositories.users_repository import find_user_by_email
+
+        user = find_user_by_email(email)
+        if user is None:
+            raise AssertionError(f"user not found for login helper: {email}")
+
+        with self.client.session_transaction() as session:
+            session["user_id"] = str(user["_id"])
+
+        return user

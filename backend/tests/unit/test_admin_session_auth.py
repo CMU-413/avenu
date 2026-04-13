@@ -10,6 +10,7 @@ os.environ.setdefault("FLASK_TESTING", "1")
 
 from app import create_app
 from errors import APIError
+from services.notifications.providers.email_provider import MailProviderError
 
 
 class AdminSessionAuthTests(unittest.TestCase):
@@ -21,19 +22,78 @@ class AdminSessionAuthTests(unittest.TestCase):
         )
         self.client = app.test_client()
 
-    def test_login_sets_user_id_session(self):
+    def test_login_request_for_admin_sends_magic_link_and_does_not_set_session(self):
         user_id = ObjectId()
-        with patch("controllers.session_controller.find_user_by_email", return_value={"_id": user_id, "isAdmin": True}):
+        magic_link_service = Mock()
+        magic_link_service.link_expiry_seconds = 900
+        magic_link_service.generate_admin_login_link.return_value = "https://hub.avenuworkspaces.com/mail/?token_id=abc&signature=def"
+        email_provider = Mock()
+
+        with patch(
+            "controllers.session_controller.find_user_by_email",
+            return_value={"_id": user_id, "isAdmin": True, "email": "admin@example.com", "fullname": "Admin User"},
+        ), patch(
+            "controllers.session_controller.AuthMagicLinkService",
+            return_value=magic_link_service,
+        ), patch(
+            "controllers.session_controller.build_email_provider",
+            return_value=email_provider,
+        ):
             response = self.client.post("/api/session/login", json={"email": "admin@example.com"})
-        self.assertEqual(response.status_code, 204)
+
+        self.assertEqual(response.status_code, 202)
+        self.assertEqual(response.json, {"status": "ok"})
+        magic_link_service.generate_admin_login_link.assert_called_once()
+        email_provider.send.assert_called_once()
+        send_kwargs = email_provider.send.call_args.kwargs
+        self.assertEqual(send_kwargs["to"], "admin@example.com")
+        self.assertIn('href="https://hub.avenuworkspaces.com/mail/?token_id=abc&amp;signature=def"', send_kwargs["html"])
 
         with self.client.session_transaction() as sess:
-            self.assertEqual(sess.get("user_id"), str(user_id))
+            self.assertIsNone(sess.get("user_id"))
 
-    def test_login_unknown_user_returns_401(self):
+    def test_login_unknown_user_returns_generic_success(self):
         with patch("controllers.session_controller.find_user_by_email", return_value=None):
             response = self.client.post("/api/session/login", json={"email": "missing@example.com"})
-        self.assertEqual(response.status_code, 401)
+        self.assertEqual(response.status_code, 202)
+        self.assertEqual(response.json, {"status": "ok"})
+
+    def test_login_non_admin_user_returns_generic_success_without_sending_email(self):
+        email_provider = Mock()
+
+        with patch(
+            "controllers.session_controller.find_user_by_email",
+            return_value={"_id": ObjectId(), "isAdmin": False, "email": "member@example.com"},
+        ), patch(
+            "controllers.session_controller.build_email_provider",
+            return_value=email_provider,
+        ):
+            response = self.client.post("/api/session/login", json={"email": "member@example.com"})
+
+        self.assertEqual(response.status_code, 202)
+        self.assertEqual(response.json, {"status": "ok"})
+        email_provider.send.assert_not_called()
+
+    def test_login_request_returns_503_when_email_delivery_fails(self):
+        magic_link_service = Mock()
+        magic_link_service.link_expiry_seconds = 900
+        magic_link_service.generate_admin_login_link.return_value = "https://hub.avenuworkspaces.com/mail/?token_id=abc&signature=def"
+        email_provider = Mock()
+        email_provider.send.side_effect = MailProviderError("provider failed")
+
+        with patch(
+            "controllers.session_controller.find_user_by_email",
+            return_value={"_id": ObjectId(), "isAdmin": True, "email": "admin@example.com", "fullname": "Admin User"},
+        ), patch(
+            "controllers.session_controller.AuthMagicLinkService",
+            return_value=magic_link_service,
+        ), patch(
+            "controllers.session_controller.build_email_provider",
+            return_value=email_provider,
+        ):
+            response = self.client.post("/api/session/login", json={"email": "admin@example.com"})
+
+        self.assertEqual(response.status_code, 503)
 
     def test_admin_route_without_session_returns_401(self):
         response = self.client.get("/api/users")
@@ -84,6 +144,52 @@ class AdminSessionAuthTests(unittest.TestCase):
 
         old_admin_login = self.client.post("/api/admin/login", json={})
         self.assertEqual(old_admin_login.status_code, 404)
+
+    def test_session_redeem_sets_user_id_session(self):
+        user_id = ObjectId()
+        with patch(
+            "controllers.session_controller.AuthMagicLinkService",
+        ) as auth_magic_link_service_cls, patch(
+            "controllers.session_controller.get_user",
+            return_value={"_id": user_id, "isAdmin": True},
+        ):
+            auth_magic_link_service_cls.return_value.verify_login_link.return_value = {"userId": user_id}
+            response = self.client.post("/api/session/redeem", json={"tokenId": "token-123", "signature": "signed"})
+
+        self.assertEqual(response.status_code, 204)
+
+        with self.client.session_transaction() as sess:
+            self.assertEqual(sess.get("user_id"), str(user_id))
+
+    def test_session_redeem_unknown_or_non_admin_user_returns_401(self):
+        user_id = ObjectId()
+        with patch(
+            "controllers.session_controller.AuthMagicLinkService",
+        ) as auth_magic_link_service_cls, patch(
+            "controllers.session_controller.get_user",
+            return_value={"_id": user_id, "isAdmin": False},
+        ):
+            auth_magic_link_service_cls.return_value.verify_login_link.return_value = {"userId": user_id}
+            response = self.client.post("/api/session/redeem", json={"tokenId": "token-123", "signature": "signed"})
+
+        self.assertEqual(response.status_code, 401)
+
+    def test_session_redeem_accepts_long_signature_payload(self):
+        user_id = ObjectId()
+        long_signature = "signed." + ("x" * 600)
+        with patch(
+            "controllers.session_controller.AuthMagicLinkService",
+        ) as auth_magic_link_service_cls, patch(
+            "controllers.session_controller.get_user",
+            return_value={"_id": user_id, "isAdmin": True},
+        ):
+            auth_magic_link_service_cls.return_value.verify_login_link.return_value = {"userId": user_id}
+            response = self.client.post(
+                "/api/session/redeem",
+                json={"tokenId": "token-123", "signature": long_signature},
+            )
+
+        self.assertEqual(response.status_code, 204)
 
     def test_mail_list_without_session_returns_401(self):
         response = self.client.get("/api/mail")

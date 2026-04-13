@@ -123,6 +123,10 @@ Examples:
 
 * MONGO_URI
 * SECRET_KEY
+* AUTH_MAGIC_LINK_BASE_URL
+* AUTH_MAGIC_LINK_PATH
+* AUTH_MAGIC_LINK_EXPIRY_SECONDS
+* AUTH_MAGIC_LINK_SECRET
 * MS_GRAPH_CLIENT_SECRET
 * TWILIO_ACCOUNT_SID
 * TWILIO_AUTH_TOKEN
@@ -172,7 +176,14 @@ All traffic flows through:
 https://hub.avenuworkspaces.com/mail
 ```
 
+For magic-link auth, use:
+
+* `AUTH_MAGIC_LINK_BASE_URL=https://hub.avenuworkspaces.com/mail`
+* `AUTH_MAGIC_LINK_PATH=/`
+
 If nginx routing is missing, `/mail` will not work.
+
+If nginx redirects `/mail` to `/mail/`, preserve query params on that redirect so emailed callback links keep `token_id` and `signature`.
 
 ---
 

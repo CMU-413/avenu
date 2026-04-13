@@ -32,8 +32,7 @@ class HttpAuthzBoundaryIntegrationTests(HttpIntegrationTestCase):
             display_name="Member B Mailbox",
         )
 
-        login_response = self.login(email=requester["email"])
-        self.assertEqual(login_response.status_code, 204)
+        self.login(email=requester["email"])
 
         response = self.client.post(
             "/api/mail-requests",
@@ -62,8 +61,7 @@ class HttpAuthzBoundaryIntegrationTests(HttpIntegrationTestCase):
             user_id=ObjectId(),
         )
 
-        login_response = self.login(email=admin["email"])
-        self.assertEqual(login_response.status_code, 204)
+        self.login(email=admin["email"])
 
         response = self.client.get("/api/member/mail?start=2026-02-16&end=2026-02-22")
         self.assertEqual(response.status_code, 403)
