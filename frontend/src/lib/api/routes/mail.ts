@@ -19,6 +19,8 @@ export function createMail(payload: {
   type: MailType;
   receiverName?: string;
   senderInfo?: string;
+  /** Simple count mode: multiple pieces in one row (stored as count when > 1) */
+  count?: number;
   idempotencyKey: string;
 }): Promise<ApiMailRecord> {
   const body: Record<string, unknown> = {
@@ -26,6 +28,9 @@ export function createMail(payload: {
     date: payload.date,
     type: payload.type,
   };
+  if (payload.count !== undefined && payload.count >= 1) {
+    body.count = Math.floor(payload.count);
+  }
   if (payload.receiverName !== undefined && payload.receiverName !== "") {
     body.receiverName = payload.receiverName;
   }
@@ -47,6 +52,7 @@ export function updateMail(
     mailboxId: string;
     date: string;
     type: MailType;
+    count: number;
     receiverName: string;
     senderInfo: string;
   }>

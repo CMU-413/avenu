@@ -31,8 +31,21 @@ def insert_mail(doc: dict[str, Any], *, session: Any | None = None) -> ObjectId:
     return inserted.inserted_id
 
 
-def update_mail(mail_id: ObjectId, patch: dict[str, Any], *, session: Any | None = None) -> int:
-    result = mail_collection.update_one({"_id": mail_id}, {"$set": patch}, session=session)
+def update_mail(
+    mail_id: ObjectId,
+    patch: dict[str, Any],
+    *,
+    unset_count: bool = False,
+    session: Any | None = None,
+) -> int:
+    update_doc: dict[str, Any] = {}
+    if patch:
+        update_doc["$set"] = patch
+    if unset_count:
+        update_doc["$unset"] = {"count": ""}
+    if not update_doc:
+        return 0
+    result = mail_collection.update_one({"_id": mail_id}, update_doc, session=session)
     return result.matched_count
 
 

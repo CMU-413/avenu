@@ -116,7 +116,7 @@ class MailSummaryServiceTests(unittest.TestCase):
             ),
         )
 
-        summary = service.getWeeklySummary(userId=user_id, weekStart=week_start, weekEnd=weekEnd)
+        summary = service.getWeeklySummary(userId=user_id, weekStart=week_start, weekEnd=week_end)
         self.assertEqual(summary["totalLetters"], 4)
         self.assertEqual(summary["totalPackages"], 1)
         mb = summary["mailboxes"][0]

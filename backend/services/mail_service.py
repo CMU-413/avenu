@@ -7,6 +7,7 @@ from bson import ObjectId
 
 from errors import APIError
 from models import build_mail_create, build_mail_patch
+from models.builders import _optional_mail_piece_count
 from repositories.mail_repository import (
     delete_mail as repo_delete_mail,
     find_mail as repo_find_mail,
@@ -46,11 +47,18 @@ def create_mail(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def update_mail(mail_id: ObjectId, payload: dict[str, Any]) -> dict[str, Any]:
-    patch = build_mail_patch(payload)
+    payload_eff = dict(payload)
+    unset_count = False
+    if "count" in payload_eff:
+        n = _optional_mail_piece_count(payload_eff)
+        if n == 1:
+            unset_count = True
+            del payload_eff["count"]
+    patch = build_mail_patch(payload_eff)
     if "mailboxId" in patch:
         _ensure_mailbox_exists(patch["mailboxId"])
 
-    matched_count = repo_update_mail(mail_id, patch)
+    matched_count = repo_update_mail(mail_id, patch, unset_count=unset_count)
     if matched_count == 0:
         raise APIError(404, "mail not found")
     updated = repo_find_mail(mail_id)

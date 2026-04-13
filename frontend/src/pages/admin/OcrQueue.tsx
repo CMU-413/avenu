@@ -63,6 +63,12 @@ const OcrQueue = () => {
 
   const date = searchParams.get("date") || new Date().toISOString().split("T")[0];
 
+  useEffect(() => {
+    if (!featureFlags.adminOcr || !featureFlags.ocrQueueV2) {
+      navigate(`/admin/mailboxes${date ? `?date=${date}` : ""}`, { replace: true });
+    }
+  }, [featureFlags.adminOcr, featureFlags.ocrQueueV2, navigate, date]);
+
   const loadJobs = useCallback(async () => {
     try {
       const { jobs: list } = await listOcrJobs();
@@ -387,7 +393,8 @@ const OcrQueue = () => {
             {currentJob ? `Verify (${confirmedCount}/${currentJob.items.length})` : "Record Mail"}
           </h1>
           <span className="ml-2 inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
-            OCR Queue V2: {featureFlags.ocrQueueV2 ? "On" : "Off"}
+            OCR admin {featureFlags.adminOcr ? "on" : "off"} · queue{" "}
+            {featureFlags.ocrQueueV2 ? "on" : "off"}
           </span>
         </div>
       </header>

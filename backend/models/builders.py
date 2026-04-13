@@ -123,6 +123,22 @@ def build_mailbox_patch(payload: dict[str, Any]) -> dict[str, Any]:
     return patch
 
 
+def _optional_mail_piece_count(payload: dict[str, Any]) -> int | None:
+    """Cumulative count for simple admin entry (legacy-friendly). Omitted from doc when 1."""
+    if "count" not in payload:
+        return None
+    raw = payload.get("count")
+    if raw is None:
+        return None
+    if isinstance(raw, bool) or not isinstance(raw, int):
+        raise APIError(422, "count must be a positive integer")
+    if raw < 1:
+        raise APIError(422, "count must be at least 1")
+    if raw > 999:
+        raise APIError(422, "count must be at most 999")
+    return raw
+
+
 def build_mail_create(payload: dict[str, Any]) -> dict[str, Any]:
     now = _utcnow()
     mailbox_id = payload.get("mailboxId")
@@ -146,6 +162,9 @@ def build_mail_create(payload: dict[str, Any]) -> dict[str, Any]:
     sender = _optional_text(payload, "senderInfo", 500)
     if sender is not None:
         doc["senderInfo"] = sender
+    n = _optional_mail_piece_count(payload)
+    if n is not None and n > 1:
+        doc["count"] = n
     return doc
 
 
@@ -171,6 +190,11 @@ def build_mail_patch(payload: dict[str, Any]) -> dict[str, Any]:
         patch["receiverName"] = _optional_text(payload, "receiverName", 2000)
     if "senderInfo" in payload:
         patch["senderInfo"] = _optional_text(payload, "senderInfo", 500)
+
+    if "count" in payload:
+        n = _optional_mail_piece_count(payload)
+        if n > 1:
+            patch["count"] = n
 
     if not patch:
         raise APIError(400, "no update payload provided")

@@ -10,7 +10,7 @@ from typing import Any
 from bson import ObjectId
 from flask import Blueprint, jsonify, request, send_file
 
-from config import FEATURE_OCR_QUEUE_V2, OCR_MAX_FILE_BYTES, ocr_queue_items_collection, fs
+from config import FEATURE_ADMIN_OCR, FEATURE_OCR_QUEUE_V2, OCR_MAX_FILE_BYTES, ocr_queue_items_collection, fs
 from controllers.auth_guard import require_admin_session
 from errors import APIError
 from idempotency import payload_hash
@@ -48,6 +48,8 @@ ocr_queue_bp = Blueprint("ocr_queue", __name__)
 def _require_ocr_queue_v2_enabled():
     if request.method == "OPTIONS":
         return None
+    if not FEATURE_ADMIN_OCR:
+        return jsonify({"error": "admin OCR is disabled"}), 404
     if not FEATURE_OCR_QUEUE_V2:
         return jsonify({"error": "ocr queue feature is disabled"}), 404
     return None

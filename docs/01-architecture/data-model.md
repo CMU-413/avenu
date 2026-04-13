@@ -161,7 +161,7 @@ Fields:
 - `createdAt: datetime`
 - `updatedAt: datetime`
 
-**Deployment:** Bulk OCR HTTP APIs are gated by env `FEATURE_OCR_QUEUE_V2` (default `false`). When disabled, `/api/ocr/jobs` and related routes return 404 so older frontends and operators are unaffected until the flag is enabled.
+**Deployment:** Env `FEATURE_ADMIN_OCR` (default `false`) is the master switch: when `false`, `/api/ocr` and all bulk queue routes return 404. Set `FEATURE_ADMIN_OCR=true` to enable. Bulk queue is additionally gated by `FEATURE_OCR_QUEUE_V2` (default `false`); the API also requires `FEATURE_ADMIN_OCR=true`.
 
 Indexes:
 

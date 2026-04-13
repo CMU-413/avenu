@@ -149,10 +149,15 @@ const AppRoutes = () => {
       try {
         const flags = await fetchFeatureFlags();
         if (!alive) return;
-        setFeatureFlags(flags);
+        setFeatureFlags({
+          adminOcr: flags.adminOcr ?? false,
+          ocrQueueV2: flags.ocrQueueV2 ?? false,
+          ocrShadowLaunch: flags.ocrShadowLaunch ?? false,
+        });
       } catch (err) {
         if (!alive) return;
         setFeatureFlags({
+          adminOcr: false,
           ocrQueueV2: false,
           ocrShadowLaunch: false,
         });
@@ -188,7 +193,7 @@ const AppRoutes = () => {
         path="/admin/recording"
         element={
           isAdmin ? (
-            featureFlags.ocrQueueV2 ? (
+            featureFlags.adminOcr && featureFlags.ocrQueueV2 ? (
               <OcrQueue />
             ) : (
               <Navigate to="/admin/mailboxes" replace />

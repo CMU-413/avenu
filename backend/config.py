@@ -52,6 +52,8 @@ OCR_PROVIDER = os.getenv("OCR_PROVIDER", "paddleocr").strip().lower()
 OCR_SPACE_API_KEY = os.getenv("OCR_SPACE_API_KEY", "").strip()
 OCR_MAX_FILE_BYTES = int(os.getenv("OCR_MAX_FILE_BYTES", "2097152"))  # 2MB default
 
+# Master switch for any admin OCR (single-image /api/ocr and queue worker). Default off.
+FEATURE_ADMIN_OCR = _env_bool("FEATURE_ADMIN_OCR", False)
 # OCR bulk queue (/api/ocr/jobs, …). Default off so existing deployments keep prior admin flow until enabled.
 FEATURE_OCR_QUEUE_V2 = _env_bool("FEATURE_OCR_QUEUE_V2", False)
 FEATURE_OCR_SHADOW_LAUNCH = _env_bool("FEATURE_OCR_SHADOW_LAUNCH", False)
@@ -60,8 +62,9 @@ OCR_SHADOW_PROVIDER = os.getenv("OCR_SHADOW_PROVIDER", "").strip().lower() or No
 
 def get_feature_flags() -> dict[str, bool]:
     return {
-        "ocrQueueV2": FEATURE_OCR_QUEUE_V2,
-        "ocrShadowLaunch": FEATURE_OCR_SHADOW_LAUNCH,
+        "adminOcr": FEATURE_ADMIN_OCR,
+        "ocrQueueV2": FEATURE_OCR_QUEUE_V2 and FEATURE_ADMIN_OCR,
+        "ocrShadowLaunch": FEATURE_OCR_SHADOW_LAUNCH and FEATURE_ADMIN_OCR,
     }
 
 

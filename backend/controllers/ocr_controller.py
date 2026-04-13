@@ -8,6 +8,7 @@ import time
 from flask import Blueprint, jsonify, request
 
 from config import (
+    FEATURE_ADMIN_OCR,
     FEATURE_OCR_SHADOW_LAUNCH,
     OCR_MAX_FILE_BYTES,
     OCR_PROVIDER,
@@ -30,6 +31,15 @@ ALLOWED_CONTENT_TYPES = frozenset({
 })
 
 ocr_bp = Blueprint("ocr", __name__)
+
+
+@ocr_bp.before_request
+def _require_admin_ocr_enabled():
+    if request.method == "OPTIONS":
+        return None
+    if not FEATURE_ADMIN_OCR:
+        return jsonify({"error": "admin OCR is disabled"}), 404
+    return None
 
 
 def _get_ocr_client_for(provider: str | None):

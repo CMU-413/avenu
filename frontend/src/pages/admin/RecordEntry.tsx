@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useAppStore } from "@/lib/store";
 import { ArrowLeft, ChevronRight, ImagePlus, Trash2, Pencil, Plus } from "lucide-react";
@@ -144,11 +144,19 @@ type DraftEntry = {
 
 const EMPTY_DRAFT: DraftEntry = { receiverName: "", senderInfo: "", type: "letter" };
 
+function mailPieceQty(entry: ApiMailRecord): number {
+  const c = entry.count;
+  if (typeof c === "number" && Number.isInteger(c) && c >= 1) return c;
+  return 1;
+}
+
 const RecordEntry = () => {
   const { mailboxId } = useParams<{ mailboxId: string }>();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const logout = useAppStore((s) => s.logout);
+  const adminOcrEnabled = useAppStore((s) => s.featureFlags.adminOcr);
+  const ocrQueueV2 = useAppStore((s) => s.featureFlags.ocrQueueV2);
   const { toast } = useToast();
 
   const [mailboxName, setMailboxName] = useState<string>("");
@@ -169,6 +177,10 @@ const RecordEntry = () => {
   const [showDraftForm, setShowDraftForm] = useState(false);
   const [ocrLoading, setOcrLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  /** Simple count mode (admin OCR off): same as main — totals per type, one save syncs DB rows */
+  const [letters, setLetters] = useState(0);
+  const [packages, setPackages] = useState(0);
+  const [legacySaving, setLegacySaving] = useState(false);
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState<DraftEntry>({ ...EMPTY_DRAFT });
@@ -206,6 +218,12 @@ const RecordEntry = () => {
     try {
       const rows = await listMail({ date, mailboxId });
       setEntries(rows);
+      if (!adminOcrEnabled) {
+        const l = rows.filter((e) => e.type === "letter").reduce((s, e) => s + mailPieceQty(e), 0);
+        const p = rows.filter((e) => e.type === "package").reduce((s, e) => s + mailPieceQty(e), 0);
+        setLetters(l);
+        setPackages(p);
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to load entries";
       toast({ title: message, variant: "destructive" });
@@ -227,6 +245,12 @@ const RecordEntry = () => {
         const rows = await listMail({ date, mailboxId });
         if (!alive) return;
         setEntries(rows);
+        if (!adminOcrEnabled) {
+          const l = rows.filter((e) => e.type === "letter").reduce((s, e) => s + mailPieceQty(e), 0);
+          const p = rows.filter((e) => e.type === "package").reduce((s, e) => s + mailPieceQty(e), 0);
+          setLetters(l);
+          setPackages(p);
+        }
       } catch (err) {
         if (!alive) return;
         const message = err instanceof Error ? err.message : "Failed to load entries";
@@ -241,7 +265,7 @@ const RecordEntry = () => {
     };
     load();
     return () => { alive = false; };
-  }, [date, mailboxId, logout, navigate, toast]);
+  }, [adminOcrEnabled, date, mailboxId, logout, navigate, toast]);
 
   useEffect(() => {
     let alive = true;
@@ -267,6 +291,15 @@ const RecordEntry = () => {
     void loadRequests();
     return () => { alive = false; };
   }, [date, mailboxId, logout, navigate, toast]);
+
+  const letterCount = useMemo(
+    () => entries.reduce((s, e) => s + (e.type === "letter" ? mailPieceQty(e) : 0), 0),
+    [entries]
+  );
+  const packageCount = useMemo(
+    () => entries.reduce((s, e) => s + (e.type === "package" ? mailPieceQty(e) : 0), 0),
+    [entries]
+  );
 
   if (loadingMailbox) {
     return (
@@ -294,6 +327,7 @@ const RecordEntry = () => {
   };
 
   const handleOcrUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!adminOcrEnabled) return;
     const file = e.target.files?.[0];
     if (!file) return;
     const allowed = ["image/png", "image/jpeg", "image/jpg", "image/gif"];
@@ -354,6 +388,63 @@ const RecordEntry = () => {
       }
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleLegacySave = async () => {
+    if (letters === 0 && packages === 0) {
+      toast({ title: "Enter at least 1 letter or package", variant: "destructive" });
+      return;
+    }
+    setLegacySaving(true);
+    try {
+      const ops: Promise<unknown>[] = [];
+      const dateIso = toIsoDay(date);
+
+      const syncType = (type: MailType, targetCount: number) => {
+        const typedRows = entries.filter((row) => row.type === type);
+        if (targetCount <= 0) {
+          ops.push(...typedRows.map((row) => deleteMail(row.id)));
+          return;
+        }
+        if (typedRows.length === 0) {
+          ops.push(
+            createMail({
+              mailboxId: mailboxId!,
+              date: dateIso,
+              type,
+              count: targetCount,
+              idempotencyKey: makeIdempotencyKey(),
+            })
+          );
+          return;
+        }
+
+        const [primary, ...extra] = typedRows;
+        ops.push(
+          updateMail(primary.id, {
+            count: targetCount,
+            date: dateIso,
+          })
+        );
+        ops.push(...extra.map((row) => deleteMail(row.id)));
+      };
+
+      syncType("letter", letters);
+      syncType("package", packages);
+
+      await Promise.all(ops);
+      toast({ title: "Record saved" });
+      await reloadEntries();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to save record";
+      toast({ title: message, variant: "destructive" });
+      if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
+        logout();
+        navigate("/");
+      }
+    } finally {
+      setLegacySaving(false);
     }
   };
 
@@ -442,14 +533,20 @@ const RecordEntry = () => {
     }
   };
 
-  const letterCount = entries.filter((e) => e.type === "letter").length;
-  const packageCount = entries.filter((e) => e.type === "package").length;
-
   return (
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-10 border-b bg-background/95 backdrop-blur">
         <div className="flex items-center gap-3 px-4 h-14">
-          <button onClick={() => navigate(`/admin/recording${date ? `?date=${date}` : ""}`)} className="text-muted-foreground hover:text-foreground transition-colors">
+          <button
+            onClick={() =>
+              navigate(
+                adminOcrEnabled && ocrQueueV2
+                  ? `/admin/recording${date ? `?date=${date}` : ""}`
+                  : "/admin"
+              )
+            }
+            className="text-muted-foreground hover:text-foreground transition-colors"
+          >
             <ArrowLeft className="h-5 w-5" />
           </button>
           <h1 className="text-lg font-bold text-foreground truncate flex-1">{mailboxName}</h1>
@@ -478,164 +575,238 @@ const RecordEntry = () => {
             />
           </div>
 
-          {/* Summary counts */}
-          <div className="flex items-center gap-4 text-sm text-muted-foreground">
-            <span>{letterCount} letter{letterCount !== 1 ? "s" : ""}</span>
-            <span>{packageCount} package{packageCount !== 1 ? "s" : ""}</span>
-          </div>
+          {adminOcrEnabled && (
+            <>
+              {/* Summary counts */}
+              <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                <span>{letterCount} letter{letterCount !== 1 ? "s" : ""}</span>
+                <span>{packageCount} package{packageCount !== 1 ? "s" : ""}</span>
+              </div>
 
-          {/* Existing entries */}
-          <div className="space-y-2">
-            <h2 className="text-sm font-semibold text-foreground">Mail Items</h2>
-            {loadingExisting ? (
-              <p className="text-sm text-muted-foreground">Loading...</p>
-            ) : entries.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No entries for this date. Scan or add manually below.</p>
-            ) : (
-              <div className="divide-y divide-border rounded-xl border bg-card overflow-hidden">
-                {entries.map((entry) => (
-                  <div key={entry.id} className="px-4 py-3">
-                    {editingId === entry.id ? (
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2">
-                          <select
-                            value={editDraft.type}
-                            onChange={(e) => setEditDraft((d) => ({ ...d, type: e.target.value as MailType }))}
-                            className="h-9 rounded-lg border border-input bg-background px-2 text-sm"
-                          >
-                            <option value="letter">Letter</option>
-                            <option value="package">Package</option>
-                          </select>
-                        </div>
-                        <input
-                          type="text"
-                          value={editDraft.receiverName}
-                          onChange={(e) => setEditDraft((d) => ({ ...d, receiverName: e.target.value }))}
-                          placeholder="Receiver name/company"
-                          className="w-full h-9 rounded-lg border border-input bg-background px-3 text-sm"
-                        />
-                        <input
-                          type="text"
-                          value={editDraft.senderInfo}
-                          onChange={(e) => setEditDraft((d) => ({ ...d, senderInfo: e.target.value }))}
-                          placeholder="Sender (optional)"
-                          className="w-full h-9 rounded-lg border border-input bg-background px-3 text-sm"
-                        />
-                        <div className="flex gap-2">
-                          <Button size="sm" onClick={handleSaveEdit} disabled={editSaving}>
-                            {editSaving ? "Saving..." : "Save"}
-                          </Button>
-                          <Button size="sm" variant="ghost" onClick={() => setEditingId(null)}>Cancel</Button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span className="inline-block rounded-md bg-muted px-2 py-0.5 text-xs font-medium capitalize">
-                              {entry.type}
-                            </span>
+              {/* Existing entries */}
+              <div className="space-y-2">
+                <h2 className="text-sm font-semibold text-foreground">Mail Items</h2>
+                {loadingExisting ? (
+                  <p className="text-sm text-muted-foreground">Loading...</p>
+                ) : entries.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No entries for this date. Scan or add manually below.</p>
+                ) : (
+                  <div className="divide-y divide-border rounded-xl border bg-card overflow-hidden">
+                    {entries.map((entry) => (
+                      <div key={entry.id} className="px-4 py-3">
+                        {editingId === entry.id ? (
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2">
+                              <select
+                                value={editDraft.type}
+                                onChange={(e) => setEditDraft((d) => ({ ...d, type: e.target.value as MailType }))}
+                                className="h-9 rounded-lg border border-input bg-background px-2 text-sm"
+                              >
+                                <option value="letter">Letter</option>
+                                <option value="package">Package</option>
+                              </select>
+                            </div>
+                            <input
+                              type="text"
+                              value={editDraft.receiverName}
+                              onChange={(e) => setEditDraft((d) => ({ ...d, receiverName: e.target.value }))}
+                              placeholder="Receiver name/company"
+                              className="w-full h-9 rounded-lg border border-input bg-background px-3 text-sm"
+                            />
+                            <input
+                              type="text"
+                              value={editDraft.senderInfo}
+                              onChange={(e) => setEditDraft((d) => ({ ...d, senderInfo: e.target.value }))}
+                              placeholder="Sender (optional)"
+                              className="w-full h-9 rounded-lg border border-input bg-background px-3 text-sm"
+                            />
+                            <div className="flex gap-2">
+                              <Button size="sm" onClick={handleSaveEdit} disabled={editSaving}>
+                                {editSaving ? "Saving..." : "Save"}
+                              </Button>
+                              <Button size="sm" variant="ghost" onClick={() => setEditingId(null)}>Cancel</Button>
+                            </div>
                           </div>
-                          {entry.receiverName && (
-                            <p className="text-sm text-card-foreground mt-1 truncate">{entry.receiverName}</p>
-                          )}
-                          {entry.senderInfo && (
-                            <p className="text-xs text-muted-foreground mt-0.5 truncate">From: {entry.senderInfo}</p>
-                          )}
-                          {!entry.receiverName && !entry.senderInfo && (
-                            <p className="text-xs text-muted-foreground mt-1 italic">No details</p>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-1 shrink-0">
-                          <button
-                            onClick={() => startEditing(entry)}
-                            className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-                          >
-                            <Pencil className="h-3.5 w-3.5" />
-                          </button>
-                          <button
-                            onClick={() => handleDeleteEntry(entry.id)}
-                            disabled={deletingId === entry.id}
-                            className="p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-muted transition-colors disabled:opacity-50"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
+                        ) : (
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="inline-block rounded-md bg-muted px-2 py-0.5 text-xs font-medium capitalize">
+                                  {entry.type}
+                                  {mailPieceQty(entry) > 1 ? ` ×${mailPieceQty(entry)}` : ""}
+                                </span>
+                              </div>
+                              {entry.receiverName && (
+                                <p className="text-sm text-card-foreground mt-1 truncate">{entry.receiverName}</p>
+                              )}
+                              {entry.senderInfo && (
+                                <p className="text-xs text-muted-foreground mt-0.5 truncate">From: {entry.senderInfo}</p>
+                              )}
+                              {!entry.receiverName && !entry.senderInfo && (
+                                <p className="text-xs text-muted-foreground mt-1 italic">No details</p>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1 shrink-0">
+                              <button
+                                onClick={() => startEditing(entry)}
+                                className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteEntry(entry.id)}
+                                disabled={deletingId === entry.id}
+                                className="p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-muted transition-colors disabled:opacity-50"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </div>
-                    )}
+                    ))}
                   </div>
-                ))}
+                )}
               </div>
-            )}
-          </div>
+            </>
+          )}
 
-          {/* Add new entry: scan or manual */}
+          {/* Simple counts (no OCR): same UX as main */}
           <div className="space-y-3">
-            <div className="flex items-center gap-2">
-              <label className="inline-flex items-center gap-1.5 h-10 px-3 rounded-lg border border-input bg-card text-sm font-medium text-foreground cursor-pointer hover:bg-muted transition-colors relative overflow-hidden">
-                <ImagePlus className="h-4 w-4 pointer-events-none" />
-                <span className="pointer-events-none">{ocrLoading ? "Extracting..." : "Scan image"}</span>
-                <input
-                  type="file"
-                  accept="image/png,image/jpeg,image/jpg,image/gif"
-                  capture="environment"
-                  onChange={handleOcrUpload}
-                  disabled={ocrLoading}
-                  className="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
-                />
-              </label>
-              <Button
-                variant="outline"
-                className="h-10 gap-1.5"
-                onClick={() => { setDraft({ ...EMPTY_DRAFT }); setShowDraftForm(true); }}
-              >
-                <Plus className="h-4 w-4" />
-                Add manually
-              </Button>
-            </div>
-
-            {showDraftForm && (
-              <div className="rounded-xl border bg-card p-4 space-y-3">
-                <h3 className="text-sm font-semibold text-foreground">New Entry — Review & Confirm</h3>
-                <div className="flex items-center gap-2">
-                  <label className="text-sm text-muted-foreground">Type</label>
-                  <select
-                    value={draft.type}
-                    onChange={(e) => setDraft((d) => ({ ...d, type: e.target.value as MailType }))}
-                    className="h-9 rounded-lg border border-input bg-background px-2 text-sm"
+            {!adminOcrEnabled ? (
+              <>
+                {loadingExisting ? (
+                  <p className="text-sm text-muted-foreground">Loading...</p>
+                ) : (
+                  <>
+                    <p className="text-xs text-muted-foreground">
+                      Set totals for this mailbox and date, then save. Use 0 for a type to clear it.
+                    </p>
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-medium text-foreground">Letters</label>
+                      <div className="flex items-center gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setLetters(Math.max(0, letters - 1))}
+                          className="h-11 w-11 rounded-lg border border-input bg-card text-foreground text-xl font-medium flex items-center justify-center hover:bg-muted transition-colors"
+                        >
+                          −
+                        </button>
+                        <input
+                          className="text-2xl font-bold text-foreground w-14 text-center bg-transparent border-0 focus:outline-none focus:ring-0"
+                          onChange={(e) => setLetters(Math.max(0, parseInt(e.target.value, 10) || 0))}
+                          value={letters}
+                          inputMode="numeric"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setLetters(letters + 1)}
+                          className="h-11 w-11 rounded-lg border border-input bg-card text-foreground text-xl font-medium flex items-center justify-center hover:bg-muted transition-colors"
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-medium text-foreground">Packages</label>
+                      <div className="flex items-center gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setPackages(Math.max(0, packages - 1))}
+                          className="h-11 w-11 rounded-lg border border-input bg-card text-foreground text-xl font-medium flex items-center justify-center hover:bg-muted transition-colors"
+                        >
+                          −
+                        </button>
+                        <input
+                          className="text-2xl font-bold text-foreground w-14 text-center bg-transparent border-0 focus:outline-none focus:ring-0"
+                          onChange={(e) => setPackages(Math.max(0, parseInt(e.target.value, 10) || 0))}
+                          value={packages}
+                          inputMode="numeric"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setPackages(packages + 1)}
+                          className="h-11 w-11 rounded-lg border border-input bg-card text-foreground text-xl font-medium flex items-center justify-center hover:bg-muted transition-colors"
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+                    <Button onClick={handleLegacySave} className="w-full h-12 text-base" disabled={legacySaving}>
+                      {legacySaving ? "Saving..." : "Save"}
+                    </Button>
+                  </>
+                )}
+              </>
+            ) : (
+              <>
+                <div className="flex flex-wrap items-center gap-2">
+                  <label className="inline-flex items-center gap-1.5 h-10 px-3 rounded-lg border border-input bg-card text-sm font-medium text-foreground cursor-pointer hover:bg-muted transition-colors relative overflow-hidden">
+                    <ImagePlus className="h-4 w-4 pointer-events-none" />
+                    <span className="pointer-events-none">{ocrLoading ? "Extracting..." : "Scan image"}</span>
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg,image/jpg,image/gif"
+                      capture="environment"
+                      onChange={handleOcrUpload}
+                      disabled={ocrLoading}
+                      className="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
+                    />
+                  </label>
+                  <Button
+                    variant="outline"
+                    className="h-10 gap-1.5"
+                    onClick={() => { setDraft({ ...EMPTY_DRAFT }); setShowDraftForm(true); }}
                   >
-                    <option value="letter">Letter</option>
-                    <option value="package">Package</option>
-                  </select>
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-sm font-medium text-foreground">Receiver name / company</label>
-                  <textarea
-                    value={draft.receiverName}
-                    onChange={(e) => setDraft((d) => ({ ...d, receiverName: e.target.value }))}
-                    placeholder="Extracted from scan, or type manually…"
-                    className="w-full min-h-20 rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-sm font-medium text-foreground">Sender (optional)</label>
-                  <input
-                    type="text"
-                    value={draft.senderInfo}
-                    onChange={(e) => setDraft((d) => ({ ...d, senderInfo: e.target.value }))}
-                    placeholder="Sender name or return address…"
-                    className="w-full h-10 rounded-lg border border-input bg-background px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-                  />
-                </div>
-                <div className="flex gap-2">
-                  <Button onClick={handleAddEntry} disabled={saving} className="h-10">
-                    {saving ? "Saving..." : "Confirm & Add"}
-                  </Button>
-                  <Button variant="ghost" className="h-10" onClick={() => { setShowDraftForm(false); setDraft({ ...EMPTY_DRAFT }); }}>
-                    Cancel
+                    <Plus className="h-4 w-4" />
+                    Add manually
                   </Button>
                 </div>
-              </div>
+
+                {showDraftForm && (
+                  <div className="rounded-xl border bg-card p-4 space-y-3">
+                    <h3 className="text-sm font-semibold text-foreground">New Entry — Review & Confirm</h3>
+                    <div className="flex items-center gap-2">
+                      <label className="text-sm text-muted-foreground">Type</label>
+                      <select
+                        value={draft.type}
+                        onChange={(e) => setDraft((d) => ({ ...d, type: e.target.value as MailType }))}
+                        className="h-9 rounded-lg border border-input bg-background px-2 text-sm"
+                      >
+                        <option value="letter">Letter</option>
+                        <option value="package">Package</option>
+                      </select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-medium text-foreground">Receiver name / company</label>
+                      <textarea
+                        value={draft.receiverName}
+                        onChange={(e) => setDraft((d) => ({ ...d, receiverName: e.target.value }))}
+                        placeholder="Extracted from scan, or type manually…"
+                        className="w-full min-h-20 rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-medium text-foreground">Sender (optional)</label>
+                      <input
+                        type="text"
+                        value={draft.senderInfo}
+                        onChange={(e) => setDraft((d) => ({ ...d, senderInfo: e.target.value }))}
+                        placeholder="Sender name or return address…"
+                        className="w-full h-10 rounded-lg border border-input bg-background px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                      />
+                    </div>
+                    <div className="flex gap-2">
+                      <Button onClick={handleAddEntry} disabled={saving} className="h-10">
+                        {saving ? "Saving..." : "Confirm & Add"}
+                      </Button>
+                      <Button variant="ghost" className="h-10" onClick={() => { setShowDraftForm(false); setDraft({ ...EMPTY_DRAFT }); }}>
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>
