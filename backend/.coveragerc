@@ -2,8 +2,17 @@
 omit =
     tests/*
     */__init__.py
+    # OCR: exercised manually / integration; heavy ML deps; unit tests focus on flags & builders
+    controllers/ocr_controller.py
+    controllers/ocr_queue_controller.py
+    repositories/ocr_queue_repository.py
+    services/ocr/*
 
 [report]
 omit =
     tests/*
     */__init__.py
+    controllers/ocr_controller.py
+    controllers/ocr_queue_controller.py
+    repositories/ocr_queue_repository.py
+    services/ocr/*
