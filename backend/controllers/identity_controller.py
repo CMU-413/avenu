@@ -21,7 +21,7 @@ def optix_token_route():
 
     try:
         created, user_doc = sync_optix_identity(token=token)
-        session["user_id"] = str(user_doc["_id"])
+        establish_authenticated_session(user_doc["_id"])
     except Exception:
         autologin_failed_total.inc()
         raise
