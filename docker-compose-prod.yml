@@ -46,6 +46,36 @@ services:
       start_period: 15s
     networks:
       - avenu-internal
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    volumes:
+      - prometheusmail:/prometheus
+      - prometheusmailetc:/etc/prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+    ports:
+      - 9090:9090
+    networks:
+      - avenu-internal
+  grafana:
+    image: grafana/grafana-oss:11.4.0
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-changeme}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_SERVER_ROOT_URL: https://hub.avenuworkspaces.com/mail/grafana
+      GF_SERVER_SERVE_FROM_SUB_PATH: "true"
+    volumes:
+      - grafana-data:/var/lib/grafana
+    networks:
+      - avenu-internal
   scheduler:
     image: <username>/avenu-scheduler:latest
     environment:
@@ -63,3 +93,18 @@ services:
 networks:
   avenu-internal:
     driver: bridge
+volumes:
+  prometheusmail:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /mnt/Main/other/PrometheusMail/
+  prometheusmailetc:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /mnt/Main/other/PrometheusMailEtc/
+  grafana-data:
+    driver: local
