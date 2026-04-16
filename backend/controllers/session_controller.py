@@ -6,7 +6,7 @@ import math
 from flask import Blueprint, current_app, g, jsonify, make_response, render_template, request, session
 
 from controllers.auth_guard import ensure_session_user
-from controllers.common import json_payload
+from controllers.common import establish_authenticated_session, json_payload
 from controllers.session_rate_limit import evaluate_login_rate_limit
 from errors import APIError
 from services.auth_magic_link_service import AuthMagicLinkService
@@ -131,7 +131,7 @@ def session_redeem():
     user = get_user(verified["userId"])
     if user is None or user.get("isAdmin") is not True:
         raise APIError(401, "unauthorized")
-    session["user_id"] = str(verified["userId"])
+    establish_authenticated_session(verified["userId"])
     return "", 204
 
 

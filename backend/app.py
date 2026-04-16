@@ -7,6 +7,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 from prometheus_flask_exporter import PrometheusMetrics
 
 from config import (
+    AUTHENTICATED_SESSION_TTL,
     FRONTEND_ORIGINS,
     SCHEDULER_INTERNAL_TOKEN,
     SECRET_KEY,
@@ -48,6 +49,7 @@ def create_app(
     app.config["SESSION_COOKIE_SAMESITE"] = SESSION_COOKIE_SAMESITE
     app.config["SESSION_COOKIE_SECURE"] = False if testing else SESSION_COOKIE_SECURE
     app.config["SESSION_COOKIE_PARTITIONED"] = False if testing else SESSION_COOKIE_PARTITIONED
+    app.config["PERMANENT_SESSION_LIFETIME"] = AUTHENTICATED_SESSION_TTL
 
     if not testing and SESSION_COOKIE_SAMESITE == "None" and not SESSION_COOKIE_SECURE:
         raise RuntimeError("SESSION_COOKIE_SAMESITE=None requires SESSION_COOKIE_SECURE=true")

@@ -43,6 +43,7 @@ class IdentityControllerTests(unittest.TestCase):
         self.assertEqual(response.json["user"]["id"], str(user_id))
 
         with self.client.session_transaction() as sess:
+            self.assertTrue(sess.permanent)
             self.assertEqual(sess.get("user_id"), str(user_id))
 
     def test_optix_token_route_returns_updated_200(self):

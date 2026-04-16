@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from flask import Blueprint, jsonify, session
+from flask import Blueprint, jsonify
 
-from controllers.common import json_payload
+from controllers.common import establish_authenticated_session, json_payload
 from errors import APIError
 from metrics.metrics_autologin import autologin_failed_total, autologin_success_total
 from repositories import to_api_doc
@@ -21,7 +21,7 @@ def optix_token_route():
 
     try:
         created, user_doc = sync_optix_identity(token=token)
-        session["user_id"] = str(user_doc["_id"])
+        establish_authenticated_session(user_doc["_id"])
     except Exception:
         autologin_failed_total.inc()
         raise

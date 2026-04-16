@@ -1,4 +1,5 @@
 import os
+from datetime import timedelta
 from pathlib import Path
 
 from pymongo import ASCENDING, DESCENDING, MongoClient
@@ -36,13 +37,28 @@ def _env_samesite(name: str, default: str) -> str:
     return allowed[raw]
 
 
+def _env_positive_int(name: str, default: int) -> int:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    try:
+        value = int(raw.strip())
+    except ValueError as exc:
+        raise RuntimeError(f"{name} must be a positive integer") from exc
+    if value < 1:
+        raise RuntimeError(f"{name} must be a positive integer")
+    return value
+
+
 SESSION_COOKIE_SECURE = _env_bool("SESSION_COOKIE_SECURE", False)
 SESSION_COOKIE_PARTITIONED = _env_bool("SESSION_COOKIE_PARTITIONED", False)
 SESSION_COOKIE_SAMESITE = _env_samesite("SESSION_COOKIE_SAMESITE", "Lax")
+AUTHENTICATED_SESSION_TTL_SECONDS = _env_positive_int("AUTHENTICATED_SESSION_TTL_SECONDS", 12 * 60 * 60)
+AUTHENTICATED_SESSION_TTL = timedelta(seconds=AUTHENTICATED_SESSION_TTL_SECONDS)
 
 AUTH_MAGIC_LINK_BASE_URL = os.getenv("AUTH_MAGIC_LINK_BASE_URL", "http://localhost:8080/mail").strip().rstrip("/")
 AUTH_MAGIC_LINK_PATH = os.getenv("AUTH_MAGIC_LINK_PATH", "/").strip() or "/"
-AUTH_MAGIC_LINK_EXPIRY_SECONDS = int(os.getenv("AUTH_MAGIC_LINK_EXPIRY_SECONDS", "900"))
+AUTH_MAGIC_LINK_EXPIRY_SECONDS = _env_positive_int("AUTH_MAGIC_LINK_EXPIRY_SECONDS", 900)
 AUTH_MAGIC_LINK_SECRET = os.getenv("AUTH_MAGIC_LINK_SECRET", "").strip() or SECRET_KEY
 LOGIN_RATE_LIMIT_IP_WINDOW_SECONDS = int(os.getenv("LOGIN_RATE_LIMIT_IP_WINDOW_SECONDS", "60"))
 LOGIN_RATE_LIMIT_IP_MAX_ATTEMPTS = int(os.getenv("LOGIN_RATE_LIMIT_IP_MAX_ATTEMPTS", "5"))

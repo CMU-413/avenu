@@ -4,7 +4,7 @@ from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
 from bson import ObjectId
-from flask import request
+from flask import request, session
 
 from errors import APIError
 from validators import parse_object_id, require_dict
@@ -39,3 +39,9 @@ def parse_optional_object_id_filter(value: str | None, *, field_name: str) -> Ob
 
 def parse_required_object_id(value: str, field_name: str) -> ObjectId:
     return parse_object_id(value, field_name)
+
+
+def establish_authenticated_session(user_id: ObjectId | str) -> None:
+    normalized_user_id = parse_object_id(str(user_id), "user_id")
+    session.permanent = True
+    session["user_id"] = str(normalized_user_id)

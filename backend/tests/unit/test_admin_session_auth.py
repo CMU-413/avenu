@@ -326,6 +326,7 @@ class AdminSessionAuthTests(unittest.TestCase):
         self.assertEqual(response.status_code, 204)
 
         with self.client.session_transaction() as sess:
+            self.assertTrue(sess.permanent)
             self.assertEqual(sess.get("user_id"), str(user_id))
 
     def test_session_redeem_unknown_or_non_admin_user_returns_401(self):
