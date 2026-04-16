@@ -149,6 +149,7 @@ def upsert_user_from_external_identity(
     optix_id: int,
     fullname: str,
     email: str,
+    phone: str,
     is_admin: bool,
     team_ids: list[ObjectId],
     notif_prefs: list[str],
@@ -160,6 +161,7 @@ def upsert_user_from_external_identity(
                 "optixId": optix_id,
                 "fullname": fullname,
                 "email": email,
+                "phone": phone,
                 "isAdmin": is_admin,
                 "teamIds": team_ids,
                 "notifPrefs": notif_prefs,
@@ -176,6 +178,7 @@ def upsert_user_from_external_identity(
         {
             "fullname": fullname,
             "email": email,
+            "phone": phone,
             "isAdmin": is_admin,
             "teamIds": team_ids,
             "notifPrefs": notif_prefs,

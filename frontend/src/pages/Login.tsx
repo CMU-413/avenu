@@ -1,30 +1,14 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { SessionUser, useAppStore } from "@/lib/store";
 import { Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { ApiSessionMe, sessionLogin, sessionMe } from "@/lib/api";
+import { requestMagicLink } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 
-function toSessionUser(session: ApiSessionMe): SessionUser {
-  return {
-    id: session.id,
-    fullname: session.fullname,
-    email: session.email,
-    isAdmin: session.isAdmin,
-    teamIds: session.teamIds,
-    emailNotifications: session.emailNotifications,
-    smsNotifications: session.smsNotifications,
-    hasPhone: session.hasPhone,
-  };
-}
-
 const Login = () => {
-  const navigate = useNavigate();
-  const setSessionUser = useAppStore((s) => s.setSessionUser);
   const { toast } = useToast();
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
+  const [submittedEmail, setSubmittedEmail] = useState<string | null>(null);
 
   const handleSubmit = async () => {
     if (!email.trim()) {
@@ -34,12 +18,10 @@ const Login = () => {
     setLoading(true);
     try {
       const normalized = email.trim().toLowerCase();
-      await sessionLogin(normalized);
-      const me = await sessionMe();
-      setSessionUser(toSessionUser(me));
-      navigate(me.isAdmin ? "/admin" : "/member");
+      await requestMagicLink(normalized);
+      setSubmittedEmail(normalized);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Unable to sign in";
+      const message = err instanceof Error ? err.message : "Unable to request sign-in link";
       toast({ title: message, variant: "destructive" });
     } finally {
       setLoading(false);
@@ -59,8 +41,9 @@ const Login = () => {
 
         <div className="space-y-3">
           <div className="space-y-2">
-            <label className="text-sm font-medium text-foreground">Email</label>
+            <label className="text-sm font-medium text-foreground" htmlFor="admin-email">Admin email</label>
             <input
+              id="admin-email"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -68,9 +51,18 @@ const Login = () => {
               className="w-full h-10 rounded-lg border border-input bg-background px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
             />
             <Button onClick={handleSubmit} className="w-full h-12 text-base" variant="default" disabled={loading}>
-              {loading ? "Signing in..." : "Sign in"}
+              {loading ? "Sending link..." : "Email sign-in link"}
             </Button>
           </div>
+          {submittedEmail ? (
+            <p className="rounded-lg border border-border bg-card px-3 py-3 text-sm text-muted-foreground">
+              If an admin account exists for <span className="font-medium text-foreground">{submittedEmail}</span>, a one-time sign-in link has been emailed.
+            </p>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Enter your admin email and we&apos;ll send a one-time sign-in link.
+            </p>
+          )}
         </div>
       </div>
     </div>
