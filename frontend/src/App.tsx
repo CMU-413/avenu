@@ -9,6 +9,7 @@ import AdminHome from "./pages/admin/AdminHome";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminNotifications from "./pages/admin/AdminNotifications";
 import AdminMailRequests from "./pages/admin/AdminMailRequests";
+import AdminUsersTeams from "./pages/admin/AdminUsersTeams";
 import SearchMailbox from "./pages/admin/SearchMailbox";
 import RecordEntry from "./pages/admin/RecordEntry";
 import MemberDashboard from "./pages/member/MemberDashboard";
@@ -148,6 +149,10 @@ const AppRoutes = () => {
         element={sessionUser ? <Navigate to={isAdmin ? "/admin" : "/member"} replace /> : <Login />}
       />
       <Route path="/admin" element={isAdmin ? <AdminHome /> : <Navigate to={isMember ? "/member" : "/"} replace />} />
+      <Route
+        path="/admin/users-teams"
+        element={isAdmin ? <AdminUsersTeams /> : <Navigate to={isMember ? "/member" : "/"} replace />}
+      />
       <Route
         path="/admin/recording"
         element={isAdmin ? <AdminDashboard /> : <Navigate to={isMember ? "/member" : "/"} replace />}

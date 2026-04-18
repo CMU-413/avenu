@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { ClipboardList, Bell, MailOpen, Wrench } from "lucide-react";
+import { ClipboardList, Bell, MailOpen, Settings2, Wrench } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAppStore } from "@/lib/store";
 import { sessionLogout } from "@/lib/api";
@@ -42,6 +42,14 @@ const AdminHome = () => {
             <Wrench className="h-3.5 w-3.5" />
             Maintenance
           </div>
+          <Button
+            onClick={() => navigate("/admin/users-teams")}
+            className="w-full h-10 justify-start gap-2 text-sm"
+            variant="secondary"
+          >
+            <Settings2 className="h-4 w-4" />
+            Manage Users & Teams
+          </Button>
           <Button
             onClick={() => navigate("/admin/notifications")}
             className="w-full h-10 justify-start gap-2 text-sm"
