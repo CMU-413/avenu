@@ -4,7 +4,7 @@ from typing import Any, Callable
 
 from flask import Blueprint, jsonify, request
 
-from controllers.auth_guard import ensure_admin_session
+from controllers.auth_guard import require_admin_session
 from controllers.common import json_payload, parse_required_object_id
 from errors import APIError
 from idempotency import payload_hash, require_idempotency_key
@@ -79,10 +79,9 @@ def teams_patch_route(team_id: str):
 
 
 @teams_bp.route("/api/teams/<team_id>", methods=["DELETE"])
+@require_admin_session
 def teams_delete_route(team_id: str):
     oid = parse_required_object_id(team_id, "team id")
     prune_users = request.args.get("pruneUsers", "false").lower() in {"1", "true", "yes"}
-    if prune_users:
-        ensure_admin_session()
     delete_team(oid, prune_users=prune_users)
     return "", 204

@@ -305,6 +305,32 @@ class AdminSessionAuthTests(unittest.TestCase):
             response = self.client.delete("/api/teams/000000000000000000000000?pruneUsers=true")
         self.assertEqual(response.status_code, 403)
 
+    def test_user_delete_without_session_returns_401(self):
+        response = self.client.delete("/api/users/000000000000000000000000")
+        self.assertEqual(response.status_code, 401)
+
+    def test_user_delete_with_non_admin_user_returns_403(self):
+        user_id = str(ObjectId())
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = user_id
+
+        with patch("controllers.auth_guard.find_user", return_value={"_id": ObjectId(user_id), "isAdmin": False}):
+            response = self.client.delete("/api/users/000000000000000000000000")
+        self.assertEqual(response.status_code, 403)
+
+    def test_team_delete_without_session_returns_401(self):
+        response = self.client.delete("/api/teams/000000000000000000000000")
+        self.assertEqual(response.status_code, 401)
+
+    def test_team_delete_with_non_admin_user_returns_403(self):
+        user_id = str(ObjectId())
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = user_id
+
+        with patch("controllers.auth_guard.find_user", return_value={"_id": ObjectId(user_id), "isAdmin": False}):
+            response = self.client.delete("/api/teams/000000000000000000000000")
+        self.assertEqual(response.status_code, 403)
+
     def test_login_route_is_session_prefixed(self):
         prefixed = self.client.post("/api/session/login", json={})
         self.assertEqual(prefixed.status_code, 422)
