@@ -281,6 +281,42 @@ class MailRequestServiceTests(unittest.TestCase):
         self.assertEqual(updated["lastNotificationStatus"], "FAILED")
         self.assertIsNotNone(updated["lastNotificationAt"])
 
+    def test_resolve_mail_request_sets_last_notification_skipped_metadata_on_skipped_result(self):
+        member_id = ObjectId()
+        admin_id = ObjectId()
+        request_id = ObjectId()
+        collection = FakeCollection(
+            [
+                {
+                    "_id": request_id,
+                    "memberId": member_id,
+                    "status": "ACTIVE",
+                    "resolvedAt": None,
+                    "resolvedBy": None,
+                    "lastNotificationStatus": None,
+                    "lastNotificationAt": None,
+                    "updatedAt": datetime(2026, 2, 2, tzinfo=timezone.utc),
+                }
+            ]
+        )
+        notifier = Mock()
+        notifier.notifySpecialCase.return_value = {
+            "status": "skipped",
+            "reason": "opted_out",
+            "channelResults": [],
+        }
+
+        with patch("repositories.mail_requests_repository.mail_requests_collection", collection):
+            updated = mail_request_service.resolve_mail_request_and_notify(
+                request_id=request_id,
+                admin_user={"_id": admin_id},
+                notifier=notifier,
+            )
+
+        self.assertEqual(updated["status"], "RESOLVED")
+        self.assertEqual(updated["lastNotificationStatus"], "SKIPPED")
+        self.assertIsNotNone(updated["lastNotificationAt"])
+
     def test_resolve_mail_request_returns_404_when_missing_or_not_active(self):
         request_id = ObjectId()
         collection = FakeCollection(
@@ -349,6 +385,43 @@ class MailRequestServiceTests(unittest.TestCase):
 
         self.assertEqual(ctx.exception.status_code, 404)
         notifier.notifySpecialCase.assert_not_called()
+
+    def test_retry_notification_sets_last_notification_skipped_metadata_on_skipped_result(self):
+        member_id = ObjectId()
+        request_id = ObjectId()
+        resolved_at = datetime(2026, 2, 2, tzinfo=timezone.utc)
+        collection = FakeCollection(
+            [
+                {
+                    "_id": request_id,
+                    "memberId": member_id,
+                    "status": "RESOLVED",
+                    "resolvedAt": resolved_at,
+                    "resolvedBy": ObjectId(),
+                    "lastNotificationStatus": "FAILED",
+                    "lastNotificationAt": datetime(2026, 2, 2, 1, tzinfo=timezone.utc),
+                    "updatedAt": datetime(2026, 2, 2, 1, tzinfo=timezone.utc),
+                }
+            ]
+        )
+        notifier = Mock()
+        notifier.notifySpecialCase.return_value = {
+            "status": "skipped",
+            "reason": "opted_out",
+            "channelResults": [],
+        }
+
+        with patch("repositories.mail_requests_repository.mail_requests_collection", collection):
+            updated = mail_request_service.retry_mail_request_notification(
+                request_id=request_id,
+                admin_user={"_id": ObjectId()},
+                notifier=notifier,
+            )
+
+        self.assertEqual(updated["status"], "RESOLVED")
+        self.assertEqual(updated["resolvedAt"], resolved_at)
+        self.assertEqual(updated["lastNotificationStatus"], "SKIPPED")
+        self.assertIsNotNone(updated["lastNotificationAt"])
 
     def test_resolve_mail_request_exception_logs_failure_and_keeps_resolution(self):
         member_id = ObjectId()

@@ -752,6 +752,33 @@ class AdminSessionAuthTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 404)
 
+    def test_admin_resolve_mail_request_returns_skipped_notification_metadata(self):
+        session_user_id = str(ObjectId())
+        request_id = str(ObjectId())
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = session_user_id
+
+        expected = {
+            "_id": ObjectId(request_id),
+            "memberId": ObjectId(),
+            "mailboxId": ObjectId(),
+            "status": "RESOLVED",
+            "resolvedAt": datetime(2026, 2, 20, tzinfo=timezone.utc),
+            "resolvedBy": ObjectId(session_user_id),
+            "lastNotificationStatus": "SKIPPED",
+            "lastNotificationAt": datetime(2026, 2, 20, tzinfo=timezone.utc),
+            "createdAt": datetime(2026, 2, 19, tzinfo=timezone.utc),
+            "updatedAt": datetime(2026, 2, 20, tzinfo=timezone.utc),
+        }
+        with patch("controllers.auth_guard.find_user", return_value={"_id": ObjectId(session_user_id), "isAdmin": True}), patch(
+            "controllers.mail_requests_controller.resolve_mail_request_and_notify",
+            return_value=expected,
+        ):
+            response = self.client.post(f"/api/admin/mail-requests/{request_id}/resolve")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json["lastNotificationStatus"], "SKIPPED")
+
     def test_admin_retry_notification_requires_admin_session(self):
         response = self.client.post(f"/api/admin/mail-requests/{ObjectId()}/retry-notification")
         self.assertEqual(response.status_code, 401)
@@ -785,6 +812,33 @@ class AdminSessionAuthTests(unittest.TestCase):
         self.assertEqual(response.json["lastNotificationStatus"], "FAILED")
         retry_mock.assert_called_once()
         self.assertEqual(retry_mock.call_args.kwargs["request_id"], ObjectId(request_id))
+
+    def test_admin_retry_notification_returns_skipped_notification_metadata(self):
+        session_user_id = str(ObjectId())
+        request_id = str(ObjectId())
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = session_user_id
+
+        expected = {
+            "_id": ObjectId(request_id),
+            "memberId": ObjectId(),
+            "mailboxId": ObjectId(),
+            "status": "RESOLVED",
+            "resolvedAt": datetime(2026, 2, 20, tzinfo=timezone.utc),
+            "resolvedBy": ObjectId(session_user_id),
+            "lastNotificationStatus": "SKIPPED",
+            "lastNotificationAt": datetime(2026, 2, 21, tzinfo=timezone.utc),
+            "createdAt": datetime(2026, 2, 19, tzinfo=timezone.utc),
+            "updatedAt": datetime(2026, 2, 21, tzinfo=timezone.utc),
+        }
+        with patch("controllers.auth_guard.find_user", return_value={"_id": ObjectId(session_user_id), "isAdmin": True}), patch(
+            "controllers.mail_requests_controller.retry_mail_request_notification",
+            return_value=expected,
+        ):
+            response = self.client.post(f"/api/admin/mail-requests/{request_id}/retry-notification")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json["lastNotificationStatus"], "SKIPPED")
 
     def test_admin_weekly_summary_requires_admin_session(self):
         response = self.client.post(
