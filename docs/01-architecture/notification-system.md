@@ -94,7 +94,7 @@ No standalone admin special notification endpoint is used for mail-arrived sends
 1. Resolve flow transitions request lifecycle to `RESOLVED` when request is currently `ACTIVE`.
 2. Backend invokes `SpecialCaseNotifier.notifySpecialCase(userId, triggeredBy="admin")`.
 3. Notification outcome is persisted on `MAIL_REQUEST`:
-   - `lastNotificationStatus = "SENT" | "FAILED"`
+   - `lastNotificationStatus = "SENT" | "SKIPPED" | "FAILED"`
    - `lastNotificationAt = datetime`
 4. Retry flow re-invokes notifier without lifecycle mutation.
 
@@ -102,6 +102,7 @@ Failure policy:
 
 - Notification failures do not roll back mail-request resolution.
 - Notifier failures are explicitly logged in `NOTIFICATION_LOG` (`type="special-case"`, `templateType="mail-arrived"`).
+- `SKIPPED` means the notifier intentionally produced no send, including opt-out and all-channel-skip outcomes.
 
 ## Public API Scope
 

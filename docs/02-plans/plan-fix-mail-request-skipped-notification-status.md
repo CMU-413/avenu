@@ -8,8 +8,8 @@
 - ☑ Add backend unit tests for skipped resolve/retry notification paths.
 
 ## Phase 2
-- ☐ Align frontend API types with the expanded mail-request notification status.
-- ☐ Update architecture/docs to define `skipped` semantics consistently across `MAIL_REQUEST` and `NOTIFICATION_LOG`.
+- ☑ Align frontend API types with the expanded mail-request notification status.
+- ☑ Update architecture/docs to define `skipped` semantics consistently across `MAIL_REQUEST` and `NOTIFICATION_LOG`.
 
 ## Phase 1: Backend Status Alignment
 Affected files and changes

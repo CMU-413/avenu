@@ -85,7 +85,7 @@ Fields:
 - `status: "ACTIVE" | "CANCELLED" | "RESOLVED"`
 - `resolvedAt: datetime | null`
 - `resolvedBy: ObjectId | null` (references admin `users._id`)
-- `lastNotificationStatus: "SENT" | "FAILED" | null`
+- `lastNotificationStatus: "SENT" | "SKIPPED" | "FAILED" | null`
 - `lastNotificationAt: datetime | null`
 - `createdAt: datetime`
 - `updatedAt: datetime`
@@ -99,6 +99,7 @@ Rules:
 - `CANCELLED` and `RESOLVED` are terminal lifecycle states.
 - `resolvedAt` and `resolvedBy` must be set when `status == "RESOLVED"`.
 - `lastNotificationStatus`/`lastNotificationAt` capture send outcome metadata for resolve/retry attempts and do not affect lifecycle transitions.
+- `lastNotificationStatus == "SKIPPED"` means the notifier intentionally did not send anything and no delivery failure occurred.
 - No linkage to `mail` records; this is declaration-only.
 
 Indexes:

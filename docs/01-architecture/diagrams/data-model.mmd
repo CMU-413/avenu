@@ -43,7 +43,7 @@ erDiagram
         enum status "ACTIVE | CANCELLED | RESOLVED"
         datetime resolvedAt
         ObjectId resolvedBy FK
-        enum lastNotificationStatus "SENT | FAILED"
+        enum lastNotificationStatus "SENT | SKIPPED | FAILED"
         datetime lastNotificationAt
     }
 
