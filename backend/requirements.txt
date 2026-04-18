@@ -5,3 +5,4 @@ requests
 twilio
 prometheus-client
 prometheus-flask-exporter
+haze-auth[full]==0.1.2
