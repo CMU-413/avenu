@@ -122,11 +122,11 @@ const AdminUsersTeams = () => {
   const handleDeleteTeam = async (team: TeamRow, pruneUsers: boolean) => {
     const memberCount = teamMemberCounts.get(team.id) || 0;
     const confirmed = await confirm({
-      title: pruneUsers ? "Prune And Delete Team" : "Delete Team",
+      title: pruneUsers ? "Remove Members & Delete Team" : "Delete Team",
       message: pruneUsers
         ? `Delete ${team.name} and remove ${memberCount} member association${memberCount === 1 ? "" : "s"} first?`
         : `Delete ${team.name}? This is only allowed when no users still belong to the team.`,
-      confirmLabel: pruneUsers ? "Prune And Delete" : "Delete Team",
+      confirmLabel: pruneUsers ? "Remove Members & Delete" : "Delete Team",
       cancelLabel: "Cancel",
     });
     if (!confirmed) return;
@@ -148,7 +148,7 @@ const AdminUsersTeams = () => {
       if (err instanceof ApiError && err.status === 409 && !pruneUsers) {
         toast({
           title: "Team still has members",
-          description: "Use Prune And Delete to remove member associations first.",
+          description: "Use Remove Members & Delete to remove member associations first.",
           variant: "destructive",
         });
         return;
@@ -260,7 +260,9 @@ const AdminUsersTeams = () => {
                                 disabled={deletingKey !== null}
                                 onClick={() => handleDeleteTeam(team, true)}
                               >
-                                {deletingKey === pruneDeleteKey ? "Pruning..." : "Prune & Delete"}
+                                {deletingKey === pruneDeleteKey
+                                  ? "Removing Members & Deleting..."
+                                  : "Remove Members & Delete"}
                               </Button>
                             ) : null}
                           </div>
