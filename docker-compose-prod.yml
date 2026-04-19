@@ -2,6 +2,8 @@ version: "3.8"
 services:
   frontend:
     image: ${IMAGE_NAMESPACE:-chunkitw}/avenu-frontend:latest
+    labels:
+    - "com.centurylinklabs.watchtower.enable=true"
     ports:
       - 18080:80
     depends_on:
@@ -11,6 +13,8 @@ services:
       - avenu-internal
   backend:
     image: ${IMAGE_NAMESPACE:-chunkitw}/avenu-backend:latest
+    labels:
+    - "com.centurylinklabs.watchtower.enable=true"
     env_file:
       - .env
     environment:
@@ -86,6 +90,8 @@ services:
       - avenu-internal
   scheduler:
     image: ${IMAGE_NAMESPACE:-chunkitw}/avenu-scheduler:latest
+    labels:
+    - "com.centurylinklabs.watchtower.enable=true"
     environment:
       BACKEND_API_URL: http://backend:8000
       SCHEDULER_INTERNAL_TOKEN: ${SCHEDULER_INTERNAL_TOKEN}
@@ -96,6 +102,15 @@ services:
     depends_on:
       backend:
         condition: service_healthy
+    networks:
+      - avenu-internal
+  watchtower:
+    image: containrrr/watchtower
+    container_name: watchtower
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: --interval 300 --cleanup
     networks:
       - avenu-internal
 networks:
@@ -116,7 +131,3 @@ volumes:
       device: ${PROMETHEUS_CONFIG_DIR:-/mnt/Main/other/PrometheusMailEtc/}
   grafana-data:
     driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: ${GRAFANA_DATA_DIR:-/mnt/Main/other/GrafanaMail/}
