@@ -241,6 +241,7 @@ Production uses:
 
 - Docker Hub images for `frontend`, `backend`, and `scheduler`
 - a Dockge-managed `docker-compose-prod.yml` stack
+- Watchtower in the same stack: it polls the registry on a fixed interval (currently 300 seconds in `docker-compose-prod.yml`) and recreates containers when newer images are available. The application services carry `com.centurylinklabs.watchtower.enable=true` labels so only those images are watched.
 - host nginx routing public traffic to the internal container ports
 - external MongoDB
 - Prometheus and Grafana as part of the production Compose stack
@@ -291,14 +292,17 @@ docker buildx build --platform linux/amd64 -t <namespace>/avenu-scheduler:latest
 
 Replace `<namespace>` with the Docker Hub account or org that owns the images. The sample production Compose defaults to `chunkitw`, but future maintainers should treat that as an overrideable placeholder, not a permanent constant.
 
-### Dockge Update Flow
+### Image rollout and Dockge
 
-After images are published:
+After CI (or a maintainer) publishes new `frontend`, `backend`, or `scheduler` images to Docker Hub, Watchtower detects newer tags on its poll interval and replaces those containers automatically. You do not need to open Dockge and click **Update** for routine image-only rollouts.
 
-1. Open the `avenu-mail` stack in Dockge.
-2. Confirm the stack uses the expected `IMAGE_NAMESPACE` and runtime `.env`.
-3. Click `Update` so Dockge pulls the latest images and restarts the services.
-4. Hard refresh the browser after the rollout if frontend assets changed.
+Use Dockge when something outside Watchtower’s scope changes, for example:
+
+- edits to `docker-compose-prod.yml` or stack wiring
+- new or changed runtime variables in the Dockge `.env` (Compose `env_file` / environment)
+- first-time stack bring-up or recovery after manual intervention
+
+After any rollout that changes the frontend bundle, hard refresh the browser so clients load new assets.
 
 ### Rollback
 
