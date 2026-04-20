@@ -12,10 +12,18 @@ import AdminMailRequests from "./pages/admin/AdminMailRequests";
 import AdminUsersTeams from "./pages/admin/AdminUsersTeams";
 import SearchMailbox from "./pages/admin/SearchMailbox";
 import RecordEntry from "./pages/admin/RecordEntry";
+import OcrQueue from "./pages/admin/OcrQueue";
 import MemberDashboard from "./pages/member/MemberDashboard";
 import NotificationSettings from "./pages/member/NotificationSettings";
 import NotFound from "./pages/NotFound";
-import { ApiError, ApiSessionMe, bootstrapOptixSession, redeemMagicLink, sessionMe } from "./lib/api";
+import {
+  ApiError,
+  ApiSessionMe,
+  bootstrapOptixSession,
+  fetchFeatureFlags,
+  redeemMagicLink,
+  sessionMe,
+} from "./lib/api";
 import { SessionUser, useAppStore } from "./lib/store";
 import { ConfirmDialogProvider } from "./components/ConfirmDialogProvider";
 
@@ -82,6 +90,10 @@ const AppRoutes = () => {
     isHydratingSession,
     setSessionHydrating,
     setSessionUser,
+    featureFlags,
+    isHydratingFeatureFlags,
+    setFeatureFlags,
+    setFeatureFlagsHydrating,
   } = useAppStore();
 
   useEffect(() => {
@@ -131,7 +143,36 @@ const AppRoutes = () => {
     };
   }, [navigate, setSessionHydrating, setSessionUser]);
 
-  if (isHydratingSession) {
+  useEffect(() => {
+    let alive = true;
+    const hydrateFlags = async () => {
+      setFeatureFlagsHydrating(true);
+      try {
+        const flags = await fetchFeatureFlags();
+        if (!alive) return;
+        setFeatureFlags({
+          adminOcr: flags.adminOcr ?? false,
+          ocrQueueV2: flags.ocrQueueV2 ?? false,
+          ocrShadowLaunch: flags.ocrShadowLaunch ?? false,
+        });
+      } catch (err) {
+        if (!alive) return;
+        setFeatureFlags({
+          adminOcr: false,
+          ocrQueueV2: false,
+          ocrShadowLaunch: false,
+        });
+      } finally {
+        if (alive) setFeatureFlagsHydrating(false);
+      }
+    };
+    hydrateFlags();
+    return () => {
+      alive = false;
+    };
+  }, [setFeatureFlags, setFeatureFlagsHydrating]);
+
+  if (isHydratingSession || isHydratingFeatureFlags) {
     return (
       <div className="min-h-screen flex items-center justify-center text-muted-foreground">
         Loading...
@@ -155,6 +196,20 @@ const AppRoutes = () => {
       />
       <Route
         path="/admin/recording"
+        element={
+          isAdmin ? (
+            featureFlags.adminOcr && featureFlags.ocrQueueV2 ? (
+              <OcrQueue />
+            ) : (
+              <Navigate to="/admin/mailboxes" replace />
+            )
+          ) : (
+            <Navigate to={isMember ? "/member" : "/"} replace />
+          )
+        }
+      />
+      <Route
+        path="/admin/dashboard"
         element={isAdmin ? <AdminDashboard /> : <Navigate to={isMember ? "/member" : "/"} replace />}
       />
       <Route

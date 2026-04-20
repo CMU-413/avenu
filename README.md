@@ -193,6 +193,24 @@ FLASK_TESTING=true \
 python -m unittest discover -s tests/integration -t .
 ```
 
+Admin OCR smoke test:
+
+Exercises the full admin OCR flow end-to-end — bulk upload, background
+worker, review, confirm, idempotent retry, soft-delete, and stage
+transitions — against a live Mongo using the real Tesseract provider.
+
+Prerequisites: `tesseract-ocr` installed (`apt install tesseract-ocr`),
+backend venv active, and a reachable `mongod`.
+
+```bash
+cd backend
+MONGO_URI=mongodb://127.0.0.1:27017 DB_NAME=optix_smoke \
+    python scripts/smoke_ocr_flow.py
+```
+
+Drops and re-creates `optix_smoke`; safe to re-run. Exits non-zero on
+any regression and logs every observed state transition.
+
 Scheduler tests:
 
 ```bash

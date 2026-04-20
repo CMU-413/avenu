@@ -9,6 +9,9 @@ export * from "./routes/member";
 export * from "./routes/adminMailRequests";
 export * from "./routes/notifications";
 export * from "./routes/optix";
+export * from "./routes/ocr";
+export * from "./routes/ocrQueue";
+export * from "./routes/featureFlags";
 
 export * as SessionApi from "./routes/session";
 export * as MailApi from "./routes/mail";

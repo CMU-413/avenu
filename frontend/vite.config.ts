@@ -14,12 +14,12 @@ export default defineConfig(({ mode }) => ({
     port: 8080,
     proxy: {
       "/mail/api": {
-        target: "http://localhost:8000",
+        target: "http://127.0.0.1:5001",
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/mail\/api/, "/api"),
+        rewrite: (path) => path.replace(/^\/mail/, ""),
       },
       "/api": {
-        target: "http://localhost:8000",
+        target: "http://127.0.0.1:5001",
         changeOrigin: true,
       },
     },

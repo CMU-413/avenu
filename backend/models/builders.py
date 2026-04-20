@@ -29,6 +29,19 @@ def _utcnow() -> datetime:
     return datetime.now(tz=timezone.utc)
 
 
+def _optional_text(payload: dict[str, Any], key: str, max_len: int) -> str | None:
+    """Optional string field; allows empty. Returns None if key absent."""
+    if key not in payload or payload[key] is None:
+        return None
+    value = payload.get(key)
+    if not isinstance(value, str):
+        raise APIError(422, f"{key} must be a string")
+    stripped = value.strip()
+    if len(stripped) > max_len:
+        raise APIError(422, f"{key} exceeds max length")
+    return stripped
+
+
 def _parse_optional_iso_day(payload: dict[str, Any], key: str) -> str | None:
     raw = payload.get(key)
     if raw is None:
@@ -110,6 +123,22 @@ def build_mailbox_patch(payload: dict[str, Any]) -> dict[str, Any]:
     return patch
 
 
+def _optional_mail_piece_count(payload: dict[str, Any]) -> int | None:
+    """Cumulative count for simple admin entry (legacy-friendly). Omitted from doc when 1."""
+    if "count" not in payload:
+        return None
+    raw = payload.get("count")
+    if raw is None:
+        return None
+    if isinstance(raw, bool) or not isinstance(raw, int):
+        raise APIError(422, "count must be a positive integer")
+    if raw < 1:
+        raise APIError(422, "count must be at least 1")
+    if raw > 999:
+        raise APIError(422, "count must be at most 999")
+    return raw
+
+
 def build_mail_create(payload: dict[str, Any]) -> dict[str, Any]:
     now = _utcnow()
     mailbox_id = payload.get("mailboxId")
@@ -120,18 +149,20 @@ def build_mail_create(payload: dict[str, Any]) -> dict[str, Any]:
     if mail_type not in MAIL_TYPES:
         raise APIError(422, f"type must be one of {sorted(MAIL_TYPES)}")
 
-    count = payload.get("count")
-    if not isinstance(count, int) or isinstance(count, bool) or count < 1:
-        raise APIError(422, "count must be an integer >= 1")
-
-    return {
+    doc: dict[str, Any] = {
         "mailboxId": ObjectId(mailbox_id),
         "date": parse_iso_datetime(payload, "date"),
         "type": mail_type,
-        "count": count,
         "createdAt": now,
         "updatedAt": now,
     }
+    receiver = _optional_text(payload, "receiverName", 2000)
+    if receiver is not None:
+        doc["receiverName"] = receiver
+    sender = _optional_text(payload, "senderInfo", 500)
+    if sender is not None:
+        doc["senderInfo"] = sender
+    return doc
 
 
 def build_mail_patch(payload: dict[str, Any]) -> dict[str, Any]:
@@ -152,11 +183,15 @@ def build_mail_patch(payload: dict[str, Any]) -> dict[str, Any]:
             raise APIError(422, f"type must be one of {sorted(MAIL_TYPES)}")
         patch["type"] = mail_type
 
+    if "receiverName" in payload:
+        patch["receiverName"] = _optional_text(payload, "receiverName", 2000)
+    if "senderInfo" in payload:
+        patch["senderInfo"] = _optional_text(payload, "senderInfo", 500)
+
     if "count" in payload:
-        count = payload.get("count")
-        if not isinstance(count, int) or isinstance(count, bool) or count < 1:
-            raise APIError(422, "count must be an integer >= 1")
-        patch["count"] = count
+        n = _optional_mail_piece_count(payload)
+        if n > 1:
+            patch["count"] = n
 
     if not patch:
         raise APIError(400, "no update payload provided")

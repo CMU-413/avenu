@@ -7,6 +7,7 @@ from models import (
     MAIL_REQUEST_NOTIFICATION_STATUSES,
     MAIL_REQUEST_STATUSES,
     build_mail_create,
+    build_mail_patch,
     build_mail_request_create,
     build_user_create,
 )
@@ -33,22 +34,47 @@ class ModelBuilderTests(unittest.TestCase):
             "mailboxId": str(ObjectId()),
             "date": "2025-01-01T10:00:00Z",
             "type": "letter",
-            "count": 2,
+            "receiverName": "Acme Corp",
         }
         doc = build_mail_create(payload)
         self.assertEqual(doc["type"], "letter")
-        self.assertEqual(doc["count"], 2)
+        self.assertEqual(doc["receiverName"], "Acme Corp")
+        self.assertNotIn("count", doc)
 
-    def test_build_mail_create_rejects_bad_count(self):
+    def test_build_mail_create_never_writes_legacy_count(self):
+        """New writes are always one-doc-per-piece; service layer expands count."""
+        mb = str(ObjectId())
+        doc_one = build_mail_create(
+            {"mailboxId": mb, "date": "2025-01-01T10:00:00Z", "type": "letter", "count": 1}
+        )
+        self.assertNotIn("count", doc_one)
+        doc_many = build_mail_create(
+            {"mailboxId": mb, "date": "2025-01-01T10:00:00Z", "type": "package", "count": 12}
+        )
+        self.assertNotIn("count", doc_many)
+
+    def test_build_mail_create_rejects_bad_type(self):
         with self.assertRaises(APIError):
             build_mail_create(
                 {
                     "mailboxId": str(ObjectId()),
                     "date": "2025-01-01T10:00:00Z",
-                    "type": "letter",
-                    "count": 0,
+                    "type": "postcard",
                 }
             )
+
+    def test_build_mail_patch_count_gt_one(self):
+        patch = build_mail_patch(
+            {"date": "2025-01-01T12:00:00Z", "count": 7},
+        )
+        self.assertEqual(patch["count"], 7)
+        self.assertIn("updatedAt", patch)
+
+    def test_build_mail_patch_omits_count_when_one(self):
+        patch = build_mail_patch(
+            {"date": "2025-01-01T12:00:00Z", "count": 1},
+        )
+        self.assertNotIn("count", patch)
 
     def test_build_mail_request_create_requires_expected_sender_or_description(self):
         with self.assertRaises(APIError) as ctx:

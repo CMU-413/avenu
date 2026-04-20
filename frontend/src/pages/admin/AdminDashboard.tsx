@@ -18,7 +18,7 @@ const AdminDashboard = () => {
     { id: string; name: string; type: "company" | "personal" }[]
   >([]);
   const [records, setRecords] = useState<
-    { id: string; mailboxId: string; type: "letter" | "package"; count: number }[]
+    { id: string; mailboxId: string; type: "letter" | "package"; quantity: number }[]
   >([]);
   const [loading, setLoading] = useState(true);
 
@@ -59,12 +59,17 @@ const AdminDashboard = () => {
         const items = await listMail({ date: selectedDate });
         if (!alive) return;
         setRecords(
-          items.map((item) => ({
-            id: item.id,
-            mailboxId: item.mailboxId,
-            type: item.type,
-            count: item.count,
-          }))
+          items.map((item) => {
+            const raw = item.count;
+            const quantity =
+              typeof raw === "number" && raw >= 1 && Number.isInteger(raw) ? raw : 1;
+            return {
+              id: item.id,
+              mailboxId: item.mailboxId,
+              type: item.type,
+              quantity,
+            };
+          })
         );
       } catch (err) {
         if (!alive) return;
@@ -92,9 +97,10 @@ const AdminDashboard = () => {
     const map = new Map<string, { letters: number; packages: number }>();
     for (const r of records) {
       const existing = map.get(r.mailboxId) || { letters: 0, packages: 0 };
+      const q = r.quantity;
       map.set(r.mailboxId, {
-        letters: existing.letters + (r.type === "letter" ? r.count : 0),
-        packages: existing.packages + (r.type === "package" ? r.count : 0),
+        letters: existing.letters + (r.type === "letter" ? q : 0),
+        packages: existing.packages + (r.type === "package" ? q : 0),
       });
     }
     return Array.from(map.entries())
@@ -149,7 +155,7 @@ const AdminDashboard = () => {
         <div className="space-y-1">
           <div className="flex items-center justify-between px-1 pb-2">
             <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider">
-              Recorded — {formatDisplayDate(selectedDate)}
+              Check recorded mail — {formatDisplayDate(selectedDate)}
             </h2>
             <div className="flex items-center gap-3 text-xs font-medium text-muted-foreground">
               <span className="flex items-center gap-1">

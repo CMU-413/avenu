@@ -8,6 +8,7 @@ from .support import HttpIntegrationTestCase
 class HttpMailDashboardConsistencyIntegrationTests(HttpIntegrationTestCase):
     def test_admin_mail_logging_matches_member_dashboard_and_weekly_summary_totals(self) -> None:
         from config import mail_collection
+        from services.mail_legacy import legacy_mail_piece_count
         from services.mail_summary_service import MailSummaryService
 
         week_start = date(2026, 2, 16)
@@ -89,13 +90,14 @@ class HttpMailDashboardConsistencyIntegrationTests(HttpIntegrationTestCase):
                 }
             )
         )
+        # create_mail omits count when n==1 (one doc = one piece); summaries use legacy_mail_piece_count
         persisted_letters = sum(
-            int(row.get("count", 0))
+            legacy_mail_piece_count(row)
             for row in persisted_rows
             if row.get("type") == "letter"
         )
         persisted_packages = sum(
-            int(row.get("count", 0))
+            legacy_mail_piece_count(row)
             for row in persisted_rows
             if row.get("type") == "package"
         )

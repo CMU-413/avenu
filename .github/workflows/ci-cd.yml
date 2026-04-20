@@ -101,8 +101,8 @@ jobs:
         if: matrix.service == 'backend'
         working-directory: ./backend
         run: |
-          coverage run -m unittest discover -s tests/unit -p "test_*.py" -t .
-          coverage report --fail-under=75
+          coverage run --rcfile=.coveragerc -m unittest discover -s tests/unit -p "test_*.py" -t .
+          coverage report --rcfile=.coveragerc --fail-under=75
 
       # --------------------
       # Frontend (Node / Vite)

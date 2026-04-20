@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { ClipboardList, Bell, MailOpen, Settings2, Wrench } from "lucide-react";
+import { Camera, ClipboardList, Bell, MailOpen, Wrench, Mail, Settings2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAppStore } from "@/lib/store";
 import { sessionLogout } from "@/lib/api";
@@ -7,6 +7,7 @@ import { sessionLogout } from "@/lib/api";
 const AdminHome = () => {
   const navigate = useNavigate();
   const logout = useAppStore((s) => s.logout);
+  const { adminOcr, ocrQueueV2 } = useAppStore((s) => s.featureFlags);
 
   const handleLogout = async () => {
     try {
@@ -30,11 +31,24 @@ const AdminHome = () => {
 
       <div className="px-4 py-6 max-w-lg mx-auto space-y-4">
         <Button
-          onClick={() => navigate("/admin/recording")}
+          onClick={() => navigate(adminOcr && ocrQueueV2 ? "/admin/recording" : "/admin/mailboxes")}
           className="w-full h-16 justify-start gap-3 text-base shadow-sm"
         >
-          <ClipboardList className="h-5 w-5" />
+          {adminOcr && ocrQueueV2 ? (
+            <Camera className="h-5 w-5" />
+          ) : (
+            <Mail className="h-5 w-5" />
+          )}
           Record Mail
+        </Button>
+
+        <Button
+          onClick={() => navigate("/admin/dashboard")}
+          className="w-full h-14 justify-start gap-3 text-base shadow-sm"
+          variant="secondary"
+        >
+          <ClipboardList className="h-5 w-5" />
+          View Recorded Mail
         </Button>
 
         <section className="rounded-xl border bg-card p-3 space-y-2">

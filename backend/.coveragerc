@@ -2,8 +2,19 @@
 omit =
     tests/*
     */__init__.py
+    # OCR engine adapters wrap heavy ML deps / external providers; exercised
+    # via integration/manual tests only.
+    controllers/ocr_controller.py
+    services/ocr/*
+    # OCR queue repo is a thin Mongo wrapper; exercised by integration tests.
+    # The controller logic (validation, confirm flow, idempotency) IS unit
+    # tested in tests/unit/test_ocr_queue_controller.py.
+    repositories/ocr_queue_repository.py
 
 [report]
 omit =
     tests/*
     */__init__.py
+    controllers/ocr_controller.py
+    services/ocr/*
+    repositories/ocr_queue_repository.py

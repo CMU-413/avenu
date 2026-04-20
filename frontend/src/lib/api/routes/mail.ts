@@ -17,20 +17,32 @@ export function createMail(payload: {
   mailboxId: string;
   date: string;
   type: MailType;
-  count: number;
+  receiverName?: string;
+  senderInfo?: string;
+  /** Simple count mode: multiple pieces in one row (stored as count when > 1) */
+  count?: number;
   idempotencyKey: string;
 }): Promise<ApiMailRecord> {
+  const body: Record<string, unknown> = {
+    mailboxId: payload.mailboxId,
+    date: payload.date,
+    type: payload.type,
+  };
+  if (payload.count !== undefined && payload.count >= 1) {
+    body.count = Math.floor(payload.count);
+  }
+  if (payload.receiverName !== undefined && payload.receiverName !== "") {
+    body.receiverName = payload.receiverName;
+  }
+  if (payload.senderInfo !== undefined && payload.senderInfo !== "") {
+    body.senderInfo = payload.senderInfo;
+  }
   return apiFetch<ApiMailRecord>("/mail", {
     method: "POST",
     headers: {
       "Idempotency-Key": payload.idempotencyKey,
     },
-    body: JSON.stringify({
-      mailboxId: payload.mailboxId,
-      date: payload.date,
-      type: payload.type,
-      count: payload.count,
-    }),
+    body: JSON.stringify(body),
   });
 }
 
@@ -41,6 +53,8 @@ export function updateMail(
     date: string;
     type: MailType;
     count: number;
+    receiverName: string;
+    senderInfo: string;
   }>
 ): Promise<ApiMailRecord> {
   return apiFetch<ApiMailRecord>(`/mail/${mailId}`, {

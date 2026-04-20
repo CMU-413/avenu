@@ -31,6 +31,7 @@ const SearchMailbox = () => {
   const location = useLocation();
   const selectedDate = new URLSearchParams(location.search).get("date");
   const logout = useAppStore((s) => s.logout);
+  const { adminOcr, ocrQueueV2 } = useAppStore((s) => s.featureFlags);
   const { toast } = useToast();
   const [query, setQuery] = useState("");
   const [mailboxes, setMailboxes] = useState<MailboxResult[]>([]);
@@ -122,7 +123,16 @@ const SearchMailbox = () => {
       {/* Header */}
       <header className="sticky top-0 z-10 border-b bg-background/95 backdrop-blur">
         <div className="flex items-center gap-3 px-4 h-14">
-          <button onClick={() => navigate(`/admin/recording${selectedDate ? `?date=${selectedDate}` : ""}`)} className="text-muted-foreground hover:text-foreground transition-colors">
+          <button
+            onClick={() =>
+              navigate(
+                adminOcr && ocrQueueV2
+                  ? `/admin/recording${selectedDate ? `?date=${selectedDate}` : ""}`
+                  : "/admin"
+              )
+            }
+            className="text-muted-foreground hover:text-foreground transition-colors"
+          >
             <ArrowLeft className="h-5 w-5" />
           </button>
           <h1 className="text-lg font-bold text-foreground">Select Mailbox</h1>

@@ -5,6 +5,7 @@ from pathlib import Path
 from pymongo import ASCENDING, DESCENDING, MongoClient
 from pymongo.server_api import ServerApi
 from dotenv import load_dotenv
+from gridfs import GridFS
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 load_dotenv(_REPO_ROOT / ".env")
@@ -67,6 +68,25 @@ LOGIN_RATE_LIMIT_EMAIL_MAX_ATTEMPTS = int(os.getenv("LOGIN_RATE_LIMIT_EMAIL_MAX_
 
 SCHEDULER_INTERNAL_TOKEN = os.getenv("SCHEDULER_INTERNAL_TOKEN", "").strip()
 
+OCR_PROVIDER = os.getenv("OCR_PROVIDER", "paddleocr").strip().lower()
+OCR_SPACE_API_KEY = os.getenv("OCR_SPACE_API_KEY", "").strip()
+OCR_MAX_FILE_BYTES = int(os.getenv("OCR_MAX_FILE_BYTES", "2097152"))  # 2MB default
+
+# Master switch for any admin OCR (single-image /api/ocr and queue worker). Default off.
+FEATURE_ADMIN_OCR = _env_bool("FEATURE_ADMIN_OCR", False)
+# OCR bulk queue (/api/ocr/jobs, …). Default off so existing deployments keep prior admin flow until enabled.
+FEATURE_OCR_QUEUE_V2 = _env_bool("FEATURE_OCR_QUEUE_V2", False)
+FEATURE_OCR_SHADOW_LAUNCH = _env_bool("FEATURE_OCR_SHADOW_LAUNCH", False)
+OCR_SHADOW_PROVIDER = os.getenv("OCR_SHADOW_PROVIDER", "").strip().lower() or None
+
+
+def get_feature_flags() -> dict[str, bool]:
+    return {
+        "adminOcr": FEATURE_ADMIN_OCR,
+        "ocrQueueV2": FEATURE_OCR_QUEUE_V2 and FEATURE_ADMIN_OCR,
+        "ocrShadowLaunch": FEATURE_OCR_SHADOW_LAUNCH and FEATURE_ADMIN_OCR,
+    }
+
 
 def parse_frontend_origins() -> tuple[str, ...]:
     raw = os.getenv("FRONTEND_ORIGINS", "")
@@ -81,6 +101,7 @@ client = MongoClient(
 )
 
 db = client[DB_NAME]
+fs = GridFS(db)
 
 users_collection = db["users"]
 teams_collection = db["teams"]
@@ -89,6 +110,8 @@ mail_collection = db["mail"]
 mail_requests_collection = db["mail_requests"]
 idempotency_keys_collection = db["idempotency_keys"]
 notification_log_collection = db["notification_log"]
+ocr_jobs_collection = db["ocr_jobs"]
+ocr_queue_items_collection = db["ocr_queue_items"]
 auth_magic_links_collection = db["auth_magic_links"]
 login_rate_limit_collection = db["login_rate_limit"]
 
@@ -138,6 +161,9 @@ def ensure_indexes() -> None:
         name="notification_log_user_week_idx",
     )
 
+    ocr_jobs_collection.create_index([("createdBy", ASCENDING), ("createdAt", DESCENDING)], name="ocr_jobs_created_idx")
+    ocr_queue_items_collection.create_index([("jobId", ASCENDING), ("index", ASCENDING)], name="ocr_queue_job_idx")
+    ocr_queue_items_collection.create_index([("status", ASCENDING)], name="ocr_queue_status_idx")
     auth_magic_links_collection.create_index([("tokenId", ASCENDING)], unique=True, name="auth_magic_links_tokenid_uq")
     auth_magic_links_collection.create_index([("expiresAt", ASCENDING)], expireAfterSeconds=0, name="auth_magic_links_expires_ttl")
     login_rate_limit_collection.create_index(
