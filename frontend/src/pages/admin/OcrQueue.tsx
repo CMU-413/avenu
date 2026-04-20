@@ -223,11 +223,11 @@ const OcrQueue = () => {
     const poll = setInterval(async () => {
       try {
         const data = await getOcrJob(pendingJobId);
-        if (data.job.status === "completed" || data.job.status === "processed" || data.job.status === "failed") {
+        if (data.job.status === "processed" || data.job.status === "failed") {
           clearInterval(poll);
           setPendingJobId(null);
           loadJobs();
-          if (data.job.status === "completed" || data.job.status === "processed") {
+          if (data.job.status === "processed") {
             toastRef.current({ title: "All images parsed. Ready to review." });
             navigate(`/admin/recording?job=${pendingJobId}&date=${date}`);
           } else {
@@ -528,7 +528,7 @@ const OcrQueue = () => {
           </div>
         )}
 
-        {((currentJob?.job.status === "processed" || currentJob?.job.status === "completed") && currentJob.items.length > 0 && !allConfirmed) && (
+        {(currentJob?.job.status === "processed" && currentJob.items.length > 0 && !allConfirmed) && (
           <div className="flex flex-col gap-4">
             <div className="flex items-center justify-between gap-2">
               <Button

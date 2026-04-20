@@ -1,6 +1,6 @@
 import { apiFetch, buildUrl } from "../../http/client";
 
-export type OcrJobStatus = "processing" | "completed" | "failed" | "processed" | "audited";
+export type OcrJobStatus = "processing" | "processed" | "failed" | "audited";
 export type OcrQueueItemStatus = "pending" | "completed" | "failed" | "confirmed" | "deleted";
 
 export interface ApiOcrJob {

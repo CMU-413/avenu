@@ -2,19 +2,23 @@ erDiagram
 
     USER {
         ObjectId id PK
-        int optixId
+        int optixId UK
         boolean isAdmin
         string fullname
-        string email
+        string email UK
         string phone
         ObjectId[] teamIds FK
         enum[] notifPrefs "email | text"
+        datetime createdAt
+        datetime updatedAt
     }
 
     TEAM {
         ObjectId id PK
-        int optixId
+        int optixId UK
         string name
+        datetime createdAt
+        datetime updatedAt
     }
 
     MAILBOX {
@@ -22,6 +26,8 @@ erDiagram
         enum type "user | team"
         ObjectId refId FK
         string displayName
+        datetime createdAt
+        datetime updatedAt
     }
 
     MAIL {
@@ -31,21 +37,26 @@ erDiagram
         enum type "letter | package"
         string receiverName "optional"
         string senderInfo "optional"
+        int count "optional legacy N pieces"
+        datetime createdAt
+        datetime updatedAt
     }
 
     MAIL_REQUEST {
         ObjectId id PK
         ObjectId memberId FK
         ObjectId mailboxId FK
-        string expectedSender
-        string description
-        datetime startDate
-        datetime endDate
+        string expectedSender "optional"
+        string description "optional"
+        string startDate "optional YYYY-MM-DD"
+        string endDate "optional YYYY-MM-DD"
         enum status "ACTIVE | CANCELLED | RESOLVED"
-        datetime resolvedAt
-        ObjectId resolvedBy FK
-        enum lastNotificationStatus "SENT | FAILED"
-        datetime lastNotificationAt
+        datetime resolvedAt "optional"
+        ObjectId resolvedBy FK "optional"
+        enum lastNotificationStatus "SENT | FAILED | null"
+        datetime lastNotificationAt "optional"
+        datetime createdAt
+        datetime updatedAt
     }
 
     NOTIFICATION_LOG {
@@ -61,12 +72,60 @@ erDiagram
         string errorMessage
     }
 
-    %% Relationships
-    USER }|--o{ TEAM : belongs_to
+    OCR_JOB {
+        ObjectId id PK
+        ObjectId createdBy FK
+        string date "YYYY-MM-DD"
+        enum status "processing | processed | failed | audited"
+        int totalCount
+        int completedCount
+        datetime createdAt
+        datetime updatedAt
+    }
 
-    USER ||--|| MAILBOX : owns
-    TEAM ||--|| MAILBOX : owns
+    OCR_QUEUE_ITEM {
+        ObjectId id PK
+        ObjectId jobId FK
+        int index
+        enum status "pending | completed | failed | confirmed | deleted"
+        string receiverName "optional"
+        string senderInfo "optional"
+        enum type "letter | package"
+        string rawText "optional"
+        string error "optional"
+        ObjectId mailboxId FK "optional"
+        datetime confirmedAt "optional"
+        datetime createdAt
+        datetime updatedAt
+    }
+
+    ADMIN_MAGIC_LINK {
+        string tokenId PK
+        ObjectId userId FK
+        int exp "unix"
+        datetime expiresAt
+        object metadata
+        boolean consumed
+        datetime createdAt
+        datetime updatedAt
+    }
+
+    %% Relationships (MongoDB: refs are ObjectIds; uniqueness via indexes, not FK enforcement)
+
+    USER }o--o{ TEAM : "teamIds"
+
+    USER ||--|| MAILBOX : "type=user refId"
+    TEAM ||--|| MAILBOX : "type=team refId"
 
     MAILBOX ||--o{ MAIL : contains
     USER ||--o{ MAIL_REQUEST : declares
     MAILBOX ||--o{ MAIL_REQUEST : scoped_to
+
+    USER ||--o{ NOTIFICATION_LOG : notified_as
+
+    USER ||--o{ OCR_JOB : creates
+    OCR_JOB ||--o{ OCR_QUEUE_ITEM : items
+
+    USER ||--o{ ADMIN_MAGIC_LINK : "sign-in token"
+
+    %% Confirming a queue item creates a MAIL row; no stored FK from mail back to OCR_QUEUE_ITEM
