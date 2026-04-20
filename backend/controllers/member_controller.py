@@ -5,6 +5,7 @@ from flask import Blueprint, jsonify, request
 from controllers.auth_guard import ensure_member_session
 from controllers.common import json_payload, parse_iso_date
 from errors import APIError
+from metrics.metrics_dashboard import member_dashboard_views_total
 from services.member_service import list_member_mail_summary, update_member_notification_preferences
 from services.user_preferences import UNSET
 
@@ -22,7 +23,9 @@ def member_mail_route():
     end_day = parse_iso_date(end_value, field_name="end")
     if end_day < start_day:
         raise APIError(422, "end must be on or after start")
-    return jsonify(list_member_mail_summary(user=user, start_day=start_day, end_day=end_day)), 200
+    payload = list_member_mail_summary(user=user, start_day=start_day, end_day=end_day)
+    member_dashboard_views_total.inc()
+    return jsonify(payload), 200
 
 
 @member_bp.route("/api/member/preferences", methods=["PATCH"])

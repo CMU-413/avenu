@@ -4,11 +4,13 @@ from datetime import date, datetime, timezone
 from unittest.mock import Mock, patch
 
 from bson import ObjectId
+from flask import request as flask_request
 
 os.environ.setdefault("MONGO_URI", "mongodb://localhost:27017")
 os.environ.setdefault("FLASK_TESTING", "1")
 
 from app import create_app
+from controllers.session_rate_limit import evaluate_login_rate_limit
 from errors import APIError
 from services.notifications.providers.email_provider import MailProviderError
 
@@ -21,6 +23,20 @@ class AdminSessionAuthTests(unittest.TestCase):
             secret_key="test-secret",
         )
         self.client = app.test_client()
+
+    def _allow_login_rate_limit(self):
+        def fake_record_login_attempt(*, scope, key, window_seconds, now=None):
+            del scope, key, window_seconds, now
+            return {
+                "count": 1,
+                "windowSeconds": 60,
+                "windowStart": datetime(2026, 4, 8, 16, 0, tzinfo=timezone.utc),
+                "expiresAt": datetime(2026, 4, 8, 16, 15, tzinfo=timezone.utc),
+                "createdAt": datetime(2026, 4, 8, 16, 0, tzinfo=timezone.utc),
+                "updatedAt": datetime(2026, 4, 8, 16, 0, tzinfo=timezone.utc),
+            }
+
+        return patch("controllers.session_rate_limit.record_login_attempt", side_effect=fake_record_login_attempt)
 
     def test_login_request_for_admin_sends_magic_link_and_does_not_set_session(self):
         user_id = ObjectId()
@@ -38,7 +54,7 @@ class AdminSessionAuthTests(unittest.TestCase):
         ), patch(
             "controllers.session_controller.build_email_provider",
             return_value=email_provider,
-        ):
+        ), self._allow_login_rate_limit():
             response = self.client.post("/api/session/login", json={"email": "admin@example.com"})
 
         self.assertEqual(response.status_code, 202)
@@ -53,7 +69,7 @@ class AdminSessionAuthTests(unittest.TestCase):
             self.assertIsNone(sess.get("user_id"))
 
     def test_login_unknown_user_returns_generic_success(self):
-        with patch("controllers.session_controller.find_user_by_email", return_value=None):
+        with patch("controllers.session_controller.find_user_by_email", return_value=None), self._allow_login_rate_limit():
             response = self.client.post("/api/session/login", json={"email": "missing@example.com"})
         self.assertEqual(response.status_code, 202)
         self.assertEqual(response.json, {"status": "ok"})
@@ -67,7 +83,7 @@ class AdminSessionAuthTests(unittest.TestCase):
         ), patch(
             "controllers.session_controller.build_email_provider",
             return_value=email_provider,
-        ):
+        ), self._allow_login_rate_limit():
             response = self.client.post("/api/session/login", json={"email": "member@example.com"})
 
         self.assertEqual(response.status_code, 202)
@@ -90,10 +106,161 @@ class AdminSessionAuthTests(unittest.TestCase):
         ), patch(
             "controllers.session_controller.build_email_provider",
             return_value=email_provider,
-        ):
+        ), self._allow_login_rate_limit():
             response = self.client.post("/api/session/login", json={"email": "admin@example.com"})
 
         self.assertEqual(response.status_code, 503)
+
+    def test_login_rate_limit_allows_request_when_counts_are_below_threshold(self):
+        recorded = []
+        app = self.client.application
+
+        def fake_record_login_attempt(*, scope, key, window_seconds, now=None):
+            del now
+            recorded.append((scope, key, window_seconds))
+            return {
+                "scope": scope,
+                "key": key,
+                "count": 1,
+                "windowSeconds": window_seconds,
+                "windowStart": datetime(2026, 4, 8, 16, 0, tzinfo=timezone.utc),
+                "expiresAt": datetime(2026, 4, 8, 16, 15, tzinfo=timezone.utc),
+                "createdAt": datetime(2026, 4, 8, 16, 0, tzinfo=timezone.utc),
+                "updatedAt": datetime(2026, 4, 8, 16, 0, tzinfo=timezone.utc),
+            }
+
+        with app.test_request_context(
+            "/api/session/login",
+            method="POST",
+            json={"email": " Admin@Example.com "},
+            headers={"X-Forwarded-For": "203.0.113.8, 10.0.0.1"},
+        ), patch("controllers.session_rate_limit.record_login_attempt", side_effect=fake_record_login_attempt):
+            decision = evaluate_login_rate_limit(
+                request=flask_request,
+                payload={"email": " Admin@Example.com "},
+            )
+
+        self.assertTrue(decision.allowed)
+        self.assertEqual(decision.client_ip, "203.0.113.8")
+        self.assertEqual(decision.email, "admin@example.com")
+        self.assertEqual(
+            recorded,
+            [
+                ("ip", "203.0.113.8", decision.ip.window_seconds),
+                ("email", "admin@example.com", decision.email_scope.window_seconds),
+            ],
+        )
+
+    def test_login_request_throttles_per_ip_without_calling_magic_link_sender(self):
+        counts = {}
+        magic_link_service = Mock()
+        magic_link_service.link_expiry_seconds = 900
+        magic_link_service.generate_admin_login_link.return_value = "https://hub.avenuworkspaces.com/mail/?token_id=abc&signature=def"
+        email_provider = Mock()
+
+        def fake_record_login_attempt(*, scope, key, window_seconds, now=None):
+            del window_seconds, now
+            bucket_key = (scope, key)
+            counts[bucket_key] = counts.get(bucket_key, 0) + 1
+            return {
+                "scope": scope,
+                "key": key,
+                "count": counts[bucket_key],
+                "windowSeconds": 60 if scope == "ip" else 900,
+                "windowStart": datetime(2026, 4, 8, 16, 0, tzinfo=timezone.utc),
+                "expiresAt": datetime(2026, 4, 8, 16, 15, tzinfo=timezone.utc),
+                "createdAt": datetime(2026, 4, 8, 16, 0, tzinfo=timezone.utc),
+                "updatedAt": datetime(2026, 4, 8, 16, 0, tzinfo=timezone.utc),
+            }
+
+        with patch(
+            "controllers.session_rate_limit.record_login_attempt",
+            side_effect=fake_record_login_attempt,
+        ), patch(
+            "controllers.session_controller.find_user_by_email",
+            side_effect=lambda email: {"_id": ObjectId(), "isAdmin": True, "email": email, "fullname": "Admin User"},
+        ), patch(
+            "controllers.session_controller.AuthMagicLinkService",
+            return_value=magic_link_service,
+        ), patch(
+            "controllers.session_controller.build_email_provider",
+            return_value=email_provider,
+        ), patch(
+            "controllers.session_controller.logger.warning",
+        ) as warning_log:
+            responses = []
+            for idx in range(6):
+                responses.append(
+                    self.client.post(
+                        "/api/session/login",
+                        json={"email": f"admin{idx}@example.com"},
+                        headers={"X-Forwarded-For": "203.0.113.8"},
+                    )
+                )
+
+        self.assertEqual([response.status_code for response in responses], [202, 202, 202, 202, 202, 202])
+        self.assertEqual([response.json for response in responses], [{"status": "ok"}] * 6)
+        self.assertEqual(magic_link_service.generate_admin_login_link.call_count, 5)
+        self.assertEqual(email_provider.send.call_count, 5)
+        warning_log.assert_called_once()
+        warning_kwargs = warning_log.call_args.kwargs
+        self.assertEqual(warning_kwargs["extra"]["throttled_scopes"], ["ip"])
+        self.assertEqual(warning_kwargs["extra"]["client_ip"], "203.0.113.8")
+        self.assertEqual(warning_kwargs["extra"]["ip_count"], 6)
+
+        with self.client.session_transaction() as sess:
+            self.assertIsNone(sess.get("user_id"))
+
+    def test_login_request_throttles_per_email_for_unknown_user_and_logs_warning(self):
+        counts = {}
+
+        def fake_record_login_attempt(*, scope, key, window_seconds, now=None):
+            del window_seconds, now
+            bucket_key = (scope, key)
+            counts[bucket_key] = counts.get(bucket_key, 0) + 1
+            return {
+                "scope": scope,
+                "key": key,
+                "count": counts[bucket_key],
+                "windowSeconds": 60 if scope == "ip" else 900,
+                "windowStart": datetime(2026, 4, 8, 16, 0, tzinfo=timezone.utc),
+                "expiresAt": datetime(2026, 4, 8, 16, 15, tzinfo=timezone.utc),
+                "createdAt": datetime(2026, 4, 8, 16, 0, tzinfo=timezone.utc),
+                "updatedAt": datetime(2026, 4, 8, 16, 0, tzinfo=timezone.utc),
+            }
+
+        with patch(
+            "controllers.session_rate_limit.record_login_attempt",
+            side_effect=fake_record_login_attempt,
+        ), patch(
+            "controllers.session_controller.find_user_by_email",
+            return_value=None,
+        ), patch(
+            "controllers.session_controller.AuthMagicLinkService",
+        ) as auth_magic_link_service_cls, patch(
+            "controllers.session_controller.build_email_provider",
+        ) as build_email_provider, patch(
+            "controllers.session_controller.logger.warning",
+        ) as warning_log:
+            responses = []
+            for idx in range(6):
+                responses.append(
+                    self.client.post(
+                        "/api/session/login",
+                        json={"email": " Admin@Example.com "},
+                        headers={"X-Forwarded-For": f"203.0.113.{idx}"},
+                    )
+                )
+
+        self.assertEqual([response.status_code for response in responses], [202, 202, 202, 202, 202, 202])
+        self.assertEqual([response.json for response in responses], [{"status": "ok"}] * 6)
+        auth_magic_link_service_cls.assert_not_called()
+        build_email_provider.assert_not_called()
+        warning_log.assert_called_once()
+        warning_kwargs = warning_log.call_args.kwargs
+        self.assertEqual(warning_kwargs["extra"]["throttled_scopes"], ["email"])
+        self.assertEqual(warning_kwargs["extra"]["email_count"], 6)
+        self.assertEqual(warning_kwargs["extra"]["email_key"], "admin@example.com")
 
     def test_admin_route_without_session_returns_401(self):
         response = self.client.get("/api/users")
@@ -138,6 +305,32 @@ class AdminSessionAuthTests(unittest.TestCase):
             response = self.client.delete("/api/teams/000000000000000000000000?pruneUsers=true")
         self.assertEqual(response.status_code, 403)
 
+    def test_user_delete_without_session_returns_401(self):
+        response = self.client.delete("/api/users/000000000000000000000000")
+        self.assertEqual(response.status_code, 401)
+
+    def test_user_delete_with_non_admin_user_returns_403(self):
+        user_id = str(ObjectId())
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = user_id
+
+        with patch("controllers.auth_guard.find_user", return_value={"_id": ObjectId(user_id), "isAdmin": False}):
+            response = self.client.delete("/api/users/000000000000000000000000")
+        self.assertEqual(response.status_code, 403)
+
+    def test_team_delete_without_session_returns_401(self):
+        response = self.client.delete("/api/teams/000000000000000000000000")
+        self.assertEqual(response.status_code, 401)
+
+    def test_team_delete_with_non_admin_user_returns_403(self):
+        user_id = str(ObjectId())
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = user_id
+
+        with patch("controllers.auth_guard.find_user", return_value={"_id": ObjectId(user_id), "isAdmin": False}):
+            response = self.client.delete("/api/teams/000000000000000000000000")
+        self.assertEqual(response.status_code, 403)
+
     def test_login_route_is_session_prefixed(self):
         prefixed = self.client.post("/api/session/login", json={})
         self.assertEqual(prefixed.status_code, 422)
@@ -159,6 +352,7 @@ class AdminSessionAuthTests(unittest.TestCase):
         self.assertEqual(response.status_code, 204)
 
         with self.client.session_transaction() as sess:
+            self.assertTrue(sess.permanent)
             self.assertEqual(sess.get("user_id"), str(user_id))
 
     def test_session_redeem_unknown_or_non_admin_user_returns_401(self):
@@ -584,6 +778,33 @@ class AdminSessionAuthTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 404)
 
+    def test_admin_resolve_mail_request_returns_skipped_notification_metadata(self):
+        session_user_id = str(ObjectId())
+        request_id = str(ObjectId())
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = session_user_id
+
+        expected = {
+            "_id": ObjectId(request_id),
+            "memberId": ObjectId(),
+            "mailboxId": ObjectId(),
+            "status": "RESOLVED",
+            "resolvedAt": datetime(2026, 2, 20, tzinfo=timezone.utc),
+            "resolvedBy": ObjectId(session_user_id),
+            "lastNotificationStatus": "SKIPPED",
+            "lastNotificationAt": datetime(2026, 2, 20, tzinfo=timezone.utc),
+            "createdAt": datetime(2026, 2, 19, tzinfo=timezone.utc),
+            "updatedAt": datetime(2026, 2, 20, tzinfo=timezone.utc),
+        }
+        with patch("controllers.auth_guard.find_user", return_value={"_id": ObjectId(session_user_id), "isAdmin": True}), patch(
+            "controllers.mail_requests_controller.resolve_mail_request_and_notify",
+            return_value=expected,
+        ):
+            response = self.client.post(f"/api/admin/mail-requests/{request_id}/resolve")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json["lastNotificationStatus"], "SKIPPED")
+
     def test_admin_retry_notification_requires_admin_session(self):
         response = self.client.post(f"/api/admin/mail-requests/{ObjectId()}/retry-notification")
         self.assertEqual(response.status_code, 401)
@@ -617,6 +838,33 @@ class AdminSessionAuthTests(unittest.TestCase):
         self.assertEqual(response.json["lastNotificationStatus"], "FAILED")
         retry_mock.assert_called_once()
         self.assertEqual(retry_mock.call_args.kwargs["request_id"], ObjectId(request_id))
+
+    def test_admin_retry_notification_returns_skipped_notification_metadata(self):
+        session_user_id = str(ObjectId())
+        request_id = str(ObjectId())
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = session_user_id
+
+        expected = {
+            "_id": ObjectId(request_id),
+            "memberId": ObjectId(),
+            "mailboxId": ObjectId(),
+            "status": "RESOLVED",
+            "resolvedAt": datetime(2026, 2, 20, tzinfo=timezone.utc),
+            "resolvedBy": ObjectId(session_user_id),
+            "lastNotificationStatus": "SKIPPED",
+            "lastNotificationAt": datetime(2026, 2, 21, tzinfo=timezone.utc),
+            "createdAt": datetime(2026, 2, 19, tzinfo=timezone.utc),
+            "updatedAt": datetime(2026, 2, 21, tzinfo=timezone.utc),
+        }
+        with patch("controllers.auth_guard.find_user", return_value={"_id": ObjectId(session_user_id), "isAdmin": True}), patch(
+            "controllers.mail_requests_controller.retry_mail_request_notification",
+            return_value=expected,
+        ):
+            response = self.client.post(f"/api/admin/mail-requests/{request_id}/retry-notification")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json["lastNotificationStatus"], "SKIPPED")
 
     def test_admin_weekly_summary_requires_admin_session(self):
         response = self.client.post(

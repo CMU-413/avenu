@@ -7,7 +7,7 @@ from bson import ObjectId
 os.environ.setdefault("MONGO_URI", "mongodb://localhost:27017")
 
 from errors import APIError
-from services.user_service import update_user
+from services.user_service import delete_user, update_user
 
 
 class UserServiceTests(unittest.TestCase):
@@ -44,6 +44,14 @@ class UserServiceTests(unittest.TestCase):
         self.assertEqual(response, persisted)
         self.assertEqual(update_mock.call_args.kwargs["patch"]["phone"], None)
         self.assertEqual(update_mock.call_args.kwargs["patch"]["notifPrefs"], ["email"])
+
+    def test_delete_user_delegates_to_cascade_delete(self):
+        user_id = ObjectId()
+
+        with patch("services.user_service.delete_user_cascade") as delete_mock:
+            delete_user(user_id)
+
+        delete_mock.assert_called_once_with(user_id)
 
 
 if __name__ == "__main__":

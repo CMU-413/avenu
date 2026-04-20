@@ -83,8 +83,13 @@ def _log_special_case_exception(*, user_id: ObjectId, exc: Exception) -> None:
     )
 
 
-def _notification_status_from_notify_result(result: dict[str, Any]) -> Literal["SENT", "FAILED"]:
-    return "SENT" if result.get("status") == "sent" else "FAILED"
+def _notification_status_from_notify_result(result: dict[str, Any]) -> Literal["SENT", "SKIPPED", "FAILED"]:
+    status = result.get("status")
+    if status == "sent":
+        return "SENT"
+    if status == "skipped":
+        return "SKIPPED"
+    return "FAILED"
 
 
 def _build_mail_request_notification_context(request_doc: dict[str, Any]) -> dict[str, Any]:
@@ -127,7 +132,7 @@ def resolve_mail_request_and_notify(
         raise APIError(500, "mail request has invalid member id")
 
     resolved_notifier = notifier or _default_special_case_notifier()
-    notification_status: Literal["SENT", "FAILED"] = "FAILED"
+    notification_status: Literal["SENT", "SKIPPED", "FAILED"] = "FAILED"
     notification_at = _utcnow()
     try:
         notify_result = resolved_notifier.notifySpecialCase(
@@ -172,7 +177,7 @@ def retry_mail_request_notification(
         raise APIError(500, "mail request has invalid member id")
 
     resolved_notifier = notifier or _default_special_case_notifier()
-    notification_status: Literal["SENT", "FAILED"] = "FAILED"
+    notification_status: Literal["SENT", "SKIPPED", "FAILED"] = "FAILED"
     notification_at = _utcnow()
     try:
         notify_result = resolved_notifier.notifySpecialCase(

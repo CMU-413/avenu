@@ -82,7 +82,7 @@ export interface ApiMemberPreferences {
 }
 
 export type ApiMailRequestStatus = "ACTIVE" | "CANCELLED" | "RESOLVED";
-export type ApiMailRequestNotificationStatus = "SENT" | "FAILED";
+export type ApiMailRequestNotificationStatus = "SENT" | "SKIPPED" | "FAILED";
 
 export interface ApiMailRequest {
   id: string;
@@ -103,7 +103,7 @@ export interface ApiMailRequest {
 
 export interface ApiNotifyChannelResult {
   channel: string;
-  status: "sent" | "failed";
+  status: "sent" | "skipped" | "failed";
   messageId?: string;
   error?: string;
 }

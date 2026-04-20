@@ -123,7 +123,7 @@ class ModelBuilderTests(unittest.TestCase):
         self.assertEqual(MAIL_REQUEST_STATUSES, {"ACTIVE", "CANCELLED", "RESOLVED"})
 
     def test_mail_request_notification_status_enum(self):
-        self.assertEqual(MAIL_REQUEST_NOTIFICATION_STATUSES, {"SENT", "FAILED"})
+        self.assertEqual(MAIL_REQUEST_NOTIFICATION_STATUSES, {"SENT", "SKIPPED", "FAILED"})
 
 
 if __name__ == "__main__":

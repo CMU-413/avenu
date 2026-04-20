@@ -4,8 +4,10 @@ import os
 
 from flask import Flask, jsonify, request
 from werkzeug.middleware.proxy_fix import ProxyFix
+from prometheus_flask_exporter import PrometheusMetrics
 
 from config import (
+    AUTHENTICATED_SESSION_TTL,
     FRONTEND_ORIGINS,
     SCHEDULER_INTERNAL_TOKEN,
     SECRET_KEY,
@@ -16,6 +18,7 @@ from config import (
     ensure_indexes,
 )
 from controllers import register_blueprints
+from controllers.metrics_controller import create_metrics_blueprint
 from errors import APIError
 
 
@@ -27,6 +30,7 @@ def create_app(
 ) -> Flask:
     app = Flask(__name__)
     app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
+
     app.config["TESTING"] = testing
     resolved_frontend_origins = tuple(FRONTEND_ORIGINS)
 
@@ -45,6 +49,7 @@ def create_app(
     app.config["SESSION_COOKIE_SAMESITE"] = SESSION_COOKIE_SAMESITE
     app.config["SESSION_COOKIE_SECURE"] = False if testing else SESSION_COOKIE_SECURE
     app.config["SESSION_COOKIE_PARTITIONED"] = False if testing else SESSION_COOKIE_PARTITIONED
+    app.config["PERMANENT_SESSION_LIFETIME"] = AUTHENTICATED_SESSION_TTL
 
     if not testing and SESSION_COOKIE_SAMESITE == "None" and not SESSION_COOKIE_SECURE:
         raise RuntimeError("SESSION_COOKIE_SAMESITE=None requires SESSION_COOKIE_SECURE=true")
@@ -78,7 +83,8 @@ def create_app(
 
 
 app = create_app(testing=os.getenv("FLASK_TESTING", "").strip().lower() in {"1", "true", "yes"})
-
+metrics = PrometheusMetrics(app, path=None)
+app.register_blueprint(create_metrics_blueprint(metrics))
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", "8000"))

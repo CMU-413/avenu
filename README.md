@@ -1,230 +1,341 @@
 # Avenu
 
-Full-stack web application composed of:
+Avenu is a full-stack mail management application with:
 
-* React SPA (frontend)
-* Flask API (backend)
-* Dedicated Scheduler container (job runner)
-* MongoDB database
+- a React SPA in `frontend/`
+- a Flask API in `backend/`
+- a scheduler worker in `scheduler/`
+- a managed external MongoDB database
 
-Docker is the source of truth for local, CI, and production environments.
+Docker Compose is the source of truth for local development and production topology.
 
----
+## Start Here
 
-## System Overview
+For a new engineer, the canonical path is:
 
-* Frontend is a pure API client.
-* Backend owns all business logic and all database access.
-* Scheduler is an internal backend client that triggers scheduled jobs.
-* Scheduler never connects directly to MongoDB.
-* All inter-service traffic runs inside the Docker network.
-* External traffic only reaches the frontend (and backend if exposed).
+1. Read this `README.md` for setup, testing, deployment, and rollout.
+2. Read [docs/01-architecture/overview.md](docs/01-architecture/overview.md) for service boundaries.
+3. Read the API contracts in [docs/01-architecture/api/member-api-contract.md](docs/01-architecture/api/member-api-contract.md) and [docs/01-architecture/api/admin-notification-api-contract.md](docs/01-architecture/api/admin-notification-api-contract.md).
+4. Use [docs/00-drivers/04-quality-assurance.md](docs/00-drivers/04-quality-assurance.md) to understand the test boundaries that must stay intact.
 
----
+`docs/02-plans/` contains implementation plans and historical change plans. It is not the canonical source for current runtime behavior.
 
-## Repo Structure
+## System Topology
 
-```
-├── frontend/        # React SPA
-├── backend/         # Flask API + business logic
-├── scheduler/       # Scheduled job runner (backend client)
-├── docs/            # Architecture and API docs
+Runtime services:
+
+- `frontend`: serves the SPA and proxies `/mail/api/*` to the backend
+- `backend`: owns business logic, persistence, auth, metrics, and third-party integrations
+- `scheduler`: internal backend client for recurring jobs
+- `prometheus`: scrapes backend metrics in production
+- `grafana`: reads Prometheus data in production
+
+Data storage is external MongoDB. The database is not part of the Compose stack.
+
+Allowed communication paths:
+
+- `frontend -> backend`
+- `scheduler -> backend`
+- `backend -> MongoDB`
+- `backend -> Optix`
+- `backend -> Microsoft Graph`
+- `backend -> Twilio`
+
+Disallowed paths:
+
+- `frontend -> MongoDB`
+- `scheduler -> MongoDB`
+- `frontend -> external providers`
+- `scheduler -> external providers`
+
+## Repo Layout
+
+```text
+.
+├── backend/
+├── frontend/
+├── scheduler/
+├── docs/
 ├── docker-compose.yml
-└── README.md
+├── docker-compose-prod.yml
+└── .env.sample
 ```
-
----
-
-## Prerequisites
-
-Required:
-
-* Docker (with Docker Compose v2)
-
-Optional (for running outside Docker):
-
-* Node.js
-* Python 3.11+
-
----
 
 ## Environment Configuration
 
-Copy:
+Copy `.env.sample` to `.env` for local development. Production uses a Dockge-managed `.env` for runtime variables.
 
-```
-.env.sample → .env
-```
+Backend runtime variables:
 
-### Backend
+- `MONGO_URI`
+- `DB_NAME`
+- `SECRET_KEY`
+- `FRONTEND_ORIGINS`
+- `SCHEDULER_INTERNAL_TOKEN`
+- `SESSION_COOKIE_NAME`
+- `SESSION_COOKIE_SAMESITE`
+- `SESSION_COOKIE_SECURE`
+- optional `SESSION_COOKIE_PARTITIONED`
+- `AUTHENTICATED_SESSION_TTL_SECONDS`
+- `AUTH_MAGIC_LINK_BASE_URL`
+- `AUTH_MAGIC_LINK_PATH`
+- `AUTH_MAGIC_LINK_EXPIRY_SECONDS`
+- optional `AUTH_MAGIC_LINK_SECRET`
+- `LOGIN_RATE_LIMIT_IP_WINDOW_SECONDS`
+- `LOGIN_RATE_LIMIT_IP_MAX_ATTEMPTS`
+- `LOGIN_RATE_LIMIT_EMAIL_WINDOW_SECONDS`
+- `LOGIN_RATE_LIMIT_EMAIL_MAX_ATTEMPTS`
 
-* `SECRET_KEY` (required outside tests)
-* `FLASK_TESTING`
-* `FRONTEND_ORIGINS` (CORS allowlist)
-* `SCHEDULER_INTERNAL_TOKEN` (shared secret for scheduler endpoint)
-* `AUTH_MAGIC_LINK_BASE_URL` (public SPA entry used in emailed sign-in links)
-* `AUTH_MAGIC_LINK_PATH` (verification route or query-bearing SPA path, default `/`)
-* `AUTH_MAGIC_LINK_EXPIRY_SECONDS` (magic-link lifetime in seconds, default `900`)
-* optional: `AUTH_MAGIC_LINK_SECRET` (falls back to `SECRET_KEY`)
+Notification provider variables for non-test environments:
 
-### Notification Providers (required when `FLASK_TESTING=false`)
+- `MS_GRAPH_TENANT_ID`
+- `MS_GRAPH_CLIENT_ID`
+- `MS_GRAPH_CLIENT_SECRET`
+- `MS_GRAPH_SENDER_EMAIL`
+- `TWILIO_ACCOUNT_SID`
+- `TWILIO_AUTH_TOKEN`
+- `TWILIO_PHONE_NUMBER`
 
-* `MS_GRAPH_TENANT_ID`
-* `MS_GRAPH_CLIENT_ID`
-* `MS_GRAPH_CLIENT_SECRET`
-* `MS_GRAPH_SENDER_EMAIL`
-* `TWILIO_ACCOUNT_SID`
-* `TWILIO_AUTH_TOKEN`
-* `TWILIO_PHONE_NUMBER`
+Frontend build-time variables:
 
-### Session / Embedding
+- `VITE_BASE_PATH` default `/mail/`
+- `VITE_API_BASE_URL` default `/mail/api`
 
-For iframe / Canvas embedding:
+Scheduler runtime variables:
 
-* `SESSION_COOKIE_NAME=avenu_session`
-* `SESSION_COOKIE_SAMESITE=Lax` for same-site flows, or `None` for iframe embedding
-* `SESSION_COOKIE_SECURE=true`
-* optional: `SESSION_COOKIE_PARTITIONED=true`
+- `BACKEND_API_URL` default `http://backend:8000`
+- `SCHEDULER_INTERNAL_TOKEN`
+- `SCHEDULER_CRON`
+- `SCHEDULER_TIMEZONE`
+- `SCHEDULER_TICK_SECONDS`
 
-### Frontend (Build-Time)
+Production-only Compose conveniences:
 
-* `VITE_BASE_PATH` (default `/mail/`)
-* `VITE_API_BASE_URL` (default `/mail/api`)
+- `IMAGE_NAMESPACE` controls the Docker Hub namespace used by `docker-compose-prod.yml`
+- `PROMETHEUS_DATA_DIR`, `PROMETHEUS_CONFIG_DIR`, and `GRAFANA_DATA_DIR` map host storage into containers
+- `GRAFANA_ROOT_URL` must match the public subpath used by nginx
+- `GRAFANA_ADMIN_PASSWORD` sets the Grafana admin password
 
-These are public and embedded at build time.
+## Authentication Notes
 
-### Scheduler
+Production assumes authentication is initiated upstream through Optix or the embedding context, while the backend also supports admin magic-link login.
 
-* `BACKEND_API_URL` (default `http://backend:8000`)
-* `SCHEDULER_INTERNAL_TOKEN`
-* `SCHEDULER_CRON` (default `0 8 * * 1`)
-* `SCHEDULER_TIMEZONE`
-* `SCHEDULER_TICK_SECONDS`
+Important settings:
 
----
+- local magic-link base URL: `http://localhost:8080/mail`
+- production magic-link base URL: `https://hub.avenuworkspaces.com/mail`
+- `AUTH_MAGIC_LINK_PATH` must stay aligned with the frontend nginx redirect behavior so query parameters survive `/mail -> /mail/`
 
-## Authentication Model
+Authenticated Flask sessions default to 12 hours via `AUTHENTICATED_SESSION_TTL_SECONDS`. Magic links are separate one-time credentials with their own TTL via `AUTH_MAGIC_LINK_EXPIRY_SECONDS`.
 
-Production usage assumes authentication is handled upstream (e.g., Optix or embedding context).
+## Local Development
 
-The backend now includes configuration for admin magic-link authentication:
+### Compose
 
-* `AUTH_MAGIC_LINK_BASE_URL` should point at the public SPA mount, for example:
-  * local: `http://localhost:8080/mail`
-  * production: `https://hub.avenuworkspaces.com/mail`
-* `AUTH_MAGIC_LINK_PATH` should remain aligned with the frontend/nginx entry behavior so callback query params survive the `/mail` to `/mail/` normalization.
+From the repo root:
 
-The existing public email-post login flow is being replaced by magic-link request/redeem endpoints and should not be treated as the long-term public auth contract.
-
----
-
-## Running the App (Docker)
-
-From repo root:
-
-```
+```bash
 docker compose up --build
 ```
 
-Services:
+Local endpoints:
 
-* frontend → [http://localhost:8080/mail](http://localhost:8080/mail)
-* backend → internal
-* scheduler → internal
-* database → MongoDB (persistent volume)
+- app: [http://localhost:8080/mail](http://localhost:8080/mail)
+- backend liveness: [http://localhost:8000/api/health](http://localhost:8000/api/health)
 
----
+### Without Compose
 
-## Running Without Docker
+Backend:
 
-### Backend
-
-```
+```bash
 cd backend
 python3 -m venv .venv
 source .venv/bin/activate
-pip3 install -r requirements.txt
-python3 app.py
+pip install -r requirements.txt
+python app.py
 ```
 
-Runs on: [http://localhost:8000](http://localhost:8000)
+Frontend:
 
-### Backend Mongo Integration Tests
-
-Prerequisite: a local Mongo instance is reachable at `localhost:27017`.
-
-```
-cd backend
-RUN_MONGO_INTEGRATION=1 MONGO_URI=mongodb://localhost:27017/avenu_db_dev DB_NAME=avenu_db_dev python -m unittest discover tests/integration
-```
-
-Safety guardrails:
-
-* Integration tests only run when `RUN_MONGO_INTEGRATION=1`.
-* Integration tests require `DB_NAME=avenu_db_dev` and will fail fast for any other DB name.
-* The test harness drops only `avenu_db_dev`; no fallback to `avenu_db`.
-
-### Admin OCR Smoke Test
-
-Exercises the full admin OCR flow end-to-end — bulk upload, background worker,
-review, confirm, idempotent retry, soft-delete, and stage transitions — against
-a live Mongo using the real Tesseract provider.
-
-Prerequisites: `tesseract-ocr` installed (`apt install tesseract-ocr`), backend
-venv active, and a reachable `mongod`.
-
-```
-cd backend
-MONGO_URI=mongodb://127.0.0.1:27017 DB_NAME=optix_smoke \
-    python scripts/smoke_ocr_flow.py
-```
-
-Drops and re-creates `optix_smoke`; safe to re-run. Exits non-zero on any
-regression and logs every observed state transition.
-
-### Frontend
-
-```
+```bash
 cd frontend
 npm install
 npm run dev
 ```
 
-Runs on: [http://localhost:8080/mail](http://localhost:8080/mail)
+Scheduler:
 
-Local Vite dev uses the same `/mail` base path as Docker.
-
-API requests to `/mail/api/*` are proxied to the backend at `http://localhost:8000/api/*`.
-
-### Scheduler
-
-```
+```bash
 cd scheduler
 SCHEDULER_INTERNAL_TOKEN=<token> BACKEND_API_URL=http://localhost:8000 python main.py
 ```
 
----
+## Tests
 
-## CI / Docker Hub
+Backend unit tests:
 
-GitHub Actions builds and pushes:
+```bash
+cd backend
+coverage run -m unittest discover -s tests/unit -p "test_*.py" -t .
+coverage report --fail-under=75
+```
 
-* `DOCKERHUB_USERNAME/avenu-frontend`
-* `DOCKERHUB_USERNAME/avenu-backend`
-* `DOCKERHUB_USERNAME/avenu-scheduler`
+Backend integration tests:
 
-Required repo secrets:
+Prerequisite: local Mongo reachable at `localhost:27017` and a dedicated test database named `avenu_db_dev`.
 
-* `DOCKERHUB_USERNAME`
-* `DOCKERHUB_TOKEN`
+```bash
+cd backend
+RUN_MONGO_INTEGRATION=1 \
+MONGO_URI=mongodb://localhost:27017/avenu_db_dev \
+DB_NAME=avenu_db_dev \
+FLASK_TESTING=true \
+python -m unittest discover -s tests/integration -t .
+```
 
-Deployment targets must pull images from the same Docker Hub namespace.
+Admin OCR smoke test:
 
----
+Exercises the full admin OCR flow end-to-end — bulk upload, background
+worker, review, confirm, idempotent retry, soft-delete, and stage
+transitions — against a live Mongo using the real Tesseract provider.
 
-## Notes
+Prerequisites: `tesseract-ocr` installed (`apt install tesseract-ocr`),
+backend venv active, and a reachable `mongod`.
 
-* Frontend environment variables are build-time and public.
-* Backend environment variables are runtime and private.
-* Scheduler is an internal API client.
-* Docker is the canonical deployment path.
+```bash
+cd backend
+MONGO_URI=mongodb://127.0.0.1:27017 DB_NAME=optix_smoke \
+    python scripts/smoke_ocr_flow.py
+```
+
+Drops and re-creates `optix_smoke`; safe to re-run. Exits non-zero on
+any regression and logs every observed state transition.
+
+Scheduler tests:
+
+```bash
+cd scheduler
+python -m unittest discover tests
+```
+
+Frontend checks:
+
+```bash
+cd frontend
+npm install
+npm run lint
+npx tsc --noEmit
+npm run build
+```
+
+## CI and Image Publishing
+
+GitHub Actions runs:
+
+- backend unit tests
+- backend integration tests
+- scheduler tests
+- frontend lint, type-check, and build
+
+On `main`, CI builds and pushes application images to Docker Hub.
+
+Current implementation detail:
+
+- CI currently pushes to the `chunkitw` namespace in [`.github/workflows/ci-cd.yml`](.github/workflows/ci-cd.yml).
+- Production Compose now supports `IMAGE_NAMESPACE`, but CI still needs to be updated manually if image ownership moves to another account or organization.
+
+Required GitHub secrets:
+
+- `DOCKERHUB_USERNAME`
+- `DOCKERHUB_TOKEN`
+
+## Production Deployment and Dockge Rollout
+
+`README.md` is the canonical deployment guide. `deployment.md` only points back here to avoid drift.
+
+### Production Topology
+
+Production uses:
+
+- Docker Hub images for `frontend`, `backend`, and `scheduler`
+- a Dockge-managed `docker-compose-prod.yml` stack
+- Watchtower in the same stack: it polls the registry on a fixed interval (currently 300 seconds in `docker-compose-prod.yml`) and recreates containers when newer images are available. The application services carry `com.centurylinklabs.watchtower.enable=true` labels so only those images are watched.
+- host nginx routing public traffic to the internal container ports
+- external MongoDB
+- Prometheus and Grafana as part of the production Compose stack
+
+### Before First Rollout
+
+1. Set the Docker Hub namespace in Dockge `.env` with `IMAGE_NAMESPACE`.
+2. Set all backend and scheduler runtime secrets in Dockge `.env`.
+3. Set host storage paths for:
+   - `PROMETHEUS_DATA_DIR`
+   - `PROMETHEUS_CONFIG_DIR`
+   - `GRAFANA_DATA_DIR`
+4. Confirm the Prometheus config exists at the chosen config directory and is compatible with the mounted path.
+5. Confirm nginx routes:
+   - `/mail -> frontend :18080`
+   - `/mail/api -> backend :18000`
+   - `/mail/grafana -> frontend proxy -> grafana`
+
+### Frontend Build-Time Rules
+
+Frontend `VITE_*` variables are build-time only.
+
+- Put production values in `frontend/.env.production` before building the frontend image.
+- Do not expect Dockge runtime `.env` changes to alter an already-built frontend bundle.
+- Rebuild the frontend image whenever build-time values change.
+
+### Publishing Images
+
+If building manually, publish `linux/amd64` images:
+
+Backend:
+
+```bash
+docker buildx build --platform linux/amd64 -t <namespace>/avenu-backend:latest --push ./backend
+```
+
+Frontend:
+
+```bash
+docker buildx build --platform linux/amd64 -t <namespace>/avenu-frontend:latest --push ./frontend
+```
+
+Scheduler:
+
+```bash
+docker buildx build --platform linux/amd64 -t <namespace>/avenu-scheduler:latest --push ./scheduler
+```
+
+Replace `<namespace>` with the Docker Hub account or org that owns the images. The sample production Compose defaults to `chunkitw`, but future maintainers should treat that as an overrideable placeholder, not a permanent constant.
+
+### Image rollout and Dockge
+
+After CI (or a maintainer) publishes new `frontend`, `backend`, or `scheduler` images to Docker Hub, Watchtower detects newer tags on its poll interval and replaces those containers automatically. You do not need to open Dockge and click **Update** for routine image-only rollouts.
+
+Use Dockge when something outside Watchtower’s scope changes, for example:
+
+- edits to `docker-compose-prod.yml` or stack wiring
+- new or changed runtime variables in the Dockge `.env` (Compose `env_file` / environment)
+- first-time stack bring-up or recovery after manual intervention
+
+After any rollout that changes the frontend bundle, hard refresh the browser so clients load new assets.
+
+### Rollback
+
+The current production Compose uses `:latest` tags. That keeps rollout simple but makes rollback dependent on retagging or editing image references in Dockge. If maintainers need deterministic rollback, use immutable tags such as `sha-<git-sha>` and update the stack explicitly.
+
+### Post-Deploy Verification
+
+Verify through the public path, not the container ports:
+
+- app loads at [https://hub.avenuworkspaces.com/mail](https://hub.avenuworkspaces.com/mail)
+- login works
+- member API calls succeed
+- admin mail-request flows succeed
+- backend liveness responds at `/mail/api/health` through nginx
+- scheduler can still reach `http://backend:8000` internally
+- Grafana loads at `/mail/grafana/`
+
+Do not treat `:18080` or `:18000` as public entrypoints.

@@ -25,7 +25,7 @@ class NotificationLogPersistenceIntegrationTests(MongoIntegrationTestCase):
             sent_at=None,
         )
 
-        docs_after_failed = list(notification_log_collection.find({"userId": user_id}).sort([("createdAt", 1)]))
+        docs_after_failed = list(notification_log_collection.find({"userId": user_id}).sort([("createdAt", 1), ("_id", 1)]))
         self.assertEqual(len(docs_after_failed), 1)
         failed_doc = docs_after_failed[0]
         self.assertEqual(failed_doc["type"], "weekly-summary")
@@ -45,7 +45,7 @@ class NotificationLogPersistenceIntegrationTests(MongoIntegrationTestCase):
             sent_at=datetime(2026, 2, 16, 15, 0, tzinfo=timezone.utc),
         )
 
-        docs_final = list(notification_log_collection.find({"userId": user_id}).sort([("createdAt", 1)]))
+        docs_final = list(notification_log_collection.find({"userId": user_id}).sort([("createdAt", 1), ("_id", 1)]))
         self.assertEqual(len(docs_final), 2)
         self.assertEqual(docs_final[0]["_id"], failed_doc["_id"])
         self.assertEqual(docs_final[0]["status"], "failed")

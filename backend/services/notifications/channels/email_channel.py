@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import time
 from datetime import date, datetime
 from typing import Union
 
 from flask import render_template
 
+from metrics.metrics_email import email_send_duration_seconds, emails_failed_total, emails_sent_total
 from services.notifications.providers.email_provider import EmailProvider
 from services.notifications.types import (
     ChannelResult,
@@ -47,18 +49,23 @@ class EmailChannel:
                 if isinstance(expected_sender, str) and expected_sender.strip():
                     subject = f"Mail has arrived: {expected_sender.strip()}"
 
+        start = time.perf_counter()
         try:
             message_id = self.provider.send(
                 to=payload["user"]["email"],
                 subject=subject,
                 html=html,
             )
+            email_send_duration_seconds.observe(time.perf_counter() - start)
+            emails_sent_total.inc()
             return {
                 "channel": self.channel,
                 "status": "sent",
                 "messageId": message_id,
             }
         except Exception as exc:
+            email_send_duration_seconds.observe(time.perf_counter() - start)
+            emails_failed_total.inc()
             return {
                 "channel": self.channel,
                 "status": "failed",

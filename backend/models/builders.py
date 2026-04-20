@@ -22,7 +22,7 @@ NOTIF_PREFS = {"email", "text"}
 MAILBOX_TYPES = {"user", "team"}
 MAIL_TYPES = {"letter", "package"}
 MAIL_REQUEST_STATUSES = {"ACTIVE", "CANCELLED", "RESOLVED"}
-MAIL_REQUEST_NOTIFICATION_STATUSES = {"SENT", "FAILED"}
+MAIL_REQUEST_NOTIFICATION_STATUSES = {"SENT", "SKIPPED", "FAILED"}
 
 
 def _utcnow() -> datetime:

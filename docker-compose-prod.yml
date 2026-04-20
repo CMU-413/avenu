@@ -1,7 +1,9 @@
 version: "3.8"
 services:
   frontend:
-    image: <username>/avenu-frontend:latest
+    image: ${IMAGE_NAMESPACE:-chunkitw}/avenu-frontend:latest
+    labels:
+    - "com.centurylinklabs.watchtower.enable=true"
     ports:
       - 18080:80
     depends_on:
@@ -10,7 +12,9 @@ services:
     networks:
       - avenu-internal
   backend:
-    image: <username>/avenu-backend:latest
+    image: ${IMAGE_NAMESPACE:-chunkitw}/avenu-backend:latest
+    labels:
+    - "com.centurylinklabs.watchtower.enable=true"
     env_file:
       - .env
     environment:
@@ -23,14 +27,22 @@ services:
       SESSION_COOKIE_PARTITIONED: ${SESSION_COOKIE_PARTITIONED}
       FRONTEND_ORIGINS: ${FRONTEND_ORIGINS}
       SCHEDULER_INTERNAL_TOKEN: ${SCHEDULER_INTERNAL_TOKEN}
+      AUTHENTICATED_SESSION_TTL_SECONDS: ${AUTHENTICATED_SESSION_TTL_SECONDS}
       AUTH_MAGIC_LINK_BASE_URL: ${AUTH_MAGIC_LINK_BASE_URL}
       AUTH_MAGIC_LINK_PATH: ${AUTH_MAGIC_LINK_PATH}
       AUTH_MAGIC_LINK_EXPIRY_SECONDS: ${AUTH_MAGIC_LINK_EXPIRY_SECONDS}
       AUTH_MAGIC_LINK_SECRET: ${AUTH_MAGIC_LINK_SECRET}
+      LOGIN_RATE_LIMIT_IP_WINDOW_SECONDS: ${LOGIN_RATE_LIMIT_IP_WINDOW_SECONDS}
+      LOGIN_RATE_LIMIT_IP_MAX_ATTEMPTS: ${LOGIN_RATE_LIMIT_IP_MAX_ATTEMPTS}
+      LOGIN_RATE_LIMIT_EMAIL_WINDOW_SECONDS: ${LOGIN_RATE_LIMIT_EMAIL_WINDOW_SECONDS}
+      LOGIN_RATE_LIMIT_EMAIL_MAX_ATTEMPTS: ${LOGIN_RATE_LIMIT_EMAIL_MAX_ATTEMPTS}
       MS_GRAPH_TENANT_ID: ${MS_GRAPH_TENANT_ID}
       MS_GRAPH_CLIENT_ID: ${MS_GRAPH_CLIENT_ID}
       MS_GRAPH_CLIENT_SECRET: ${MS_GRAPH_CLIENT_SECRET}
       MS_GRAPH_SENDER_EMAIL: ${MS_GRAPH_SENDER_EMAIL}
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN}
+      TWILIO_PHONE_NUMBER: ${TWILIO_PHONE_NUMBER}
     ports:
       - 18000:8000
     healthcheck:
@@ -46,8 +58,40 @@ services:
       start_period: 15s
     networks:
       - avenu-internal
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    volumes:
+      - prometheusmail:/prometheus
+      - prometheusmailetc:/etc/prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+    ports:
+      - 9090:9090
+    networks:
+      - avenu-internal
+  grafana:
+    image: grafana/grafana-oss:11.4.0
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-changeme}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_SERVER_ROOT_URL: ${GRAFANA_ROOT_URL:-https://hub.avenuworkspaces.com/mail/grafana}
+      GF_SERVER_SERVE_FROM_SUB_PATH: "true"
+    volumes:
+      - grafana-data:/var/lib/grafana
+    networks:
+      - avenu-internal
   scheduler:
-    image: <username>/avenu-scheduler:latest
+    image: ${IMAGE_NAMESPACE:-chunkitw}/avenu-scheduler:latest
+    labels:
+    - "com.centurylinklabs.watchtower.enable=true"
     environment:
       BACKEND_API_URL: http://backend:8000
       SCHEDULER_INTERNAL_TOKEN: ${SCHEDULER_INTERNAL_TOKEN}
@@ -60,6 +104,30 @@ services:
         condition: service_healthy
     networks:
       - avenu-internal
+  watchtower:
+    image: containrrr/watchtower
+    container_name: watchtower
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: --interval 300 --cleanup
+    networks:
+      - avenu-internal
 networks:
   avenu-internal:
     driver: bridge
+volumes:
+  prometheusmail:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PROMETHEUS_DATA_DIR:-/mnt/Main/other/PrometheusMail/}
+  prometheusmailetc:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PROMETHEUS_CONFIG_DIR:-/mnt/Main/other/PrometheusMailEtc/}
+  grafana-data:
+    driver: local
