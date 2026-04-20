@@ -162,9 +162,6 @@ def build_mail_create(payload: dict[str, Any]) -> dict[str, Any]:
     sender = _optional_text(payload, "senderInfo", 500)
     if sender is not None:
         doc["senderInfo"] = sender
-    n = _optional_mail_piece_count(payload)
-    if n is not None and n > 1:
-        doc["count"] = n
     return doc
 
 

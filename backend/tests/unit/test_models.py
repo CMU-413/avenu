@@ -41,7 +41,8 @@ class ModelBuilderTests(unittest.TestCase):
         self.assertEqual(doc["receiverName"], "Acme Corp")
         self.assertNotIn("count", doc)
 
-    def test_build_mail_create_optional_count(self):
+    def test_build_mail_create_never_writes_legacy_count(self):
+        """New writes are always one-doc-per-piece; service layer expands count."""
         mb = str(ObjectId())
         doc_one = build_mail_create(
             {"mailboxId": mb, "date": "2025-01-01T10:00:00Z", "type": "letter", "count": 1}
@@ -50,7 +51,7 @@ class ModelBuilderTests(unittest.TestCase):
         doc_many = build_mail_create(
             {"mailboxId": mb, "date": "2025-01-01T10:00:00Z", "type": "package", "count": 12}
         )
-        self.assertEqual(doc_many["count"], 12)
+        self.assertNotIn("count", doc_many)
 
     def test_build_mail_create_rejects_bad_type(self):
         with self.assertRaises(APIError):

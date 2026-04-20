@@ -87,9 +87,16 @@ Rules:
 - `receiverName` and `senderInfo` are populated via OCR scan (self-hosted) and confirmed by admin before saving.
 - Aggregated counts for dashboards are computed by counting documents (or by summing legacy `count` until migrated).
 
-**Legacy `count` (migration):** Older documents may include `count: N` meaning N pieces of the same `type` for that mailbox/day. Until migrated, weekly summaries and the admin dashboard treat each row as `N` pieces. Run the one-time script to expand into `N` separate documents and remove `count`:
+**Legacy `count` — transition strategy.**
 
-`backend/scripts/migrate_mail_legacy_count.py` (dry-run by default; pass `--apply` to write).
+Canonical model is one-doc-per-piece: each `mail` document represents exactly one letter or package. Older documents may include `count: N` meaning `N` pieces of the same `type` for a mailbox/day. The system currently operates in a transitional state and is being moved off `count` in the following phases:
+
+1. **Today (read-compatible).** All aggregations (`services/mail_legacy.legacy_mail_piece_count`, dashboard, weekly summaries) treat missing/absent `count` as `1`, and `count: N` as `N`. The model PATCH path (`build_mail_patch`) still accepts `count` for backward-compat with clients editing legacy rows.
+2. **Migration.** Run `backend/scripts/migrate_mail_legacy_count.py` (dry-run by default, pass `--apply` to write). The script expands each legacy `count: N` doc into `N` single-piece docs and `$unset`s `count`. Run against staging, verify counts match pre/post, then run against prod during a quiet window.
+3. **Stop writing `count`.** `build_mail_create` no longer emits `count`. The `POST /api/mail` admin-entry path with `count: N > 1` is handled at the service layer: `create_mail` expands to `N` single-piece inserts, preserving the one-doc-per-piece invariant for all new writes. `build_mail_patch` continues to accept `count` transitionally (see next step).
+4. **Drop `count` entirely.** After the migration in step 2 is confirmed clean in prod: remove `count` handling from `build_mail_patch`, remove `legacy_mail_piece_count`, and replace summation helpers with `len(...)`. Add an explicit index on `(mailboxId, date)` with a migration script that asserts zero remaining docs have `count`.
+
+Stopping condition for the transition: a single scripted query against prod returns `db.mail.count_documents({"count": {"$exists": true}})` = 0 twice, 24h apart. At that point step 4 is safe to merge.
 
 Indexes:
 
@@ -155,7 +162,11 @@ Fields:
 - `_id: ObjectId`
 - `createdBy: ObjectId` (references `users._id`, admin who uploaded)
 - `date: string` (YYYY-MM-DD, mail date for the batch)
-- `status: "processing" | "completed" | "failed"`
+- `status: "processing" | "processed" | "failed" | "audited"`
+  - `processing`: worker running OCR on images
+  - `processed`: worker finished all items; awaiting admin review
+  - `audited`: admin has completed review of all items (terminal for successful jobs)
+  - `failed`: worker errored before all items could be processed
 - `totalCount: int`
 - `completedCount: int`
 - `createdAt: datetime`
@@ -181,7 +192,12 @@ Fields:
 - `_id: ObjectId`
 - `jobId: ObjectId` (references `ocr_jobs._id`)
 - `index: int` (order within job)
-- `status: "pending" | "completed" | "failed" | "confirmed"`
+- `status: "pending" | "completed" | "failed" | "confirmed" | "deleted"`
+  - `pending`: awaiting OCR worker
+  - `completed`: OCR finished successfully; awaiting admin confirm
+  - `failed`: OCR failed for this item
+  - `confirmed`: admin confirmed; mail record created (`confirmedAt` set)
+  - `deleted`: soft-deleted by admin (e.g. unusable image)
 - `receiverName: string | null`
 - `senderInfo: string | null`
 - `type: "letter" | "package"`

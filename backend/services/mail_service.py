@@ -37,10 +37,22 @@ def get_mail(mail_id: ObjectId) -> dict[str, Any] | None:
 
 
 def create_mail(payload: dict[str, Any]) -> dict[str, Any]:
+    """Create one or more mail docs (one per piece).
+
+    If the payload carries a legacy ``count: N`` (N > 1) the service expands
+    to N single-piece inserts so new writes always satisfy the
+    one-doc-per-piece invariant. Returns the first inserted document so the
+    HTTP contract (single resource created) is preserved.
+    """
     doc = build_mail_create(payload)
     _ensure_mailbox_exists(doc["mailboxId"])
-    inserted_id = insert_mail(doc)
-    created = repo_find_mail(inserted_id)
+    n = _optional_mail_piece_count(payload) or 1
+    first_id = None
+    for _ in range(n):
+        inserted_id = insert_mail(dict(doc))
+        if first_id is None:
+            first_id = inserted_id
+    created = repo_find_mail(first_id) if first_id else None
     if not created:
         raise APIError(500, "failed to create mail")
     return created
