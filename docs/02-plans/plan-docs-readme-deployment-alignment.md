@@ -22,9 +22,9 @@ Summary of changes per file:
 - `README.md`
   - Rework the doc into the primary onboarding and deployment guide.
   - Document local development, test commands, production image publishing, Dockge rollout, verification, and current service topology.
-  - Call out the Docker Hub namespace as maintainer-owned configuration that must be replaced when ownership changes.
+  - Call out production image registry and owner as explicit configuration instead of hardcoded maintainer-owned Docker Hub namespace.
 - `docker-compose-prod.yml`
-  - Replace hardcoded application image namespaces with a single configurable namespace variable so the documented rollout matches the file future maintainers will edit.
+  - Replace hardcoded application image namespaces with configurable registry and owner variables so the documented rollout matches the file future maintainers will edit.
 
 Inline unit tests:
 - None; documentation and Compose configuration only.
