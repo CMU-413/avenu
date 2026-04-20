@@ -164,6 +164,24 @@ Safety guardrails:
 * Integration tests require `DB_NAME=avenu_db_dev` and will fail fast for any other DB name.
 * The test harness drops only `avenu_db_dev`; no fallback to `avenu_db`.
 
+### Admin OCR Smoke Test
+
+Exercises the full admin OCR flow end-to-end — bulk upload, background worker,
+review, confirm, idempotent retry, soft-delete, and stage transitions — against
+a live Mongo using the real Tesseract provider.
+
+Prerequisites: `tesseract-ocr` installed (`apt install tesseract-ocr`), backend
+venv active, and a reachable `mongod`.
+
+```
+cd backend
+MONGO_URI=mongodb://127.0.0.1:27017 DB_NAME=optix_smoke \
+    python scripts/smoke_ocr_flow.py
+```
+
+Drops and re-creates `optix_smoke`; safe to re-run. Exits non-zero on any
+regression and logs every observed state transition.
+
 ### Frontend
 
 ```
