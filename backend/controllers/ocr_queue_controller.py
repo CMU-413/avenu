@@ -263,17 +263,9 @@ def confirm_queue_item(item_id: str):
     item = get_ocr_queue_item(oid)
     if not item:
         raise APIError(404, "item not found")
-    if item.get("confirmedAt"):
-        raise APIError(400, "item already confirmed")
 
-    job = get_ocr_job(item["jobId"])
-    if not job:
-        raise APIError(404, "job not found")
-
-    mailbox_id = item.get("mailboxId")
-    if not mailbox_id:
-        raise APIError(400, "mailboxId required; assign a mailbox before confirming")
-
+    # Idempotency must be checked BEFORE the terminal-state guard so retries
+    # replay the original 200 response instead of hitting "already confirmed".
     idempotency_key = f"ocr-confirm-{item_id}"
     route = "/api/ocr/queue/confirm"
     request_hash = payload_hash({"itemId": item_id})
@@ -286,6 +278,22 @@ def confirm_queue_item(item_id: str):
     )
     if replay is not None:
         return jsonify(replay["body"]), replay["status"]
+
+    if item.get("confirmedAt"):
+        # Reached only when the cache entry has expired (TTL). Treat the
+        # terminal state as the canonical answer.
+        delete_reservation(key=idempotency_key, route=route, method="POST")
+        raise APIError(400, "item already confirmed")
+
+    job = get_ocr_job(item["jobId"])
+    if not job:
+        delete_reservation(key=idempotency_key, route=route, method="POST")
+        raise APIError(404, "job not found")
+
+    mailbox_id = item.get("mailboxId")
+    if not mailbox_id:
+        delete_reservation(key=idempotency_key, route=route, method="POST")
+        raise APIError(400, "mailboxId required; assign a mailbox before confirming")
 
     try:
         payload = {
