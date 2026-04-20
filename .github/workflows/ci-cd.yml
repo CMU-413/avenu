@@ -174,7 +174,7 @@ jobs:
         run: python -m unittest discover -s tests/integration -t .
 
   deploy:
-    name: docker build & push
+    name: build & push GHCR images
     if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.detect-changes.outputs.any_changed == 'true'
     needs: [build, backend-integration, detect-changes]
     runs-on: ubuntu-latest
