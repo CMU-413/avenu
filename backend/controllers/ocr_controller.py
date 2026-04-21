@@ -17,7 +17,9 @@ from config import (
 )
 from controllers.auth_guard import require_admin_session
 from errors import APIError
+from metrics.metrics_ocr import mail_image_ocr_metrics
 from services.ocr import EasyOCRClient, OCRSpaceClient, PaddleOCRClient, TesseractClient
+from services.ocr.ocr_parser import has_identified_receiver, parse_ocr_text
 
 logger = logging.getLogger(__name__)
 
@@ -111,34 +113,41 @@ def _ocr_extract_impl():
 
     client = _get_ocr_client()
 
-    start = time.perf_counter()
-    try:
-        text = client.extract_text(image_bytes, content_type)
-        if FEATURE_OCR_SHADOW_LAUNCH and OCR_SHADOW_PROVIDER:
-            _run_shadow_ocr(image_bytes, content_type, active_provider=client.provider_name)
-        elapsed_ms = (time.perf_counter() - start) * 1000
-        logger.info(
-            "ocr_extract: success provider=%s latency_ms=%.1f text_len=%d",
-            client.provider_name,
-            elapsed_ms,
-            len(text),
-        )
-        return jsonify({
-            "text": text,
-            "provider": client.provider_name,
-        }), 200
-    except Exception as e:
-        elapsed_ms = (time.perf_counter() - start) * 1000
-        logger.warning(
-            "ocr_extract: failure provider=%s latency_ms=%.1f error=%s",
-            client.provider_name,
-            elapsed_ms,
-            str(e),
-        )
-        return jsonify({
-            "text": "",
-            "provider": client.provider_name,
-        }), 200
+    text = ""
+    extract_succeeded = False
+    with mail_image_ocr_metrics() as outcome:
+        extract_start = time.perf_counter()
+        try:
+            text = client.extract_text(image_bytes, content_type)
+            extract_succeeded = True
+            elapsed_ms = (time.perf_counter() - extract_start) * 1000
+            logger.info(
+                "ocr_extract: success provider=%s latency_ms=%.1f text_len=%d",
+                client.provider_name,
+                elapsed_ms,
+                len(text),
+            )
+            if text:
+                receiver, sender = parse_ocr_text(text)
+                if has_identified_receiver(receiver):
+                    outcome.mark_success()
+        except Exception as e:
+            elapsed_ms = (time.perf_counter() - extract_start) * 1000
+            logger.warning(
+                "ocr_extract: failure provider=%s latency_ms=%.1f error=%s",
+                client.provider_name,
+                elapsed_ms,
+                str(e),
+            )
+            text = ""
+
+    if extract_succeeded and FEATURE_OCR_SHADOW_LAUNCH and OCR_SHADOW_PROVIDER:
+        _run_shadow_ocr(image_bytes, content_type, active_provider=client.provider_name)
+
+    return jsonify({
+        "text": text,
+        "provider": client.provider_name,
+    }), 200
 
 
 def _run_shadow_ocr(image_bytes: bytes, content_type: str, *, active_provider: str) -> None:

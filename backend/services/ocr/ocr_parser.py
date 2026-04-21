@@ -111,3 +111,8 @@ def parse_ocr_text(raw: str) -> tuple[str, str]:
         )
 
     return (_clean_address_text(raw.strip()), "")
+
+
+def has_identified_receiver(receiver: str) -> bool:
+    """True when parsed OCR yields a non-empty recipient (receiver) line."""
+    return bool(receiver.strip())
