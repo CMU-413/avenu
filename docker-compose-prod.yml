@@ -43,6 +43,11 @@ services:
       TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID}
       TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN}
       TWILIO_PHONE_NUMBER: ${TWILIO_PHONE_NUMBER}
+      FEATURE_OCR_AUTO_EXTRACT: ${FEATURE_OCR_AUTO_EXTRACT:-false}
+      IMAGE_STORE_DIR: /var/lib/avenu/images
+      IMAGE_RETENTION_HOURS: ${IMAGE_RETENTION_HOURS:-24}
+    volumes:
+      - mail-images:/var/lib/avenu/images
     ports:
       - 18000:8000
     healthcheck:
@@ -96,6 +101,7 @@ services:
       BACKEND_API_URL: http://backend:8000
       SCHEDULER_INTERNAL_TOKEN: ${SCHEDULER_INTERNAL_TOKEN}
       SCHEDULER_CRON: ${SCHEDULER_CRON:-0 8 * * 1}
+      IMAGE_PRUNE_CRON: ${IMAGE_PRUNE_CRON:-0 3 * * *}
       SCHEDULER_TIMEZONE: ${SCHEDULER_TIMEZONE:-UTC}
       SCHEDULER_TICK_SECONDS: ${SCHEDULER_TICK_SECONDS:-20}
     restart: unless-stopped
@@ -131,3 +137,9 @@ volumes:
       device: ${PROMETHEUS_CONFIG_DIR:-/mnt/Main/other/PrometheusMailEtc/}
   grafana-data:
     driver: local
+  mail-images:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${MAIL_IMAGES_DIR:-/mnt/Main/other/AvenuMailImages/}

@@ -54,6 +54,8 @@ class SchedulerConfig:
     scheduler_token: str
     cron_expression: str
     schedule: CronSchedule
+    image_prune_cron_expression: str
+    image_prune_schedule: CronSchedule
     timezone: ZoneInfo
     tick_seconds: int
 
@@ -69,6 +71,11 @@ def load_config() -> SchedulerConfig:
         raise RuntimeError("SCHEDULER_CRON is required")
     schedule = parse_cron_expression(cron_expression)
 
+    image_prune_cron_expression = os.getenv("IMAGE_PRUNE_CRON", "0 3 * * *").strip()
+    if not image_prune_cron_expression:
+        raise RuntimeError("IMAGE_PRUNE_CRON is required")
+    image_prune_schedule = parse_cron_expression(image_prune_cron_expression)
+
     timezone_name = os.getenv("SCHEDULER_TIMEZONE", "UTC").strip() or "UTC"
     timezone = ZoneInfo(timezone_name)
 
@@ -81,6 +88,8 @@ def load_config() -> SchedulerConfig:
         scheduler_token=scheduler_token,
         cron_expression=cron_expression,
         schedule=schedule,
+        image_prune_cron_expression=image_prune_cron_expression,
+        image_prune_schedule=image_prune_schedule,
         timezone=timezone,
         tick_seconds=tick_seconds,
     )

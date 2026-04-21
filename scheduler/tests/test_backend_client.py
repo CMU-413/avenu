@@ -113,6 +113,56 @@ class BackendClientTests(unittest.TestCase):
             )
         self.assertEqual(result["skipped"], 1)
 
+    def test_client_posts_image_prune_with_empty_body(self):
+        captured = {}
+
+        def fake_urlopen(request, timeout=0):
+            captured["url"] = request.full_url
+            captured["method"] = request.get_method()
+            captured["idempotency_key"] = request.get_header("Idempotency-key")
+            captured["scheduler_token"] = request.get_header("X-scheduler-token")
+            captured["payload"] = json.loads(request.data.decode("utf-8"))
+            return _FakeResponse(
+                status=200,
+                body={
+                    "rowsScanned": 2,
+                    "filesDeleted": 2,
+                    "rowsMarkedDeleted": 2,
+                    "orphanFilesDeleted": 0,
+                },
+            )
+
+        client = BackendClient("http://backend:8000")
+        with patch("client.urllib.request.urlopen", side_effect=fake_urlopen):
+            result = client.trigger_image_prune(
+                scheduler_token="scheduler-secret",
+                idempotency_key="image-prune:2026-04-21",
+            )
+
+        self.assertEqual(captured["url"], "http://backend:8000/api/internal/jobs/image-prune")
+        self.assertEqual(captured["method"], "POST")
+        self.assertEqual(captured["payload"], {})
+        self.assertEqual(captured["idempotency_key"], "image-prune:2026-04-21")
+        self.assertEqual(captured["scheduler_token"], "scheduler-secret")
+        self.assertEqual(result["filesDeleted"], 2)
+
+    def test_image_prune_surfaces_http_errors(self):
+        client = BackendClient("http://backend:8000")
+        error = HTTPError(
+            url="http://backend:8000/api/internal/jobs/image-prune",
+            code=503,
+            msg="unavail",
+            hdrs=None,
+            fp=None,
+        )
+        error.read = lambda: b'{"error":"scheduler token is not configured"}'
+        with patch("client.urllib.request.urlopen", side_effect=error):
+            with self.assertRaises(BackendClientError):
+                client.trigger_image_prune(
+                    scheduler_token="scheduler-secret",
+                    idempotency_key="image-prune:2026-04-21",
+                )
+
     def test_client_handles_non_2xx_with_structured_error(self):
         client = BackendClient("http://backend:8000")
         error = HTTPError(

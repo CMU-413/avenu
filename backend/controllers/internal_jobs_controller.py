@@ -8,6 +8,7 @@ from config import SCHEDULER_INTERNAL_TOKEN
 from controllers.common import parse_iso_date
 from errors import APIError
 from services.idempotency_service import begin_request, commit_response, rollback_reservation
+from services.image_pruner import prune_expired_images
 from services.notifications.channels.factory import build_notification_channels
 from services.notifications.weekly_summary_cron_job import run_weekly_summary_cron_job
 from services.notifications.weekly_summary_notifier import WeeklySummaryNotifier
@@ -79,6 +80,39 @@ def internal_weekly_summary_job_route():
             week_end=week_end,
         )
         body = _weekly_job_response_body(result)
+        commit_response(key=idempotency_key, route=route, method="POST", status=200, body=body)
+        return jsonify(body), 200
+    except Exception:
+        rollback_reservation(key=idempotency_key, route=route, method="POST")
+        raise
+
+
+@internal_jobs_bp.route("/api/internal/jobs/image-prune", methods=["POST"])
+def internal_image_prune_job_route():
+    _require_scheduler_token()
+
+    body_raw = request.get_json(silent=True)
+    payload = {} if body_raw is None else require_dict(body_raw)
+    retention_override = payload.get("retentionHours")
+    retention_hours: int | None = None
+    if retention_override is not None:
+        if not isinstance(retention_override, int) or isinstance(retention_override, bool) or retention_override <= 0:
+            raise APIError(422, "retentionHours must be a positive integer")
+        retention_hours = retention_override
+
+    route = "/api/internal/jobs/image-prune"
+    idempotency_key, replay = begin_request(
+        headers=request.headers,
+        payload=payload,
+        route=route,
+        method="POST",
+    )
+    if replay is not None:
+        return jsonify(replay["body"]), replay["status"]
+
+    try:
+        result = prune_expired_images(retention_hours=retention_hours)
+        body = result.to_dict()
         commit_response(key=idempotency_key, route=route, method="POST", status=200, body=body)
         return jsonify(body), 200
     except Exception:
