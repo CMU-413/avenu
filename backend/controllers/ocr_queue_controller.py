@@ -10,7 +10,14 @@ from typing import Any
 from bson import ObjectId
 from flask import Blueprint, jsonify, request, send_file
 
-from config import FEATURE_ADMIN_OCR, FEATURE_OCR_QUEUE_V2, OCR_MAX_FILE_BYTES, ocr_queue_items_collection, fs
+from config import (
+    FEATURE_ADMIN_OCR,
+    FEATURE_OCR_AUTO_EXTRACT,
+    FEATURE_OCR_QUEUE_V2,
+    OCR_MAX_FILE_BYTES,
+    fs,
+    ocr_queue_items_collection,
+)
 from controllers.auth_guard import require_admin_session
 from errors import APIError
 from idempotency import payload_hash
@@ -27,6 +34,7 @@ from repositories.ocr_queue_repository import (
     update_ocr_queue_item,
 )
 from repositories import to_api_doc
+from services import image_store
 from services.mail_service import create_mail
 from services.ocr.ocr_parser import parse_ocr_text
 
@@ -127,6 +135,7 @@ def _serialize_item(doc: dict[str, Any]) -> dict:
         "error": doc.get("error"),
         "mailboxId": str(doc["mailboxId"]) if doc.get("mailboxId") else None,
         "fileId": str(doc["fileId"]) if doc.get("fileId") else None,
+        "imagePath": doc.get("imagePath"),
         "confirmedAt": doc["confirmedAt"].isoformat() if doc.get("confirmedAt") else None,
     }
 
@@ -163,27 +172,34 @@ def create_job():
     if not image_payloads:
         raise APIError(422, "no valid images to process")
 
-    # Store images in GridFS
-    file_ids: list[ObjectId] = []
-    for img_data, content_type in image_payloads:
-        fid = fs.put(img_data, content_type=content_type, filename="ocr_upload")
-        file_ids.append(fid)
+    image_paths: list[str] = [
+        image_store.save_bytes(img_data, content_type)
+        for img_data, content_type in image_payloads
+    ]
 
     date = request.form.get("date") or datetime.utcnow().strftime("%Y-%m-%d")
 
     job_id = create_ocr_job(created_by=admin_id, date=date, item_count=len(image_payloads))
-    create_ocr_queue_items(job_id, len(image_payloads), file_ids=file_ids)
+    create_ocr_queue_items(job_id, len(image_payloads), image_paths=image_paths)
 
-    from flask import current_app
-    app = current_app._get_current_object()
-    thread = threading.Thread(target=_process_ocr_job, args=(app, job_id, image_payloads), daemon=True)
-    thread.start()
+    if FEATURE_OCR_AUTO_EXTRACT:
+        from flask import current_app
+        app = current_app._get_current_object()
+        thread = threading.Thread(target=_process_ocr_job, args=(app, job_id, image_payloads), daemon=True)
+        thread.start()
+        status = "processing"
+    else:
+        # Auto-extract is off: items stay `pending`; admin fills in receiver/sender
+        # manually during review. Mark the job itself as processed so the UI stops
+        # showing a spinner — there's no background work to wait for.
+        update_ocr_job_status(job_id, "processed", completed_count=len(image_payloads))
+        status = "processed"
 
     return jsonify({
         "id": str(job_id),
-        "status": "processing",
+        "status": status,
         "totalCount": len(image_payloads),
-        "completedCount": 0,
+        "completedCount": len(image_payloads) if not FEATURE_OCR_AUTO_EXTRACT else 0,
         "date": date,
     }), 201
 
@@ -354,19 +370,35 @@ def update_job_stage(job_id: str):
 @ocr_queue_bp.route("/api/ocr/queue/<item_id>/image", methods=["GET"])
 @require_admin_session
 def get_item_image(item_id: str):
-    """Get the image for a queue item."""
+    """Stream the image for a queue item.
+
+    Prefers the filesystem path (new uploads). Falls back to GridFS for any
+    legacy items written before the volume-backed store existed.
+    """
     if not ObjectId.is_valid(item_id):
         raise APIError(404, "item not found")
-    
-    item = get_ocr_queue_item(ObjectId(item_id))
-    if not item or not item.get("fileId"):
-        raise APIError(404, "image not found")
 
-    try:
-        grid_out = fs.get(item["fileId"])
-        return send_file(grid_out, mimetype=grid_out.content_type)
-    except Exception:
-        raise APIError(404, "image file missing")
+    item = get_ocr_queue_item(ObjectId(item_id))
+    if not item:
+        raise APIError(404, "item not found")
+
+    rel_path = item.get("imagePath")
+    if rel_path:
+        try:
+            stream, content_type = image_store.open_path(rel_path)
+        except FileNotFoundError:
+            raise APIError(404, "image file missing")
+        return send_file(stream, mimetype=content_type)
+
+    file_id = item.get("fileId")
+    if file_id:
+        try:
+            grid_out = fs.get(file_id)
+            return send_file(grid_out, mimetype=grid_out.content_type)
+        except Exception:
+            raise APIError(404, "image file missing")
+
+    raise APIError(404, "image not found")
 
 
 @ocr_queue_bp.route("/api/ocr/jobs", methods=["OPTIONS"], endpoint="ocr_jobs_options")

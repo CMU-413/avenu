@@ -15,6 +15,7 @@ export interface FeatureFlags {
   adminOcr: boolean;
   ocrQueueV2: boolean;
   ocrShadowLaunch: boolean;
+  ocrAutoExtract: boolean;
   promoClassification: boolean;
 }
 
@@ -42,6 +43,7 @@ export const useAppStore = create<AppState>((set) => ({
     adminOcr: false,
     ocrQueueV2: false,
     ocrShadowLaunch: false,
+    ocrAutoExtract: false,
     promoClassification: false,
   },
   isHydratingFeatureFlags: true,

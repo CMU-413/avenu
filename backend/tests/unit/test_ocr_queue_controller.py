@@ -72,9 +72,8 @@ class UploadValidationTests(_OcrQueueControllerTestBase):
             resp = self.client.post("/api/ocr/jobs", data=data, content_type="multipart/form-data")
         self.assertEqual(resp.status_code, 422)
 
-    def test_post_happy_path_creates_job_and_returns_201(self):
+    def test_post_happy_path_with_auto_extract_off_writes_paths_and_skips_thread(self):
         job_id = ObjectId()
-        file_ids = [ObjectId(), ObjectId()]
 
         data = {
             "files": [
@@ -84,23 +83,49 @@ class UploadValidationTests(_OcrQueueControllerTestBase):
             "date": "2025-01-01",
         }
 
-        with patch("controllers.ocr_queue_controller.fs") as fs_mock, \
+        saved_paths = ["abc.jpg", "def.png"]
+        with patch("controllers.ocr_queue_controller.FEATURE_OCR_AUTO_EXTRACT", False), \
+             patch("controllers.ocr_queue_controller.image_store.save_bytes", side_effect=saved_paths) as save_mock, \
              patch("controllers.ocr_queue_controller.create_ocr_job", return_value=job_id) as create_job, \
              patch("controllers.ocr_queue_controller.create_ocr_queue_items", return_value=[ObjectId(), ObjectId()]) as create_items, \
+             patch("controllers.ocr_queue_controller.update_ocr_job_status") as status_mock, \
              patch("controllers.ocr_queue_controller.threading.Thread") as thread_mock:
-            fs_mock.put.side_effect = file_ids
             resp = self.client.post("/api/ocr/jobs", data=data, content_type="multipart/form-data")
 
         self.assertEqual(resp.status_code, 201)
         body = resp.get_json()
         self.assertEqual(body["id"], str(job_id))
-        self.assertEqual(body["status"], "processing")
+        self.assertEqual(body["status"], "processed")
         self.assertEqual(body["totalCount"], 2)
-        self.assertEqual(body["completedCount"], 0)
+        self.assertEqual(body["completedCount"], 2)
         self.assertEqual(body["date"], "2025-01-01")
         create_job.assert_called_once()
         create_items.assert_called_once()
+        self.assertEqual(create_items.call_args.kwargs["image_paths"], saved_paths)
+        self.assertEqual(save_mock.call_count, 2)
+        status_mock.assert_called_once_with(job_id, "processed", completed_count=2)
+        thread_mock.assert_not_called()
+
+    def test_post_happy_path_with_auto_extract_on_starts_thread(self):
+        job_id = ObjectId()
+        data = {
+            "files": [(io.BytesIO(b"img"), "a.jpg", "image/jpeg")],
+            "date": "2025-01-01",
+        }
+        with patch("controllers.ocr_queue_controller.FEATURE_OCR_AUTO_EXTRACT", True), \
+             patch("controllers.ocr_queue_controller.image_store.save_bytes", return_value="xyz.jpg"), \
+             patch("controllers.ocr_queue_controller.create_ocr_job", return_value=job_id), \
+             patch("controllers.ocr_queue_controller.create_ocr_queue_items", return_value=[ObjectId()]), \
+             patch("controllers.ocr_queue_controller.update_ocr_job_status") as status_mock, \
+             patch("controllers.ocr_queue_controller.threading.Thread") as thread_mock:
+            resp = self.client.post("/api/ocr/jobs", data=data, content_type="multipart/form-data")
+
+        self.assertEqual(resp.status_code, 201)
+        body = resp.get_json()
+        self.assertEqual(body["status"], "processing")
+        self.assertEqual(body["completedCount"], 0)
         thread_mock.return_value.start.assert_called_once()
+        status_mock.assert_not_called()
 
 
 class QueueItemPatchTests(_OcrQueueControllerTestBase):
@@ -263,6 +288,62 @@ class ConfirmFlowTests(_OcrQueueControllerTestBase):
             with self.assertRaises(RuntimeError):
                 self.client.post(f"/api/ocr/queue/{item['_id']}/confirm")
         release.assert_called_once()
+
+
+class GetItemImageTests(_OcrQueueControllerTestBase):
+    def test_get_image_prefers_filesystem_when_path_present(self):
+        item_id = ObjectId()
+        item = {"_id": item_id, "imagePath": "abc.jpg", "fileId": None}
+        stream = io.BytesIO(b"pixels")
+        with patch("controllers.ocr_queue_controller.get_ocr_queue_item", return_value=item), \
+             patch("controllers.ocr_queue_controller.image_store.open_path",
+                   return_value=(stream, "image/jpeg")) as open_mock, \
+             patch("controllers.ocr_queue_controller.fs") as fs_mock:
+            resp = self.client.get(f"/api/ocr/queue/{item_id}/image")
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.data, b"pixels")
+        self.assertEqual(resp.mimetype, "image/jpeg")
+        open_mock.assert_called_once_with("abc.jpg")
+        fs_mock.get.assert_not_called()
+
+    def test_get_image_falls_back_to_gridfs_when_no_path(self):
+        item_id = ObjectId()
+        file_id = ObjectId()
+        item = {"_id": item_id, "imagePath": None, "fileId": file_id}
+
+        class _FakeGrid:
+            content_type = "image/png"
+            def read(self, n=-1):
+                return b"legacy"
+            def close(self):
+                pass
+
+        with patch("controllers.ocr_queue_controller.get_ocr_queue_item", return_value=item), \
+             patch("controllers.ocr_queue_controller.image_store.open_path") as open_mock, \
+             patch("controllers.ocr_queue_controller.fs") as fs_mock:
+            fs_mock.get.return_value = _FakeGrid()
+            resp = self.client.get(f"/api/ocr/queue/{item_id}/image")
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.data, b"legacy")
+        self.assertEqual(resp.mimetype, "image/png")
+        fs_mock.get.assert_called_once_with(file_id)
+        open_mock.assert_not_called()
+
+    def test_get_image_returns_404_when_filesystem_path_missing(self):
+        item_id = ObjectId()
+        item = {"_id": item_id, "imagePath": "gone.jpg", "fileId": None}
+        with patch("controllers.ocr_queue_controller.get_ocr_queue_item", return_value=item), \
+             patch("controllers.ocr_queue_controller.image_store.open_path",
+                   side_effect=FileNotFoundError("gone.jpg")):
+            resp = self.client.get(f"/api/ocr/queue/{item_id}/image")
+        self.assertEqual(resp.status_code, 404)
+
+    def test_get_image_returns_404_when_neither_path_nor_fileid(self):
+        item_id = ObjectId()
+        item = {"_id": item_id, "imagePath": None, "fileId": None}
+        with patch("controllers.ocr_queue_controller.get_ocr_queue_item", return_value=item):
+            resp = self.client.get(f"/api/ocr/queue/{item_id}/image")
+        self.assertEqual(resp.status_code, 404)
 
 
 class JobStageTests(_OcrQueueControllerTestBase):

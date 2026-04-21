@@ -81,6 +81,14 @@ OCR_SHADOW_PROVIDER = os.getenv("OCR_SHADOW_PROVIDER", "").strip().lower() or No
 
 # Admin toggle to mark incoming mail as promotional. Independent of OCR; default off.
 FEATURE_PROMO_CLASSIFICATION = _env_bool("FEATURE_PROMO_CLASSIFICATION", False)
+# When true, uploaded images are OCR'd in a background thread; when false, items land as
+# `pending` for manual review. OCR auto-sort is descoped; default off.
+FEATURE_OCR_AUTO_EXTRACT = _env_bool("FEATURE_OCR_AUTO_EXTRACT", False)
+
+# Host-mounted directory where uploaded mail photos live (see docker-compose volumes).
+IMAGE_STORE_DIR = os.getenv("IMAGE_STORE_DIR", "/var/lib/avenu/images").strip() or "/var/lib/avenu/images"
+# Nightly prune deletes anything older than this many hours (both files and queue rows).
+IMAGE_RETENTION_HOURS = _env_positive_int("IMAGE_RETENTION_HOURS", 24)
 
 
 def get_feature_flags() -> dict[str, bool]:
@@ -88,6 +96,7 @@ def get_feature_flags() -> dict[str, bool]:
         "adminOcr": FEATURE_ADMIN_OCR,
         "ocrQueueV2": FEATURE_OCR_QUEUE_V2 and FEATURE_ADMIN_OCR,
         "ocrShadowLaunch": FEATURE_OCR_SHADOW_LAUNCH and FEATURE_ADMIN_OCR,
+        "ocrAutoExtract": FEATURE_OCR_AUTO_EXTRACT and FEATURE_ADMIN_OCR,
         "promoClassification": FEATURE_PROMO_CLASSIFICATION,
     }
 
