@@ -21,6 +21,8 @@ export function createMail(payload: {
   senderInfo?: string;
   /** Simple count mode: multiple pieces in one row (stored as count when > 1) */
   count?: number;
+  /** Admin classification: only sent when true. */
+  isPromotional?: boolean;
   idempotencyKey: string;
 }): Promise<ApiMailRecord> {
   const body: Record<string, unknown> = {
@@ -36,6 +38,9 @@ export function createMail(payload: {
   }
   if (payload.senderInfo !== undefined && payload.senderInfo !== "") {
     body.senderInfo = payload.senderInfo;
+  }
+  if (payload.isPromotional === true) {
+    body.isPromotional = true;
   }
   return apiFetch<ApiMailRecord>("/mail", {
     method: "POST",
@@ -55,6 +60,7 @@ export function updateMail(
     count: number;
     receiverName: string;
     senderInfo: string;
+    isPromotional: boolean;
   }>
 ): Promise<ApiMailRecord> {
   return apiFetch<ApiMailRecord>(`/mail/${mailId}`, {

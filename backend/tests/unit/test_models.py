@@ -76,6 +76,61 @@ class ModelBuilderTests(unittest.TestCase):
         )
         self.assertNotIn("count", patch)
 
+    def test_build_mail_create_omits_is_promotional_when_absent(self):
+        doc = build_mail_create(
+            {
+                "mailboxId": str(ObjectId()),
+                "date": "2025-01-01T10:00:00Z",
+                "type": "letter",
+            }
+        )
+        self.assertNotIn("isPromotional", doc)
+
+    def test_build_mail_create_sets_is_promotional_true(self):
+        doc = build_mail_create(
+            {
+                "mailboxId": str(ObjectId()),
+                "date": "2025-01-01T10:00:00Z",
+                "type": "letter",
+                "isPromotional": True,
+            }
+        )
+        self.assertIs(doc["isPromotional"], True)
+
+    def test_build_mail_create_omits_is_promotional_when_false(self):
+        doc = build_mail_create(
+            {
+                "mailboxId": str(ObjectId()),
+                "date": "2025-01-01T10:00:00Z",
+                "type": "letter",
+                "isPromotional": False,
+            }
+        )
+        self.assertNotIn("isPromotional", doc)
+
+    def test_build_mail_create_rejects_non_bool_is_promotional(self):
+        with self.assertRaises(APIError):
+            build_mail_create(
+                {
+                    "mailboxId": str(ObjectId()),
+                    "date": "2025-01-01T10:00:00Z",
+                    "type": "letter",
+                    "isPromotional": "yes",
+                }
+            )
+
+    def test_build_mail_patch_sets_is_promotional_true(self):
+        patch = build_mail_patch({"isPromotional": True})
+        self.assertIs(patch["isPromotional"], True)
+
+    def test_build_mail_patch_sets_is_promotional_false(self):
+        patch = build_mail_patch({"isPromotional": False})
+        self.assertIs(patch["isPromotional"], False)
+
+    def test_build_mail_patch_rejects_non_bool_is_promotional(self):
+        with self.assertRaises(APIError):
+            build_mail_patch({"isPromotional": 1})
+
     def test_build_mail_request_create_requires_expected_sender_or_description(self):
         with self.assertRaises(APIError) as ctx:
             build_mail_request_create(

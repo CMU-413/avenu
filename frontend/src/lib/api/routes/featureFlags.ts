@@ -10,6 +10,8 @@ export interface ApiFeatureFlags {
    * `pending` for manual review. Implies `adminOcr`.
    */
   ocrAutoExtract: boolean;
+  /** When true, admin mail entry form shows the "Promotional" classification toggle. */
+  promoClassification: boolean;
 }
 
 export function fetchFeatureFlags(): Promise<ApiFeatureFlags> {
