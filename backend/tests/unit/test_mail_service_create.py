@@ -68,6 +68,26 @@ class CreateMailExpansionTests(unittest.TestCase):
             self.assertEqual(d["type"], "package")
         self.assertEqual(result["_id"], ids[0])
 
+    def test_is_promotional_true_persists_on_each_insert(self):
+        n = 3
+        ids = [ObjectId() for _ in range(n)]
+        payload = {**self.base_payload, "count": n, "isPromotional": True}
+        _result, inserted = self._run(payload, insert_ids=ids)
+        self.assertEqual(len(inserted), n)
+        for d in inserted:
+            self.assertIs(d["isPromotional"], True)
+
+    def test_is_promotional_omitted_when_absent(self):
+        ids = [ObjectId()]
+        _result, inserted = self._run(self.base_payload, insert_ids=ids)
+        self.assertNotIn("isPromotional", inserted[0])
+
+    def test_is_promotional_false_is_omitted(self):
+        ids = [ObjectId()]
+        payload = {**self.base_payload, "isPromotional": False}
+        _result, inserted = self._run(payload, insert_ids=ids)
+        self.assertNotIn("isPromotional", inserted[0])
+
     def test_invalid_count_raises(self):
         from errors import APIError
         with patch("services.mail_service.mailbox_exists", return_value=True), \

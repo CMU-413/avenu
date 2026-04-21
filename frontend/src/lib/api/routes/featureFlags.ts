@@ -5,6 +5,8 @@ export interface ApiFeatureFlags {
   adminOcr: boolean;
   ocrQueueV2: boolean;
   ocrShadowLaunch: boolean;
+  /** When true, admin mail entry form shows the "Promotional" classification toggle. */
+  promoClassification: boolean;
 }
 
 export function fetchFeatureFlags(): Promise<ApiFeatureFlags> {

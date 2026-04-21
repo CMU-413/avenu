@@ -140,9 +140,10 @@ type DraftEntry = {
   receiverName: string;
   senderInfo: string;
   type: MailType;
+  isPromotional: boolean;
 };
 
-const EMPTY_DRAFT: DraftEntry = { receiverName: "", senderInfo: "", type: "letter" };
+const EMPTY_DRAFT: DraftEntry = { receiverName: "", senderInfo: "", type: "letter", isPromotional: false };
 
 function mailPieceQty(entry: ApiMailRecord): number {
   const c = entry.count;
@@ -157,6 +158,7 @@ const RecordEntry = () => {
   const logout = useAppStore((s) => s.logout);
   const adminOcrEnabled = useAppStore((s) => s.featureFlags.adminOcr);
   const ocrQueueV2 = useAppStore((s) => s.featureFlags.ocrQueueV2);
+  const promoClassificationEnabled = useAppStore((s) => s.featureFlags.promoClassification);
   const { toast } = useToast();
 
   const [mailboxName, setMailboxName] = useState<string>("");
@@ -373,6 +375,7 @@ const RecordEntry = () => {
         type: draft.type,
         receiverName: draft.receiverName.trim() || undefined,
         senderInfo: draft.senderInfo.trim() || undefined,
+        isPromotional: promoClassificationEnabled && draft.isPromotional ? true : undefined,
         idempotencyKey: makeIdempotencyKey(),
       });
       setDraft({ ...EMPTY_DRAFT });
@@ -468,6 +471,7 @@ const RecordEntry = () => {
       receiverName: entry.receiverName || "",
       senderInfo: entry.senderInfo || "",
       type: entry.type,
+      isPromotional: !!entry.isPromotional,
     });
   };
 
@@ -479,6 +483,7 @@ const RecordEntry = () => {
         type: editDraft.type,
         receiverName: editDraft.receiverName.trim(),
         senderInfo: editDraft.senderInfo.trim(),
+        ...(promoClassificationEnabled ? { isPromotional: editDraft.isPromotional } : {}),
       });
       setEditingId(null);
       toast({ title: "Entry updated" });
@@ -620,6 +625,17 @@ const RecordEntry = () => {
                               placeholder="Sender (optional)"
                               className="w-full h-9 rounded-lg border border-input bg-background px-3 text-sm"
                             />
+                            {promoClassificationEnabled && (
+                              <label className="flex items-center gap-2 text-sm text-foreground">
+                                <input
+                                  type="checkbox"
+                                  checked={editDraft.isPromotional}
+                                  onChange={(e) => setEditDraft((d) => ({ ...d, isPromotional: e.target.checked }))}
+                                  className="h-4 w-4"
+                                />
+                                Promotional
+                              </label>
+                            )}
                             <div className="flex gap-2">
                               <Button size="sm" onClick={handleSaveEdit} disabled={editSaving}>
                                 {editSaving ? "Saving..." : "Save"}
@@ -635,6 +651,11 @@ const RecordEntry = () => {
                                   {entry.type}
                                   {mailPieceQty(entry) > 1 ? ` ×${mailPieceQty(entry)}` : ""}
                                 </span>
+                                {entry.isPromotional && (
+                                  <span className="inline-block rounded-md bg-amber-100 text-amber-900 px-2 py-0.5 text-xs font-medium">
+                                    Promo
+                                  </span>
+                                )}
                               </div>
                               {entry.receiverName && (
                                 <p className="text-sm text-card-foreground mt-1 truncate">{entry.receiverName}</p>
@@ -796,6 +817,17 @@ const RecordEntry = () => {
                         className="w-full h-10 rounded-lg border border-input bg-background px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
                       />
                     </div>
+                    {promoClassificationEnabled && (
+                      <label className="flex items-center gap-2 text-sm text-foreground">
+                        <input
+                          type="checkbox"
+                          checked={draft.isPromotional}
+                          onChange={(e) => setDraft((d) => ({ ...d, isPromotional: e.target.checked }))}
+                          className="h-4 w-4"
+                        />
+                        Promotional
+                      </label>
+                    )}
                     <div className="flex gap-2">
                       <Button onClick={handleAddEntry} disabled={saving} className="h-10">
                         {saving ? "Saving..." : "Confirm & Add"}

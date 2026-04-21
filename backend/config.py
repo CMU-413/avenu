@@ -79,12 +79,16 @@ FEATURE_OCR_QUEUE_V2 = _env_bool("FEATURE_OCR_QUEUE_V2", False)
 FEATURE_OCR_SHADOW_LAUNCH = _env_bool("FEATURE_OCR_SHADOW_LAUNCH", False)
 OCR_SHADOW_PROVIDER = os.getenv("OCR_SHADOW_PROVIDER", "").strip().lower() or None
 
+# Admin toggle to mark incoming mail as promotional. Independent of OCR; default off.
+FEATURE_PROMO_CLASSIFICATION = _env_bool("FEATURE_PROMO_CLASSIFICATION", False)
+
 
 def get_feature_flags() -> dict[str, bool]:
     return {
         "adminOcr": FEATURE_ADMIN_OCR,
         "ocrQueueV2": FEATURE_OCR_QUEUE_V2 and FEATURE_ADMIN_OCR,
         "ocrShadowLaunch": FEATURE_OCR_SHADOW_LAUNCH and FEATURE_ADMIN_OCR,
+        "promoClassification": FEATURE_PROMO_CLASSIFICATION,
     }
 
 
