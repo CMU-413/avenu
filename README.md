@@ -111,7 +111,7 @@ Scheduler runtime variables:
 
 Production-only Compose conveniences:
 
-- `IMAGE_NAMESPACE` controls the Docker Hub namespace used by `docker-compose-prod.yml`
+- `IMAGE_REGISTRY` and `IMAGE_OWNER` control the production image references used by `docker-compose-prod.yml`
 - `PROMETHEUS_DATA_DIR`, `PROMETHEUS_CONFIG_DIR`, and `GRAFANA_DATA_DIR` map host storage into containers
 - `GRAFANA_ROOT_URL` must match the public subpath used by nginx
 - `GRAFANA_ADMIN_PASSWORD` sets the Grafana admin password
@@ -237,17 +237,20 @@ GitHub Actions runs:
 - scheduler tests
 - frontend lint, type-check, and build
 
-On `main`, CI builds and pushes application images to Docker Hub.
+On `main`, CI builds and pushes application images to GitHub Container Registry (GHCR).
 
 Current implementation detail:
 
-- CI currently pushes to the `chunkitw` namespace in [`.github/workflows/ci-cd.yml`](.github/workflows/ci-cd.yml).
-- Production Compose now supports `IMAGE_NAMESPACE`, but CI still needs to be updated manually if image ownership moves to another account or organization.
+- CI publishes changed service images to:
+  - `ghcr.io/cmu-413/avenu-backend`
+  - `ghcr.io/cmu-413/avenu-frontend`
+  - `ghcr.io/cmu-413/avenu-scheduler`
+- Each published image keeps both `latest` and `sha-<git-sha>` tags.
+- The workflow authenticates to GHCR with `GITHUB_TOKEN`, so no Docker Hub credentials are required.
 
 Required GitHub secrets:
 
-- `DOCKERHUB_USERNAME`
-- `DOCKERHUB_TOKEN`
+- None beyond the default `GITHUB_TOKEN` available to GitHub Actions.
 
 ## Production Deployment and Dockge Rollout
 
@@ -257,7 +260,7 @@ Required GitHub secrets:
 
 Production uses:
 
-- Docker Hub images for `frontend`, `backend`, and `scheduler`
+- GHCR images for `frontend`, `backend`, and `scheduler`
 - a Dockge-managed `docker-compose-prod.yml` stack
 - Watchtower in the same stack: it polls the registry on a fixed interval (currently 300 seconds in `docker-compose-prod.yml`) and recreates containers when newer images are available. The application services carry `com.centurylinklabs.watchtower.enable=true` labels so only those images are watched.
 - host nginx routing public traffic to the internal container ports
@@ -266,7 +269,9 @@ Production uses:
 
 ### Before First Rollout
 
-1. Set the Docker Hub namespace in Dockge `.env` with `IMAGE_NAMESPACE`.
+1. Set the image registry in Dockge `.env` with:
+   - `IMAGE_REGISTRY=ghcr.io`
+   - `IMAGE_OWNER=cmu-413`
 2. Set all backend and scheduler runtime secrets in Dockge `.env`.
 3. Set host storage paths for:
    - `PROMETHEUS_DATA_DIR`
@@ -277,6 +282,9 @@ Production uses:
    - `/mail -> frontend :18080`
    - `/mail/api -> backend :18000`
    - `/mail/grafana -> frontend proxy -> grafana`
+6. Ensure production hosts can pull from GHCR:
+   - if the packages are public, no host login is required
+   - if the packages are private, run `docker login ghcr.io` on the host with a token that has `read:packages`
 
 ### Frontend Build-Time Rules
 
@@ -293,26 +301,26 @@ If building manually, publish `linux/amd64` images:
 Backend:
 
 ```bash
-docker buildx build --platform linux/amd64 -t <namespace>/avenu-backend:latest --push ./backend
+docker buildx build --platform linux/amd64 -t <registry>/<owner>/avenu-backend:latest --push ./backend
 ```
 
 Frontend:
 
 ```bash
-docker buildx build --platform linux/amd64 -t <namespace>/avenu-frontend:latest --push ./frontend
+docker buildx build --platform linux/amd64 -t <registry>/<owner>/avenu-frontend:latest --push ./frontend
 ```
 
 Scheduler:
 
 ```bash
-docker buildx build --platform linux/amd64 -t <namespace>/avenu-scheduler:latest --push ./scheduler
+docker buildx build --platform linux/amd64 -t <registry>/<owner>/avenu-scheduler:latest --push ./scheduler
 ```
 
-Replace `<namespace>` with the Docker Hub account or org that owns the images. The sample production Compose defaults to `chunkitw`, but future maintainers should treat that as an overrideable placeholder, not a permanent constant.
+Replace `<registry>/<owner>` with the registry and org that own the images. The production defaults are `ghcr.io/cmu-413`.
 
 ### Image rollout and Dockge
 
-After CI (or a maintainer) publishes new `frontend`, `backend`, or `scheduler` images to Docker Hub, Watchtower detects newer tags on its poll interval and replaces those containers automatically. You do not need to open Dockge and click **Update** for routine image-only rollouts.
+After CI (or a maintainer) publishes new `frontend`, `backend`, or `scheduler` images to GHCR, Watchtower detects newer tags on its poll interval and replaces those containers automatically. You do not need to open Dockge and click **Update** for routine image-only rollouts.
 
 Use Dockge when something outside Watchtower’s scope changes, for example:
 

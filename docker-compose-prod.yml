@@ -1,7 +1,7 @@
 version: "3.8"
 services:
   frontend:
-    image: ${IMAGE_NAMESPACE:-chunkitw}/avenu-frontend:latest
+    image: ${IMAGE_REGISTRY:-ghcr.io}/${IMAGE_OWNER:-cmu-413}/avenu-frontend:latest
     labels:
     - "com.centurylinklabs.watchtower.enable=true"
     ports:
@@ -12,7 +12,7 @@ services:
     networks:
       - avenu-internal
   backend:
-    image: ${IMAGE_NAMESPACE:-chunkitw}/avenu-backend:latest
+    image: ${IMAGE_REGISTRY:-ghcr.io}/${IMAGE_OWNER:-cmu-413}/avenu-backend:latest
     labels:
     - "com.centurylinklabs.watchtower.enable=true"
     env_file:
@@ -95,7 +95,7 @@ services:
     networks:
       - avenu-internal
   scheduler:
-    image: ${IMAGE_NAMESPACE:-chunkitw}/avenu-scheduler:latest
+    image: ${IMAGE_REGISTRY:-ghcr.io}/${IMAGE_OWNER:-cmu-413}/avenu-scheduler:latest
     labels:
     - "com.centurylinklabs.watchtower.enable=true"
     environment:
