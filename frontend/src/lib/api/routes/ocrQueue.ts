@@ -26,6 +26,8 @@ export interface ApiOcrQueueItem {
   error?: string | null;
   mailboxId?: string | null;
   fileId?: string | null;
+  imagePath?: string | null;
+  isPromotional?: boolean;
   confirmedAt?: string | null;
 }
 
@@ -84,6 +86,7 @@ export async function updateOcrQueueItem(
     senderInfo: string;
     type: "letter" | "package";
     mailboxId: string | null;
+    isPromotional: boolean;
   }>
 ): Promise<{ item: ApiOcrQueueItem }> {
   return apiFetch<{ item: ApiOcrQueueItem }>(`/ocr/queue/${itemId}`, {
