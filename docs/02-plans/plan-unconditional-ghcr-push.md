@@ -9,6 +9,7 @@
 ## Phase 2
 - ☑ Allow the deploy job to run on `main` pushes when upstream jobs are skipped for no-op changes.
 - ☑ Preserve the guard that prevents image pushes when required upstream jobs fail.
+- ☑ Publish GHCR images for same-repository pull requests without moving the `latest` tag.
 
 ## Phase 1
 
@@ -32,6 +33,7 @@ Summary of changes per file:
 - `.github/workflows/ci-cd.yml`
   - Update the deploy job condition so `main` pushes still publish GHCR images when build/test jobs are skipped due to no detected service changes.
   - Keep deploy blocked when `build` or `backend-integration` actually fail or are cancelled.
+  - Publish PR images with PR-scoped tags while reserving `latest` for `main`.
 
 Inline unit tests:
 - None; workflow-only change.
