@@ -250,6 +250,7 @@ const OcrQueue = () => {
         senderInfo: editingItem.senderInfo ?? item.senderInfo ?? "",
         type: editingItem.type ?? item.type ?? "letter",
         mailboxId: editingItem.mailboxId ?? item.mailboxId,
+        isPromotional: editingItem.isPromotional ?? item.isPromotional ?? false,
       }
     : null;
 
@@ -555,7 +556,7 @@ const OcrQueue = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Left Column: Image */}
               <div className="rounded-xl overflow-hidden bg-muted flex items-center justify-center border aspect-[3/4] md:aspect-auto">
-                {effectiveItem?.fileId ? (
+                {effectiveItem && (effectiveItem.imagePath || effectiveItem.fileId) ? (
                    <img 
                      src={`/api/ocr/queue/${effectiveItem.id}/image`} 
                      alt="Mail Item" 
@@ -620,6 +621,17 @@ const OcrQueue = () => {
                     </Button>
                   </div>
                 </div>
+                {featureFlags.promoClassification && (
+                  <label className="flex items-center gap-2 text-sm text-foreground">
+                    <input
+                      type="checkbox"
+                      checked={!!effectiveItem.isPromotional}
+                      onChange={(e) => handleUpdateItem({ isPromotional: e.target.checked })}
+                      className="h-4 w-4"
+                    />
+                    Promotional
+                  </label>
+                )}
                 <div>
                   <label className="text-xs font-medium text-muted-foreground">Mailbox</label>
                   {showMailboxPicker ? (
