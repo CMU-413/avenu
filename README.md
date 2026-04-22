@@ -10,12 +10,20 @@ Core application services:
 
 MongoDB is external and not part of the Compose stack.
 
+## Prerequisites
+
+To run Avenu locally, you need:
+
+- Docker and Docker Compose
+- Node.js and npm
+- Python 3
+- A MongoDB instance available to the app
+
+Configuration is documented in `.env.sample`. Copy it to `.env` and fill in the required values before starting the stack.
+
 ## Local setup
 
-1. Copy `.env.sample` to `.env`
-2. Fill in the required values
-3. Start the stack from the repo root
-
+Start the stack from the repo root:
 ```bash
 docker compose up --build
 ````
