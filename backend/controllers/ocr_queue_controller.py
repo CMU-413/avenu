@@ -29,7 +29,7 @@ from repositories.ocr_queue_repository import (
 from repositories import to_api_doc
 from metrics.metrics_ocr import mail_image_ocr_metrics
 from services.mail_service import create_mail
-from services.ocr.ocr_parser import has_identified_receiver, parse_ocr_text
+from services.ocr.ocr_parser import has_identified_receiver, parse_ocr_text_with_metadata
 
 logger = logging.getLogger(__name__)
 
@@ -81,8 +81,8 @@ def _process_ocr_job(app, job_id: ObjectId, image_payloads: list[tuple[bytes, st
                 try:
                     with mail_image_ocr_metrics() as outcome:
                         text = client.extract_text(image_bytes, content_type)
-                        receiver, sender = parse_ocr_text(text)
-                        if has_identified_receiver(receiver):
+                        receiver, sender, used_fallback = parse_ocr_text_with_metadata(text)
+                        if has_identified_receiver(receiver, used_fallback=used_fallback):
                             outcome.mark_success()
                     update_ocr_queue_item(
                         item_id,

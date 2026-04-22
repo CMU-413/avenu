@@ -39,8 +39,8 @@ def _clean_address_text(s: str) -> str:
     return s
 
 
-def parse_ocr_text(raw: str) -> tuple[str, str]:
-    """Split raw OCR text into (receiver, sender). Returns (receiver, sender) strings."""
+def parse_ocr_text_with_metadata(raw: str) -> tuple[str, str, bool]:
+    """Split raw OCR text into (receiver, sender, used_fallback)."""
     lines = [l.strip() for l in raw.splitlines() if l.strip()]
     receiver: list[str] = []
     sender: list[str] = []
@@ -87,6 +87,7 @@ def parse_ocr_text(raw: str) -> tuple[str, str]:
         return (
             _clean_address_text("\n".join(receiver).strip()),
             _clean_address_text("\n".join(sender).strip()),
+            False,
         )
 
     filtered = [_strip_leading_noise(l) for l in lines if not SKIP_PATTERNS.search(_strip_leading_noise(l))]
@@ -108,11 +109,18 @@ def parse_ocr_text(raw: str) -> tuple[str, str]:
         return (
             _clean_address_text("\n".join(b for block in blocks[1:] for b in block).strip()),
             _clean_address_text("\n".join(blocks[0]).strip()),
+            False,
         )
 
-    return (_clean_address_text(raw.strip()), "")
+    return (_clean_address_text(raw.strip()), "", True)
 
 
-def has_identified_receiver(receiver: str) -> bool:
-    """True when parsed OCR yields a non-empty recipient (receiver) line."""
-    return bool(receiver.strip())
+def parse_ocr_text(raw: str) -> tuple[str, str]:
+    """Split raw OCR text into (receiver, sender)."""
+    receiver, sender, _used_fallback = parse_ocr_text_with_metadata(raw)
+    return receiver, sender
+
+
+def has_identified_receiver(receiver: str, *, used_fallback: bool = False) -> bool:
+    """True when OCR parsing yields a non-empty receiver via structured extraction."""
+    return bool(receiver.strip()) and not used_fallback

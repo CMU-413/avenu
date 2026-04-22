@@ -19,7 +19,7 @@ from controllers.auth_guard import require_admin_session
 from errors import APIError
 from metrics.metrics_ocr import mail_image_ocr_metrics
 from services.ocr import EasyOCRClient, OCRSpaceClient, PaddleOCRClient, TesseractClient
-from services.ocr.ocr_parser import has_identified_receiver, parse_ocr_text
+from services.ocr.ocr_parser import has_identified_receiver, parse_ocr_text_with_metadata
 
 logger = logging.getLogger(__name__)
 
@@ -128,8 +128,8 @@ def _ocr_extract_impl():
                 len(text),
             )
             if text:
-                receiver, sender = parse_ocr_text(text)
-                if has_identified_receiver(receiver):
+                receiver, sender, used_fallback = parse_ocr_text_with_metadata(text)
+                if has_identified_receiver(receiver, used_fallback=used_fallback):
                     outcome.mark_success()
         except Exception as e:
             elapsed_ms = (time.perf_counter() - extract_start) * 1000
