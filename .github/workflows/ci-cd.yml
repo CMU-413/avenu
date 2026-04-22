@@ -54,11 +54,20 @@ jobs:
               include.append({"service": "scheduler"})
 
           matrix = json.dumps({"include": include})
+          deploy_matrix = json.dumps(
+              {
+                  "include": [
+                      {"service": "backend"},
+                      {"service": "frontend"},
+                      {"service": "scheduler"},
+                  ]
+              }
+          )
           any_changed = "true" if include else "false"
 
           with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as fh:
               fh.write(f"build_matrix={matrix}\n")
-              fh.write(f"deploy_matrix={matrix}\n")
+              fh.write(f"deploy_matrix={deploy_matrix}\n")
               fh.write(f"any_changed={any_changed}\n")
           PY
 
@@ -175,7 +184,13 @@ jobs:
 
   deploy:
     name: build & push GHCR images
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.detect-changes.outputs.any_changed == 'true'
+    if: >-
+      always() &&
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/main' &&
+      needs.detect-changes.result == 'success' &&
+      (needs.build.result == 'success' || needs.build.result == 'skipped') &&
+      (needs.backend-integration.result == 'success' || needs.backend-integration.result == 'skipped')
     needs: [build, backend-integration, detect-changes]
     runs-on: ubuntu-latest
     permissions:
