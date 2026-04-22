@@ -97,6 +97,7 @@ erDiagram
         ObjectId mailboxId FK "optional"
         ObjectId fileId FK "optional; legacy GridFS reference, nullable for new uploads"
         string imagePath "optional; relative path under IMAGE_STORE_DIR volume"
+        boolean isPromotional "default false; gated by FEATURE_PROMO_CLASSIFICATION"
         datetime confirmedAt "optional"
         datetime createdAt
         datetime updatedAt

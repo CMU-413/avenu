@@ -202,9 +202,12 @@ Fields:
 - `receiverName: string | null`
 - `senderInfo: string | null`
 - `type: "letter" | "package"`
+- `isPromotional: bool` (default `false`; gated behind `FEATURE_PROMO_CLASSIFICATION`. Carried into the created `mail` document on confirm when true.)
 - `rawText: string | null` (original OCR output)
 - `error: string | null` (if OCR failed)
 - `mailboxId: ObjectId | null` (assigned before confirm)
+- `fileId: ObjectId | null` (legacy GridFS reference; nullable for new uploads)
+- `imagePath: string | null` (relative path under `IMAGE_STORE_DIR`)
 - `confirmedAt: datetime | null` (when mail was created)
 - `createdAt: datetime`
 - `updatedAt: datetime`
