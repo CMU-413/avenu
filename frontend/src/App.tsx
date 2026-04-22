@@ -154,6 +154,8 @@ const AppRoutes = () => {
           adminOcr: flags.adminOcr ?? false,
           ocrQueueV2: flags.ocrQueueV2 ?? false,
           ocrShadowLaunch: flags.ocrShadowLaunch ?? false,
+          ocrAutoExtract: flags.ocrAutoExtract ?? false,
+          promoClassification: flags.promoClassification ?? false,
         });
       } catch (err) {
         if (!alive) return;
@@ -161,6 +163,8 @@ const AppRoutes = () => {
           adminOcr: false,
           ocrQueueV2: false,
           ocrShadowLaunch: false,
+          ocrAutoExtract: false,
+          promoClassification: false,
         });
       } finally {
         if (alive) setFeatureFlagsHydrating(false);
