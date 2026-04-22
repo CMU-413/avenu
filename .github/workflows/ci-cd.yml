@@ -54,11 +54,20 @@ jobs:
               include.append({"service": "scheduler"})
 
           matrix = json.dumps({"include": include})
+          deploy_matrix = json.dumps(
+              {
+                  "include": [
+                      {"service": "backend"},
+                      {"service": "frontend"},
+                      {"service": "scheduler"},
+                  ]
+              }
+          )
           any_changed = "true" if include else "false"
 
           with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as fh:
               fh.write(f"build_matrix={matrix}\n")
-              fh.write(f"deploy_matrix={matrix}\n")
+              fh.write(f"deploy_matrix={deploy_matrix}\n")
               fh.write(f"any_changed={any_changed}\n")
           PY
 
@@ -175,7 +184,18 @@ jobs:
 
   deploy:
     name: build & push GHCR images
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.detect-changes.outputs.any_changed == 'true'
+    if: >-
+      always() &&
+      (
+        (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+        (
+          github.event_name == 'pull_request' &&
+          github.event.pull_request.head.repo.full_name == github.repository
+        )
+      ) &&
+      needs.detect-changes.result == 'success' &&
+      (needs.build.result == 'success' || needs.build.result == 'skipped') &&
+      (needs.backend-integration.result == 'success' || needs.backend-integration.result == 'skipped')
     needs: [build, backend-integration, detect-changes]
     runs-on: ubuntu-latest
     permissions:
@@ -201,12 +221,31 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Compute image tags
+        id: tags
+        env:
+          IMAGE_NAME: ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_OWNER }}/avenu-${{ matrix.service }}
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            {
+              echo "tags<<EOF"
+              echo "${IMAGE_NAME}:pr-${{ github.event.pull_request.number }}"
+              echo "${IMAGE_NAME}:pr-${{ github.event.pull_request.number }}-sha-${{ github.sha }}"
+              echo "EOF"
+            } >> "$GITHUB_OUTPUT"
+          else
+            {
+              echo "tags<<EOF"
+              echo "${IMAGE_NAME}:latest"
+              echo "${IMAGE_NAME}:sha-${{ github.sha }}"
+              echo "EOF"
+            } >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Docker Build & Push
         uses: docker/build-push-action@v5
         with:
           context: ./${{ matrix.service }}
           platforms: linux/amd64
           push: true
-          tags: |
-            ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_OWNER }}/avenu-${{ matrix.service }}:latest
-            ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_OWNER }}/avenu-${{ matrix.service }}:sha-${{ github.sha }}
+          tags: ${{ steps.tags.outputs.tags }}
