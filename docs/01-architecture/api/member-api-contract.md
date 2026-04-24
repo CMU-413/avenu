@@ -15,6 +15,7 @@ This endpoint is the source of truth for:
 - Admin vs member routing
 - User identity in frontend state
 - Default notification preference state
+- Whether SMS notifications can be enabled without another profile fetch
 
 ### Auth
 - Requires valid session cookie
@@ -35,14 +36,17 @@ This endpoint is the source of truth for:
   "fullname": "Jane Doe",
   "isAdmin": false,
   "teamIds": ["<teamId>"],
-  "emailNotifications": true
+  "emailNotifications": true,
+  "smsNotifications": false,
+  "hasPhone": true
 }
 ```
 
 ### Notes
 
-* `emailNotifications` is the only public preference field for session hydration.
+* Session hydration exposes effective notification booleans only: `emailNotifications`, `smsNotifications`, and `hasPhone`.
 * Internal storage (for example `notifPrefs`) is intentionally hidden from clients.
+* Optix login/bootstrap may refresh Optix-owned identity fields before this endpoint is read, but it must not overwrite Avenu-managed notification preferences.
 * No sensitive fields exposed.
 
 ---
@@ -109,7 +113,7 @@ Both are required.
 
 ### Purpose
 
-Allow a member to toggle email notifications.
+Allow a member to update notification preferences.
 
 This endpoint updates notification preferences for the authenticated user only.
 
@@ -122,14 +126,18 @@ This endpoint updates notification preferences for the authenticated user only.
 
 ```json
 {
-  "emailNotifications": true
+  "emailNotifications": true,
+  "smsNotifications": false
 }
 ```
 
 ### Backend Behavior
 
-* Map `emailNotifications` to internal `notifPrefs` representation.
+* Treat `emailNotifications` and `smsNotifications` as independently optional patch fields.
+* Map public booleans to internal `notifPrefs` representation.
 * Do not expose enum or storage format to frontend.
+* Reject SMS enablement when the effective phone number is missing.
+* Auto-remove SMS preference when the effective phone number is missing.
 * Persist updated preferences.
 
 ### Response Shape
@@ -137,7 +145,9 @@ This endpoint updates notification preferences for the authenticated user only.
 ```json
 {
   "id": "<userId>",
-  "emailNotifications": true
+  "emailNotifications": true,
+  "smsNotifications": false,
+  "hasPhone": true
 }
 ```
 

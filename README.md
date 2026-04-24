@@ -93,6 +93,18 @@ Post-deploy checks:
 * scheduler can still hit backend internally
 * Grafana still loads
 
+## Optix Login Bootstrap
+
+`POST /api/optix-token` is the Optix-authenticated login/bootstrap path.
+
+On each successful Optix login:
+
+* refresh Optix-owned user fields only when the incoming values changed
+* refresh existing team names and team mailbox display names only when the incoming values changed
+* preserve Avenu-owned user preferences such as `notifPrefs`
+
+This keeps local identity data current without rewriting unchanged rows on every login.
+
 ## Learn more
 
 * Architecture overview: `docs/01-architecture/overview.md`
