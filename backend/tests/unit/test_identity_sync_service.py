@@ -78,6 +78,7 @@ class IdentitySyncServiceTests(unittest.TestCase):
         kwargs = upsert_user_mock.call_args.kwargs
         self.assertEqual(kwargs["optix_id"], 123)
         self.assertEqual(kwargs["team_ids"], [team_id])
+        self.assertNotIn("notif_prefs", kwargs)
 
     def test_sync_optix_identity_updates_existing_user(self):
         user_id = ObjectId()
@@ -108,6 +109,53 @@ class IdentitySyncServiceTests(unittest.TestCase):
 
         self.assertFalse(created)
         self.assertEqual(user_doc["_id"], user_id)
+
+    def test_sync_optix_identity_forwards_updated_phone_and_team_membership_for_existing_user(self):
+        user_id = ObjectId()
+        first_team_id = ObjectId()
+        second_team_id = ObjectId()
+
+        with patch(
+            "services.identity_sync_service.requests.post",
+            return_value=FakeResponse(
+                status_code=200,
+                payload={
+                    "data": {
+                        "me": {
+                            "user": {
+                                "user_id": 123,
+                                "email": "member@example.com",
+                                "fullname": "Updated Name",
+                                "phone": "+15550001111",
+                                "is_admin": True,
+                                "teams": [
+                                    {"team_id": 99, "name": "Team One"},
+                                    {"team_id": 100, "name": "Team Two"},
+                                ],
+                            }
+                        }
+                    }
+                },
+            ),
+        ), patch(
+            "services.identity_sync_service.ensure_team_from_external_identity",
+            side_effect=[
+                {"_id": first_team_id, "optixId": 99, "name": "Team One"},
+                {"_id": second_team_id, "optixId": 100, "name": "Team Two"},
+            ],
+        ), patch(
+            "services.identity_sync_service.upsert_user_from_external_identity",
+            return_value=({"_id": user_id, "optixId": 123, "email": "member@example.com"}, False),
+        ) as upsert_user_mock:
+            created, user_doc = sync_optix_identity(token="optix-token")
+
+        self.assertFalse(created)
+        self.assertEqual(user_doc["_id"], user_id)
+        kwargs = upsert_user_mock.call_args.kwargs
+        self.assertEqual(kwargs["fullname"], "Updated Name")
+        self.assertEqual(kwargs["phone"], "+15550001111")
+        self.assertEqual(kwargs["team_ids"], [first_team_id, second_team_id])
+        self.assertNotIn("notif_prefs", kwargs)
 
     def test_sync_optix_identity_raises_on_optix_failure_and_does_not_write_local_state(self):
         with patch(
