@@ -69,8 +69,6 @@ def optional_phone(value: Any) -> str | None:
     phone = value.strip()
     if not phone:
         return None
-    if not phone.startswith("+") or not phone[1:].isdigit():
-        raise APIError(422, "phone must use E.164 format")
     return phone
 
 
