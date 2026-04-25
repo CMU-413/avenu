@@ -14,6 +14,7 @@ from .common import run_in_transaction
 from .mail_repository import delete_by_mailbox
 from .mailboxes_repository import delete_mailbox, find_owner_mailbox, insert_mailbox, update_owner_display_name
 from .teams_repository import count_by_ids
+from services.user_preferences import normalize_effective_notification_state
 
 DEFAULT_EXTERNAL_IDENTITY_NOTIF_PREFS = ["email"]
 
@@ -188,6 +189,14 @@ def upsert_user_from_external_identity(
     for key in ("fullname", "email", "phone", "isAdmin"):
         if existing.get(key) != candidate_patch.get(key):
             patch[key] = candidate_patch[key]
+
+    if "phone" in patch:
+        normalized = normalize_effective_notification_state(
+            current_user=existing,
+            phone_patch=candidate_patch["phone"],
+        )
+        if normalized["notifPrefs"] != existing.get("notifPrefs", []):
+            patch["notifPrefs"] = normalized["notifPrefs"]
 
     current_team_ids = {str(team_id) for team_id in existing.get("teamIds", [])}
     next_team_ids = {str(team_id) for team_id in candidate_patch.get("teamIds", [])}

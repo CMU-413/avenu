@@ -97,6 +97,39 @@ class UsersRepositoryExternalIdentityTests(unittest.TestCase):
         self.assertEqual(user_doc, existing)
         update_mock.assert_not_called()
 
+    def test_upsert_user_from_external_identity_removes_sms_pref_when_optix_clears_phone(self):
+        user_id = ObjectId()
+        existing = {
+            "_id": user_id,
+            "optixId": 42,
+            "fullname": "Member User",
+            "email": "member@example.com",
+            "phone": "+15550001111",
+            "isAdmin": False,
+            "teamIds": [],
+            "notifPrefs": ["email", "text"],
+        }
+        updated = {**existing, "phone": None, "notifPrefs": ["email"]}
+
+        with patch("repositories.users_repository.find_user_by_optix_id", return_value=existing), patch(
+            "repositories.users_repository.update_user_with_mailbox_sync",
+            return_value=updated,
+        ) as update_mock:
+            user_doc, created = upsert_user_from_external_identity(
+                optix_id=42,
+                fullname="Member User",
+                email="member@example.com",
+                phone="",
+                is_admin=False,
+                team_ids=[],
+            )
+
+        self.assertFalse(created)
+        self.assertEqual(user_doc, updated)
+        patch_payload = update_mock.call_args.kwargs["patch"]
+        self.assertIsNone(patch_payload["phone"])
+        self.assertEqual(patch_payload["notifPrefs"], ["email"])
+
 
 if __name__ == "__main__":
     unittest.main()
