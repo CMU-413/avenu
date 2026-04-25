@@ -34,6 +34,7 @@ If `teams` field in users is non-empty:
 
 * Upsert each team first, keyed on `team_id`
 * Then upsert the user with team references
+* Refresh existing team `name` and the corresponding team mailbox `displayName` only when the incoming Optix name changed
 
 This guarantees referential consistency during hydration.
 
@@ -51,6 +52,30 @@ db.users.updateOne(
   { upsert: true }
 )
 ```
+
+### Ownership Boundaries
+
+Fields owned by Optix and refreshed during successful `/api/optix-token` login/bootstrap:
+
+* `users.fullname`
+* `users.email`
+* `users.phone`
+* `users.isAdmin`
+* `users.teamIds`
+* `teams.name`
+* team mailbox `displayName`
+
+Fields owned by Avenu and preserved across Optix login/bootstrap:
+
+* `users.notifPrefs`
+
+### Change Detection
+
+Hydration should compare incoming Optix values against stored MongoDB values before writing:
+
+* unchanged user identity payloads must not rewrite `users` or user mailbox records
+* unchanged team names must not rewrite `teams` or team mailbox records
+* first-time local creation still applies Avenu defaults such as initial notification preferences
 
 ---
 
@@ -215,4 +240,3 @@ Indexes:
 db.ocr_queue_items.createIndex({ jobId: 1, index: 1 })
 db.ocr_queue_items.createIndex({ status: 1 })
 ```
-

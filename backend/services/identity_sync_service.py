@@ -99,6 +99,5 @@ def sync_optix_identity(*, token: str) -> tuple[bool, dict[str, Any]]:
         phone=user_info.get("phone", ""),
         is_admin=bool(user_info.get("is_admin", False)),
         team_ids=team_ids,
-        notif_prefs=["email"],
     )
     return created, user_doc
