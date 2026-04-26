@@ -69,9 +69,20 @@ def optional_phone(value: Any) -> str | None:
     phone = value.strip()
     if not phone:
         return None
-    if not phone.startswith("+") or not phone[1:].isdigit():
-        raise APIError(422, "phone must use E.164 format")
     return phone
+
+
+def is_e164_phone(value: str) -> bool:
+    """True if ``value`` is a plausible E.164 destination (e.g. Twilio ``to``)."""
+    s = value.strip()
+    if len(s) < 2 or not s.startswith("+"):
+        return False
+    digits = s[1:]
+    if not digits.isdigit() or digits[0] == "0":
+        return False
+    if not 2 <= len(digits) <= 15:
+        return False
+    return True
 
 
 def parse_distinct_object_ids(values: Any, field_name: str) -> list[ObjectId]:

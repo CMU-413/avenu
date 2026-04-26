@@ -74,6 +74,7 @@ describe("App magic-link bootstrap", () => {
       emailNotifications: true,
       smsNotifications: false,
       hasPhone: false,
+      hasSmsPhone: false,
     });
 
     render(

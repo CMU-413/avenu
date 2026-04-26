@@ -2,6 +2,8 @@ export interface NotificationPreferenceState {
   emailNotifications: boolean;
   smsNotifications: boolean;
   hasPhone: boolean;
+  /** Backend: phone is E.164 and can be used for SMS. */
+  hasSmsPhone: boolean;
 }
 
 export interface NotificationSettingsState extends NotificationPreferenceState {
@@ -11,12 +13,16 @@ export interface NotificationSettingsState extends NotificationPreferenceState {
 }
 
 export function deriveSettingsState(state: NotificationPreferenceState): NotificationSettingsState {
-  const smsDisabled = !state.hasPhone;
+  const smsDisabled = !state.hasSmsPhone;
   return {
     ...state,
-    smsNotifications: state.hasPhone ? state.smsNotifications : false,
+    smsNotifications: state.hasSmsPhone ? state.smsNotifications : false,
     smsDisabled,
-    smsInlineMessage: smsDisabled ? "Add a phone number to enable SMS notifications." : null,
+    smsInlineMessage: smsDisabled
+      ? state.hasPhone
+        ? "Use a phone number in international format (E.164, e.g. +1…) to enable SMS notifications."
+        : "Add a phone number to enable SMS notifications."
+      : null,
   };
 }
 
@@ -31,8 +37,8 @@ export function buildPreferencePatch(
   }
 
   if (typeof updates.smsNotifications === "boolean") {
-    patch.smsNotifications = current.hasPhone ? updates.smsNotifications : false;
-  } else if (!current.hasPhone && current.smsNotifications) {
+    patch.smsNotifications = current.hasSmsPhone ? updates.smsNotifications : false;
+  } else if (!current.hasSmsPhone && current.smsNotifications) {
     patch.smsNotifications = false;
   }
 

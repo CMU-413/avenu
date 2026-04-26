@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from errors import APIError
+from validators import is_e164_phone
 
 UNSET = object()
 _EMAIL_PREF = "email"
@@ -71,14 +72,21 @@ def normalize_effective_notification_state(
             effective_prefs.discard(_SMS_PREF)
 
     has_phone = effective_phone is not None
-    if not has_phone:
+    has_sms_phone = bool(effective_phone and is_e164_phone(effective_phone))
+    if not has_sms_phone:
         if explicit_sms_enable:
-            raise APIError(400, "SMS notifications require a valid phone number")
+            if not has_phone:
+                raise APIError(400, "SMS notifications require a valid phone number")
+            raise APIError(
+                400,
+                "SMS notifications require a phone number in E.164 format (for example +15551234567)",
+            )
         effective_prefs.discard(_SMS_PREF)
 
     return {
         "phone": effective_phone,
         "hasPhone": has_phone,
+        "hasSmsPhone": has_sms_phone,
         "notifPrefs": _to_ordered_storage_prefs(effective_prefs),
         "emailNotifications": _EMAIL_PREF in effective_prefs,
         "smsNotifications": _SMS_PREF in effective_prefs,
