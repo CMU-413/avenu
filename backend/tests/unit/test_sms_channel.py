@@ -61,6 +61,29 @@ class SMSChannelTests(unittest.TestCase):
         self.assertIn("missing phone", result["error"])
         self.assertEqual(provider.calls, [])
 
+    def test_send_returns_skipped_when_phone_is_not_e164(self):
+        provider = FakeSMSProvider()
+        channel = SMSChannel(provider)
+
+        result = channel.send(
+            {
+                "user": {
+                    "id": str(ObjectId()),
+                    "email": "member@example.com",
+                    "fullname": "Member User",
+                    "phone": "4125551234",
+                },
+                "triggeredBy": "admin",
+                "templateType": "mail-arrived",
+                "mailRequest": None,
+            }
+        )
+
+        self.assertEqual(result["channel"], "sms")
+        self.assertEqual(result["status"], "skipped")
+        self.assertIn("invalid phone for SMS", result["error"])
+        self.assertEqual(provider.calls, [])
+
     def test_send_special_case_formats_body_and_calls_provider(self):
         provider = FakeSMSProvider()
         channel = SMSChannel(provider)

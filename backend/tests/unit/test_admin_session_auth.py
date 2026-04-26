@@ -454,6 +454,7 @@ class AdminSessionAuthTests(unittest.TestCase):
                 "emailNotifications": True,
                 "smsNotifications": False,
                 "hasPhone": True,
+                "hasSmsPhone": True,
             },
         )
 
@@ -493,7 +494,13 @@ class AdminSessionAuthTests(unittest.TestCase):
         with self.client.session_transaction() as sess:
             sess["user_id"] = user_id
 
-        expected = {"id": user_id, "emailNotifications": True, "smsNotifications": False, "hasPhone": True}
+        expected = {
+            "id": user_id,
+            "emailNotifications": True,
+            "smsNotifications": False,
+            "hasPhone": True,
+            "hasSmsPhone": True,
+        }
         with patch("controllers.auth_guard.find_user", return_value=user_doc), patch(
             "controllers.member_controller.update_member_notification_preferences", return_value=expected
         ) as prefs_mock:
@@ -521,7 +528,13 @@ class AdminSessionAuthTests(unittest.TestCase):
         with self.client.session_transaction() as sess:
             sess["user_id"] = user_id
 
-        expected = {"id": user_id, "emailNotifications": True, "smsNotifications": True, "hasPhone": True}
+        expected = {
+            "id": user_id,
+            "emailNotifications": True,
+            "smsNotifications": True,
+            "hasPhone": True,
+            "hasSmsPhone": True,
+        }
         with patch("controllers.auth_guard.find_user", return_value=user_doc), patch(
             "controllers.member_controller.update_member_notification_preferences", return_value=expected
         ) as prefs_mock:

@@ -4,6 +4,7 @@ from datetime import date, datetime
 from typing import Union
 
 from services.notifications.providers.sms_provider import SMSProvider
+from validators import is_e164_phone
 from services.notifications.types import ChannelResult, SpecialCaseNotificationPayload, WeeklySummaryData, WeeklySummaryNotificationPayload
 
 
@@ -14,9 +15,12 @@ class SMSChannel:
         self.provider = provider
 
     def send(self, payload: WeeklySummaryNotificationPayload | SpecialCaseNotificationPayload) -> ChannelResult:
-        phone = self._resolve_phone(payload)
-        if not phone:
+        raw_phone = payload["user"].get("phone")
+        if not isinstance(raw_phone, str) or not raw_phone.strip():
             return {"channel": self.channel, "status": "skipped", "error": "missing phone"}
+        phone = raw_phone.strip()
+        if not is_e164_phone(phone):
+            return {"channel": self.channel, "status": "skipped", "error": "invalid phone for SMS"}
 
         if "summary" in payload:
             body = self._build_weekly_summary_body(payload)
@@ -36,12 +40,6 @@ class SMSChannel:
                 "status": "failed",
                 "error": str(exc),
             }
-
-    def _resolve_phone(self, payload: WeeklySummaryNotificationPayload | SpecialCaseNotificationPayload) -> str:
-        raw_phone = payload["user"].get("phone")
-        if not isinstance(raw_phone, str):
-            return ""
-        return raw_phone.strip()
 
     def _build_weekly_summary_body(self, payload: WeeklySummaryNotificationPayload) -> str:
         summary = payload["summary"]

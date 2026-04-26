@@ -9,6 +9,7 @@ export interface SessionUser {
   emailNotifications: boolean;
   smsNotifications: boolean;
   hasPhone: boolean;
+  hasSmsPhone: boolean;
 }
 
 export interface FeatureFlags {
@@ -30,6 +31,7 @@ interface AppState {
     emailNotifications: boolean;
     smsNotifications: boolean;
     hasPhone: boolean;
+    hasSmsPhone: boolean;
   }) => void;
   logout: () => void;
 }
