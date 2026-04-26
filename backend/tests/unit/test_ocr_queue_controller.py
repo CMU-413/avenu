@@ -313,10 +313,15 @@ class GetItemImageTests(_OcrQueueControllerTestBase):
 
         class _FakeGrid:
             content_type = "image/png"
+
+            def __init__(self):
+                self._buf = io.BytesIO(b"legacy")
+
             def read(self, n=-1):
-                return b"legacy"
+                return self._buf.read(n)
+
             def close(self):
-                pass
+                self._buf.close()
 
         with patch("controllers.ocr_queue_controller.get_ocr_queue_item", return_value=item), \
              patch("controllers.ocr_queue_controller.image_store.open_path") as open_mock, \
