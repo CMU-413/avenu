@@ -94,6 +94,8 @@ erDiagram
         string rawText "optional"
         string error "optional"
         ObjectId mailboxId FK "optional"
+        ObjectId fileId FK "optional; legacy GridFS reference, nullable for new uploads"
+        string imagePath "optional; relative path under IMAGE_STORE_DIR volume"
         datetime confirmedAt "optional"
         datetime createdAt
         datetime updatedAt

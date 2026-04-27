@@ -24,7 +24,13 @@ def create_ocr_job(*, created_by: ObjectId, date: str, item_count: int) -> Objec
     return r.inserted_id
 
 
-def create_ocr_queue_items(job_id: ObjectId, count: int, file_ids: list[ObjectId] | None = None) -> list[ObjectId]:
+def create_ocr_queue_items(
+    job_id: ObjectId,
+    count: int,
+    *,
+    file_ids: list[ObjectId] | None = None,
+    image_paths: list[str] | None = None,
+) -> list[ObjectId]:
     now = datetime.utcnow()
     docs = [
         {
@@ -38,6 +44,7 @@ def create_ocr_queue_items(job_id: ObjectId, count: int, file_ids: list[ObjectId
             "error": None,
             "mailboxId": None,
             "fileId": file_ids[i] if file_ids and i < len(file_ids) else None,
+            "imagePath": image_paths[i] if image_paths and i < len(image_paths) else None,
             "confirmedAt": None,
             "createdAt": now,
             "updatedAt": now,

@@ -5,6 +5,11 @@ export interface ApiFeatureFlags {
   adminOcr: boolean;
   ocrQueueV2: boolean;
   ocrShadowLaunch: boolean;
+  /**
+   * When true, uploaded queue images are OCR'd automatically; when false they land as
+   * `pending` for manual review. Implies `adminOcr`.
+   */
+  ocrAutoExtract: boolean;
 }
 
 export function fetchFeatureFlags(): Promise<ApiFeatureFlags> {

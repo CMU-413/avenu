@@ -75,6 +75,9 @@ jobs:
     runs-on: ubuntu-latest
     needs: detect-changes
     if: needs.detect-changes.outputs.any_changed == 'true'
+    # Guard against hanging tests eating the whole runner budget; a healthy
+    # build job finishes in a few minutes.
+    timeout-minutes: 15
 
     strategy:
       matrix: ${{ fromJSON(needs.detect-changes.outputs.build_matrix) }}
