@@ -14,6 +14,7 @@ from config import (
     FEATURE_ADMIN_OCR,
     FEATURE_OCR_AUTO_EXTRACT,
     FEATURE_OCR_QUEUE_V2,
+    FEATURE_PROMO_CLASSIFICATION,
     OCR_MAX_FILE_BYTES,
     fs,
     ocr_queue_items_collection,
@@ -140,6 +141,7 @@ def _serialize_item(doc: dict[str, Any]) -> dict:
         "mailboxId": str(doc["mailboxId"]) if doc.get("mailboxId") else None,
         "fileId": str(doc["fileId"]) if doc.get("fileId") else None,
         "imagePath": doc.get("imagePath"),
+        "isPromotional": bool(doc.get("isPromotional")),
         "confirmedAt": doc["confirmedAt"].isoformat() if doc.get("confirmedAt") else None,
     }
 
@@ -265,6 +267,8 @@ def update_queue_item(item_id: str):
     if "mailboxId" in data:
         mb = data["mailboxId"]
         repo_kwargs["mailbox_id"] = ObjectId(mb) if mb and ObjectId.is_valid(mb) else None
+    if "isPromotional" in data and FEATURE_PROMO_CLASSIFICATION:
+        repo_kwargs["is_promotional"] = bool(data["isPromotional"])
 
     if repo_kwargs:
         update_ocr_queue_item(oid, **repo_kwargs)
@@ -323,6 +327,8 @@ def confirm_queue_item(item_id: str):
             "receiverName": item.get("receiverName"),
             "senderInfo": item.get("senderInfo"),
         }
+        if FEATURE_PROMO_CLASSIFICATION and item.get("isPromotional"):
+            payload["isPromotional"] = True
         created_mail = create_mail(payload)
 
         now = datetime.utcnow()

@@ -19,6 +19,8 @@ export interface ApiMailRecord {
   count?: number;
   receiverName?: string | null;
   senderInfo?: string | null;
+  /** Admin-set classification. Absent on server means false. */
+  isPromotional?: boolean;
   createdAt: string;
   updatedAt: string;
 }

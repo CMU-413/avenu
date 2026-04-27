@@ -162,6 +162,9 @@ def build_mail_create(payload: dict[str, Any]) -> dict[str, Any]:
     sender = _optional_text(payload, "senderInfo", 500)
     if sender is not None:
         doc["senderInfo"] = sender
+    if "isPromotional" in payload:
+        if optional_bool(payload, "isPromotional"):
+            doc["isPromotional"] = True
     return doc
 
 
@@ -187,6 +190,8 @@ def build_mail_patch(payload: dict[str, Any]) -> dict[str, Any]:
         patch["receiverName"] = _optional_text(payload, "receiverName", 2000)
     if "senderInfo" in payload:
         patch["senderInfo"] = _optional_text(payload, "senderInfo", 500)
+    if "isPromotional" in payload:
+        patch["isPromotional"] = optional_bool(payload, "isPromotional")
 
     if "count" in payload:
         n = _optional_mail_piece_count(payload)

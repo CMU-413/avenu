@@ -290,6 +290,93 @@ class ConfirmFlowTests(_OcrQueueControllerTestBase):
         release.assert_called_once()
 
 
+class PromoClassificationGatingTests(_OcrQueueControllerTestBase):
+    """`FEATURE_PROMO_CLASSIFICATION=False` must drop `isPromotional` from
+    both PATCH writes and the MAIL payload created at confirm time."""
+
+    def _item(self, **over):
+        base = {
+            "_id": ObjectId(),
+            "jobId": ObjectId(),
+            "index": 0,
+            "status": "completed",
+            "type": "letter",
+            "receiverName": "Jane",
+            "senderInfo": "Acme",
+            "mailboxId": ObjectId(),
+            "confirmedAt": None,
+            "isPromotional": False,
+        }
+        base.update(over)
+        return base
+
+    def test_patch_ignores_is_promotional_when_flag_disabled(self):
+        item = self._item()
+        with patch("controllers.ocr_queue_controller.FEATURE_PROMO_CLASSIFICATION", False), \
+             patch("controllers.ocr_queue_controller.get_ocr_queue_item", side_effect=[item, item]), \
+             patch("controllers.ocr_queue_controller.update_ocr_queue_item") as upd:
+            resp = self.client.patch(
+                f"/api/ocr/queue/{item['_id']}",
+                json={"receiverName": "Jane", "isPromotional": True},
+            )
+        self.assertEqual(resp.status_code, 200)
+        kwargs = upd.call_args.kwargs
+        self.assertNotIn("is_promotional", kwargs)
+        self.assertEqual(kwargs.get("receiver_name"), "Jane")
+
+    def test_patch_accepts_is_promotional_when_flag_enabled(self):
+        item = self._item()
+        with patch("controllers.ocr_queue_controller.FEATURE_PROMO_CLASSIFICATION", True), \
+             patch("controllers.ocr_queue_controller.get_ocr_queue_item", side_effect=[item, item]), \
+             patch("controllers.ocr_queue_controller.update_ocr_queue_item") as upd:
+            resp = self.client.patch(
+                f"/api/ocr/queue/{item['_id']}",
+                json={"isPromotional": True},
+            )
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(upd.call_args.kwargs.get("is_promotional"), True)
+
+    def test_confirm_omits_is_promotional_from_mail_payload_when_flag_disabled(self):
+        # Even if a stale queue row carries isPromotional=True, the MAIL doc
+        # should not gain the field while the flag is off.
+        item = self._item(isPromotional=True)
+        job = {"_id": item["jobId"], "date": "2025-01-01"}
+        confirmed_item = {**item, "status": "confirmed", "confirmedAt": datetime.utcnow()}
+        with patch("controllers.ocr_queue_controller.FEATURE_PROMO_CLASSIFICATION", False), \
+             patch("controllers.ocr_queue_controller.get_ocr_queue_item",
+                   side_effect=[item, confirmed_item]), \
+             patch("controllers.ocr_queue_controller.get_ocr_job", return_value=job), \
+             patch("controllers.ocr_queue_controller.reserve_or_replay_request", return_value=None), \
+             patch("controllers.ocr_queue_controller.store_response"), \
+             patch("controllers.ocr_queue_controller.create_mail",
+                   return_value={"_id": ObjectId(), "mailboxId": item["mailboxId"],
+                                 "type": "letter", "date": datetime(2025, 1, 1)}) as cm, \
+             patch("controllers.ocr_queue_controller.update_ocr_queue_item"):
+            resp = self.client.post(f"/api/ocr/queue/{item['_id']}/confirm")
+        self.assertEqual(resp.status_code, 200)
+        payload = cm.call_args.args[0]
+        self.assertNotIn("isPromotional", payload)
+
+    def test_confirm_propagates_is_promotional_to_mail_payload_when_flag_enabled(self):
+        item = self._item(isPromotional=True)
+        job = {"_id": item["jobId"], "date": "2025-01-01"}
+        confirmed_item = {**item, "status": "confirmed", "confirmedAt": datetime.utcnow()}
+        with patch("controllers.ocr_queue_controller.FEATURE_PROMO_CLASSIFICATION", True), \
+             patch("controllers.ocr_queue_controller.get_ocr_queue_item",
+                   side_effect=[item, confirmed_item]), \
+             patch("controllers.ocr_queue_controller.get_ocr_job", return_value=job), \
+             patch("controllers.ocr_queue_controller.reserve_or_replay_request", return_value=None), \
+             patch("controllers.ocr_queue_controller.store_response"), \
+             patch("controllers.ocr_queue_controller.create_mail",
+                   return_value={"_id": ObjectId(), "mailboxId": item["mailboxId"],
+                                 "type": "letter", "date": datetime(2025, 1, 1)}) as cm, \
+             patch("controllers.ocr_queue_controller.update_ocr_queue_item"):
+            resp = self.client.post(f"/api/ocr/queue/{item['_id']}/confirm")
+        self.assertEqual(resp.status_code, 200)
+        payload = cm.call_args.args[0]
+        self.assertIs(payload.get("isPromotional"), True)
+
+
 class GetItemImageTests(_OcrQueueControllerTestBase):
     def test_get_image_prefers_filesystem_when_path_present(self):
         item_id = ObjectId()
