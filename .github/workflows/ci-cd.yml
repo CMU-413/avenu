@@ -187,15 +187,13 @@ jobs:
 
   deploy:
     name: build & push GHCR images
+    # Only publish images on merges to main. Pull requests run build/test
+    # jobs above but never push to GHCR — that avoids cluttering the
+    # registry with `pr-NN` tags and removes the packages:write surface
+    # area on PR-triggered runs.
     if: >-
-      always() &&
-      (
-        (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
-        (
-          github.event_name == 'pull_request' &&
-          github.event.pull_request.head.repo.full_name == github.repository
-        )
-      ) &&
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/main' &&
       needs.detect-changes.result == 'success' &&
       (needs.build.result == 'success' || needs.build.result == 'skipped') &&
       (needs.backend-integration.result == 'success' || needs.backend-integration.result == 'skipped')
@@ -229,21 +227,12 @@ jobs:
         env:
           IMAGE_NAME: ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_OWNER }}/avenu-${{ matrix.service }}
         run: |
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            {
-              echo "tags<<EOF"
-              echo "${IMAGE_NAME}:pr-${{ github.event.pull_request.number }}"
-              echo "${IMAGE_NAME}:pr-${{ github.event.pull_request.number }}-sha-${{ github.sha }}"
-              echo "EOF"
-            } >> "$GITHUB_OUTPUT"
-          else
-            {
-              echo "tags<<EOF"
-              echo "${IMAGE_NAME}:latest"
-              echo "${IMAGE_NAME}:sha-${{ github.sha }}"
-              echo "EOF"
-            } >> "$GITHUB_OUTPUT"
-          fi
+          {
+            echo "tags<<EOF"
+            echo "${IMAGE_NAME}:latest"
+            echo "${IMAGE_NAME}:sha-${{ github.sha }}"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Docker Build & Push
         uses: docker/build-push-action@v5
