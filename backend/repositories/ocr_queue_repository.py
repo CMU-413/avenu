@@ -32,6 +32,11 @@ def create_ocr_queue_items(
     image_paths: list[str] | None = None,
 ) -> list[ObjectId]:
     now = datetime.utcnow()
+    # Note: queue items store `isPromotional: False` explicitly while MAIL
+    # docs omit the field when false (see `build_mail_create`). The asymmetry
+    # is intentional: the review UI reads queue rows directly and benefits
+    # from the field always being present, whereas MAIL is the source of
+    # truth for downstream consumers and stays sparse.
     docs = [
         {
             "jobId": job_id,
