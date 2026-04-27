@@ -45,4 +45,5 @@ def update_member_notification_preferences(
         "emailNotifications": normalized["emailNotifications"],
         "smsNotifications": normalized["smsNotifications"],
         "hasPhone": normalized["hasPhone"],
+        "hasSmsPhone": normalized["hasSmsPhone"],
     }

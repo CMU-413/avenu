@@ -55,6 +55,8 @@ export interface ApiSessionMe {
   emailNotifications: boolean;
   smsNotifications: boolean;
   hasPhone: boolean;
+  /** True when stored phone is usable as an SMS destination (E.164). */
+  hasSmsPhone: boolean;
 }
 
 export interface ApiMemberMailboxDay {
@@ -81,6 +83,7 @@ export interface ApiMemberPreferences {
   emailNotifications: boolean;
   smsNotifications: boolean;
   hasPhone: boolean;
+  hasSmsPhone: boolean;
 }
 
 export type ApiMailRequestStatus = "ACTIVE" | "CANCELLED" | "RESOLVED";

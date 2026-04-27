@@ -23,6 +23,7 @@ class UserPreferencesTests(unittest.TestCase):
         self.assertTrue(result["emailNotifications"])
         self.assertTrue(result["smsNotifications"])
         self.assertTrue(result["hasPhone"])
+        self.assertTrue(result["hasSmsPhone"])
 
     def test_normalize_effective_preferences_treats_whitespace_phone_as_missing(self):
         current_user = {
@@ -36,6 +37,7 @@ class UserPreferencesTests(unittest.TestCase):
         self.assertTrue(result["emailNotifications"])
         self.assertFalse(result["smsNotifications"])
         self.assertFalse(result["hasPhone"])
+        self.assertFalse(result["hasSmsPhone"])
 
     def test_normalize_effective_preferences_rejects_text_when_explicitly_enabled_without_phone(self):
         current_user = {
@@ -51,6 +53,37 @@ class UserPreferencesTests(unittest.TestCase):
 
         self.assertEqual(ctx.exception.status_code, 400)
         self.assertEqual(ctx.exception.message, "SMS notifications require a valid phone number")
+
+    def test_normalize_effective_preferences_strips_text_when_phone_is_not_e164(self):
+        current_user = {
+            "notifPrefs": ["email", "text"],
+            "phone": "4125551234",
+        }
+
+        result = normalize_effective_notification_state(current_user=current_user)
+
+        self.assertEqual(result["notifPrefs"], ["email"])
+        self.assertFalse(result["smsNotifications"])
+        self.assertTrue(result["hasPhone"])
+        self.assertFalse(result["hasSmsPhone"])
+
+    def test_normalize_effective_preferences_rejects_text_when_phone_is_naive_us_number(self):
+        current_user = {
+            "notifPrefs": [],
+            "phone": "4125551234",
+        }
+
+        with self.assertRaises(APIError) as ctx:
+            normalize_effective_notification_state(
+                current_user=current_user,
+                sms_notifications_patch=True,
+            )
+
+        self.assertEqual(ctx.exception.status_code, 400)
+        self.assertEqual(
+            ctx.exception.message,
+            "SMS notifications require a phone number in E.164 format (for example +15551234567)",
+        )
 
 
 if __name__ == "__main__":

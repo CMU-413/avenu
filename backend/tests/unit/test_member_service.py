@@ -31,6 +31,7 @@ class MemberServiceTests(unittest.TestCase):
                 "emailNotifications": True,
                 "smsNotifications": True,
                 "hasPhone": True,
+                "hasSmsPhone": True,
             },
         )
 
@@ -67,6 +68,47 @@ class MemberServiceTests(unittest.TestCase):
                 "emailNotifications": True,
                 "smsNotifications": False,
                 "hasPhone": False,
+                "hasSmsPhone": False,
+            },
+        )
+
+    def test_update_member_preferences_rejects_sms_when_phone_is_not_e164(self):
+        user = {"_id": ObjectId(), "notifPrefs": ["email"], "phone": "4125551234"}
+
+        with patch("services.member_service.update_notif_prefs") as update_mock:
+            with self.assertRaises(APIError) as ctx:
+                update_member_notification_preferences(
+                    user=user,
+                    sms_notifications=True,
+                )
+
+        self.assertEqual(ctx.exception.status_code, 400)
+        self.assertEqual(
+            ctx.exception.message,
+            "SMS notifications require a phone number in E.164 format (for example +15551234567)",
+        )
+        update_mock.assert_not_called()
+
+    def test_update_member_preferences_returns_has_sms_phone_false_for_naive_phone(self):
+        user_id = ObjectId()
+        user = {"_id": user_id, "notifPrefs": ["email"], "phone": "4125551234"}
+
+        with patch("services.member_service.update_notif_prefs") as update_mock:
+            response = update_member_notification_preferences(
+                user=user,
+                email_notifications=True,
+            )
+
+        update_mock.assert_called_once()
+        self.assertEqual(update_mock.call_args.args[1], ["email"])
+        self.assertEqual(
+            response,
+            {
+                "id": str(user_id),
+                "emailNotifications": True,
+                "smsNotifications": False,
+                "hasPhone": True,
+                "hasSmsPhone": False,
             },
         )
 

@@ -19,8 +19,14 @@ const NotificationSettings = () => {
       emailNotifications: sessionUser?.emailNotifications ?? false,
       smsNotifications: sessionUser?.smsNotifications ?? false,
       hasPhone: sessionUser?.hasPhone ?? false,
+      hasSmsPhone: sessionUser?.hasSmsPhone ?? false,
     }),
-    [sessionUser?.emailNotifications, sessionUser?.smsNotifications, sessionUser?.hasPhone],
+    [
+      sessionUser?.emailNotifications,
+      sessionUser?.smsNotifications,
+      sessionUser?.hasPhone,
+      sessionUser?.hasSmsPhone,
+    ],
   );
   const activePrefs = optimisticPrefs ?? basePrefs;
   const settings = deriveSettingsState(activePrefs);
@@ -40,6 +46,7 @@ const NotificationSettings = () => {
           emailNotifications: updated.emailNotifications,
           smsNotifications: updated.smsNotifications,
           hasPhone: updated.hasPhone,
+          hasSmsPhone: updated.hasSmsPhone,
         };
         setSessionNotificationPreferences(next);
         setOptimisticPrefs(next);
@@ -61,7 +68,7 @@ const NotificationSettings = () => {
 
   useEffect(() => {
     if (pending) return;
-    if (!activePrefs.hasPhone && activePrefs.smsNotifications) {
+    if (!activePrefs.hasSmsPhone && activePrefs.smsNotifications) {
       const patch = buildPreferencePatch(basePrefs, { smsNotifications: false });
       const optimisticNext = {
         ...basePrefs,
@@ -69,7 +76,7 @@ const NotificationSettings = () => {
       };
       void persistPreferences(patch, optimisticNext, basePrefs);
     }
-  }, [pending, activePrefs.hasPhone, activePrefs.smsNotifications, basePrefs, persistPreferences]);
+  }, [pending, activePrefs.hasSmsPhone, activePrefs.smsNotifications, basePrefs, persistPreferences]);
 
   if (!sessionUser) return null;
 

@@ -80,6 +80,7 @@ function toSessionUser(session: ApiSessionMe): SessionUser {
     emailNotifications: session.emailNotifications,
     smsNotifications: session.smsNotifications,
     hasPhone: session.hasPhone,
+    hasSmsPhone: session.hasSmsPhone,
   };
 }
 

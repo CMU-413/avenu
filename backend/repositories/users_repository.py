@@ -14,6 +14,9 @@ from .common import run_in_transaction
 from .mail_repository import delete_by_mailbox
 from .mailboxes_repository import delete_mailbox, find_owner_mailbox, insert_mailbox, update_owner_display_name
 from .teams_repository import count_by_ids
+from services.user_preferences import normalize_effective_notification_state
+
+DEFAULT_EXTERNAL_IDENTITY_NOTIF_PREFS = ["email"]
 
 
 def list_users() -> list[dict[str, Any]]:
@@ -152,7 +155,6 @@ def upsert_user_from_external_identity(
     phone: str,
     is_admin: bool,
     team_ids: list[ObjectId],
-    notif_prefs: list[str],
 ) -> tuple[dict[str, Any], bool]:
     existing = find_user_by_optix_id(optix_id)
     if existing is None:
@@ -164,7 +166,7 @@ def upsert_user_from_external_identity(
                 "phone": phone,
                 "isAdmin": is_admin,
                 "teamIds": team_ids,
-                "notifPrefs": notif_prefs,
+                "notifPrefs": DEFAULT_EXTERNAL_IDENTITY_NOTIF_PREFS,
             }
         )
         mailbox_doc = build_mailbox_doc(owner_type="user", ref_id=ObjectId(), display_name=user_doc["fullname"])
@@ -174,16 +176,37 @@ def upsert_user_from_external_identity(
         except DuplicateKeyError as exc:
             raise APIError(409, "user with same optixId or email already exists") from exc
 
-    patch = build_user_patch(
+    candidate_patch = build_user_patch(
         {
             "fullname": fullname,
             "email": email,
             "phone": phone,
             "isAdmin": is_admin,
             "teamIds": team_ids,
-            "notifPrefs": notif_prefs,
         }
     )
+    patch: dict[str, Any] = {}
+    for key in ("fullname", "email", "phone", "isAdmin"):
+        if existing.get(key) != candidate_patch.get(key):
+            patch[key] = candidate_patch[key]
+
+    if "phone" in patch:
+        normalized = normalize_effective_notification_state(
+            current_user=existing,
+            phone_patch=candidate_patch["phone"],
+        )
+        if normalized["notifPrefs"] != existing.get("notifPrefs", []):
+            patch["notifPrefs"] = normalized["notifPrefs"]
+
+    current_team_ids = {str(team_id) for team_id in existing.get("teamIds", [])}
+    next_team_ids = {str(team_id) for team_id in candidate_patch.get("teamIds", [])}
+    if current_team_ids != next_team_ids:
+        patch["teamIds"] = candidate_patch["teamIds"]
+
+    if not patch:
+        return existing, False
+
+    patch["updatedAt"] = candidate_patch["updatedAt"]
     try:
         updated = update_user_with_mailbox_sync(user_id=existing["_id"], patch=patch)
         return updated, False

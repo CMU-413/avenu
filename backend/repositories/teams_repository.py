@@ -8,7 +8,7 @@ from pymongo.errors import DuplicateKeyError
 
 from config import teams_collection, users_collection
 from errors import APIError
-from models import build_mailbox_doc, build_team_create
+from models import build_mailbox_doc, build_team_create, build_team_patch
 
 from .common import run_in_transaction
 from .mail_repository import delete_by_mailbox
@@ -103,7 +103,14 @@ def delete_team_cascade(*, team_id: ObjectId, prune_users: bool) -> None:
 def ensure_team_from_external_identity(*, optix_id: int, name: str) -> dict[str, Any]:
     existing = find_team_by_optix_id(optix_id)
     if existing is not None:
-        return existing
+        candidate_patch = build_team_patch({"name": name})
+        if existing.get("name") == candidate_patch["name"]:
+            return existing
+        patch = {
+            "name": candidate_patch["name"],
+            "updatedAt": candidate_patch["updatedAt"],
+        }
+        return update_team_with_mailbox_sync(team_id=existing["_id"], patch=patch)
 
     team_doc = build_team_create({"optixId": optix_id, "name": name})
     mailbox_doc = build_mailbox_doc(owner_type="team", ref_id=ObjectId(), display_name=team_doc["name"])

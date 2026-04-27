@@ -158,6 +158,7 @@ def session_me():
                 "emailNotifications": normalized["emailNotifications"],
                 "smsNotifications": normalized["smsNotifications"],
                 "hasPhone": normalized["hasPhone"],
+                "hasSmsPhone": normalized["hasSmsPhone"],
             }
         ),
         200,
