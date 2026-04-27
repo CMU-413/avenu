@@ -32,6 +32,11 @@ def create_ocr_queue_items(
     image_paths: list[str] | None = None,
 ) -> list[ObjectId]:
     now = datetime.utcnow()
+    # Note: queue items store `isPromotional: False` explicitly while MAIL
+    # docs omit the field when false (see `build_mail_create`). The asymmetry
+    # is intentional: the review UI reads queue rows directly and benefits
+    # from the field always being present, whereas MAIL is the source of
+    # truth for downstream consumers and stays sparse.
     docs = [
         {
             "jobId": job_id,
@@ -45,6 +50,7 @@ def create_ocr_queue_items(
             "mailboxId": None,
             "fileId": file_ids[i] if file_ids and i < len(file_ids) else None,
             "imagePath": image_paths[i] if image_paths and i < len(image_paths) else None,
+            "isPromotional": False,
             "confirmedAt": None,
             "createdAt": now,
             "updatedAt": now,
@@ -99,6 +105,7 @@ def update_ocr_queue_item(
     raw_text: str | None = None,
     error: str | None = None,
     mailbox_id: ObjectId | None | object = _SENTINEL,
+    is_promotional: bool | object = _SENTINEL,
     confirmed_at: datetime | None = None,
 ) -> bool:
     updates: dict[str, Any] = {"updatedAt": datetime.utcnow()}
@@ -116,6 +123,8 @@ def update_ocr_queue_item(
         updates["error"] = error
     if mailbox_id is not _SENTINEL:
         updates["mailboxId"] = mailbox_id
+    if is_promotional is not _SENTINEL:
+        updates["isPromotional"] = bool(is_promotional)
     if confirmed_at is not None:
         updates["confirmedAt"] = confirmed_at
     r = ocr_queue_items_collection.update_one({"_id": item_id}, {"$set": updates})

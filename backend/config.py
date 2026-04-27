@@ -88,6 +88,9 @@ IMAGE_STORE_DIR = os.getenv("IMAGE_STORE_DIR", "/var/lib/avenu/images").strip() 
 # Nightly prune deletes anything older than this many hours (both files and queue rows).
 IMAGE_RETENTION_HOURS = _env_positive_int("IMAGE_RETENTION_HOURS", 24)
 
+# Admin toggle to mark incoming mail as promotional. Independent of OCR; default off.
+FEATURE_PROMO_CLASSIFICATION = _env_bool("FEATURE_PROMO_CLASSIFICATION", False)
+
 
 def get_feature_flags() -> dict[str, bool]:
     return {
@@ -95,6 +98,7 @@ def get_feature_flags() -> dict[str, bool]:
         "ocrQueueV2": FEATURE_OCR_QUEUE_V2 and FEATURE_ADMIN_OCR,
         "ocrShadowLaunch": FEATURE_OCR_SHADOW_LAUNCH and FEATURE_ADMIN_OCR,
         "ocrAutoExtract": FEATURE_OCR_AUTO_EXTRACT and FEATURE_ADMIN_OCR,
+        "promoClassification": FEATURE_PROMO_CLASSIFICATION,
     }
 
 
