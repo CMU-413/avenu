@@ -5,32 +5,36 @@ Admin["Avenu Admin<br>[Person]"]
 
 subgraph Avenu["Avenu Mail System"]
 
-    Frontend["Frontend<br>[Container: React, JavaScript]<br>Single-page application used by admins and members"]
+    Frontend["Frontend<br>[Container: React SPA]<br>Used by admins and members"]
 
-    Backend["Backend<br>[Container: Python, Flask]<br>Implements business logic, notifications, and external integrations"]
+    Backend["Backend<br>[Container: Python, Flask]<br>Owns business logic, persistence, notifications,<br>external integrations, and self-hosted OCR"]
 
-    Scheduler["Scheduler<br>[Container: Python Job Runner]<br>Executes time-based jobs by invoking Backend APIs"]
+    Scheduler["Scheduler<br>[Container: Python Job Runner]<br>Triggers scheduled jobs via backend APIs<br>(does not access DB directly)"]
+
+    OCR["Self-hosted OCR<br>[Backend capability: Tesseract]<br>Extracts text from staged mail photos"]
 
 end
 
-MongoDB["MongoDB Atlas<br>[External Managed Database]<br>Stores users, teams, mailboxes, mail entries,<br>and notification logs/preferences"]
+subgraph External["External Systems"]
 
-Optix["Optix API<br>[External System]<br>Authoritative identity source"]
+    MongoDB["MongoDB Atlas<br>[Managed Database]<br>System of record for users, teams, mailboxes,<br>mail entries, requests, and notification logs"]
 
-EmailProvider["Email Provider API<br>[External System]"]
+    Optix["Optix API<br>[Identity Provider]<br>Authoritative source for users and companies"]
 
-SMSProvider["SMS Provider API<br>[External System]"]
+    EmailProvider["Email Provider API<br>[External Notification Provider]"]
 
-OCRProvider["OCR API<br>[External System]"]
+    SMSProvider["SMS Provider API<br>[External Notification Provider]"]
+
+end
 
 Member -->|"Uses"| Frontend
 Admin -->|"Uses"| Frontend
 
-Frontend -->|"Makes API requests to<br>[JSON/HTTPS]"| Backend
-Scheduler -->|"Makes internal API requests to<br>[HTTP]"| Backend
+Frontend -->|"JSON/HTTPS API calls"| Backend
+Scheduler -->|"Internal HTTP calls"| Backend
 
-Backend -->|"Reads from and writes to<br>[MongoDB/TLS]"| MongoDB
-Backend -->|"Makes API requests to<br>[JSON/HTTPS]"| Optix
-Backend -->|"Sends notifications via<br>[HTTPS]"| EmailProvider
-Backend -->|"Sends notifications via<br>[HTTPS]"| SMSProvider
-Backend -->|"Makes API requests to<br>[JSON/HTTPS]"| OCRProvider
+Backend -->|"Runs OCR locally"| OCR
+Backend -->|"Reads/writes via TLS"| MongoDB
+Backend -->|"Syncs identity"| Optix
+Backend -->|"Sends email"| EmailProvider
+Backend -->|"Sends SMS"| SMSProvider
