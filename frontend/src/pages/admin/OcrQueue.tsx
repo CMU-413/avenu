@@ -26,6 +26,7 @@ import {
   type ApiOcrJob,
   type ApiOcrQueueItem,
 } from "@/lib/api";
+import { buildUrl } from "@/lib/http/client";
 import { useAppStore } from "@/lib/store";
 import { findCloseMailboxMatch } from "@/lib/mailboxMatch";
 
@@ -557,9 +558,9 @@ const OcrQueue = () => {
               {/* Left Column: Image */}
               <div className="rounded-xl overflow-hidden bg-muted flex items-center justify-center border aspect-[3/4] md:aspect-auto">
                 {effectiveItem && (effectiveItem.imagePath || effectiveItem.fileId) ? (
-                   <img 
-                     src={`/api/ocr/queue/${effectiveItem.id}/image`} 
-                     alt="Mail Item" 
+                   <img
+                     src={buildUrl(`/ocr/queue/${effectiveItem.id}/image`)}
+                     alt="Mail Item"
                      className="max-h-full max-w-full object-contain"
                    />
                 ) : (
